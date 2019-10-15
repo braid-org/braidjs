@@ -1,0 +1,20 @@
+{
+  "name": "braidjs",
+  "version": "0.0.1",
+  "description": "Synchronization for the Web (reference implementation)",
+  "main": "braid-peer.js",
+  "scripts": {
+    "test": "node tests.js"
+  },
+  "author": "Braid Working Group",
+  "repository": "braid-work/braid",
+  "dependencies": {
+    "bcrypt-nodejs": "0.0.3",
+    "chokidar": "^1.7.0",
+    "coffeescript": "^2.3.1",
+    "cookie": "^0.3.1",
+    "express": "^4.15.3",
+    "sockjs": "^0.3.18",
+    "websocket": "^1.0.24"
+  }
+}
