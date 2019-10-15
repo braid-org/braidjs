@@ -1,9 +1,11 @@
-# Braidjs Reference Implementation
+# Braidjs
 
-These libraries implement a reference implementation of the
+Braidjs is a reference implementation in Javascript of the
 [Braid protocol](https://github.com/braid-work/ietf-braid-draft), which adds
-*synchronization* to HTTP.  This implementation is not yet complete, but aims
-to be fully-functioning and robust enough for production sites.
+*synchronization* to HTTP.
+
+This implementation is not yet complete, but aims to be fully-functioning and
+robust enough for production sites.
 
 *We intentionally keep this readme short.* Read more about braid at https://braid.news!
 
