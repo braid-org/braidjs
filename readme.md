@@ -1,6 +1,6 @@
 # Braidjs
 
-Braidjs is a reference implementation in Javascript of the
+This is a reference implementation in Javascript of the
 [Braid protocol](https://github.com/braid-work/ietf-braid-draft), which adds
 *synchronization* to HTTP.
 
@@ -13,13 +13,13 @@ robust enough for production sites.
 ## What's in this repository?
 
 ```
-braid-peer.js       # A Braid Peer in Javascript
-http-client.js      # Extends a web browser into a Braid HTTP client
-http-server.js      # Extends a nodejs server into a Braid HTTP server
-state-control.js    # Validation, access control, programmatic state on a peer
-reactivity.js       # Support for reactive programming environment
-proxy.js            # A Braid Peer as ES6 Proxy
-merge-algos/        # OT and CRDT implementations
+braid-peer.js       # Implements the abstract Braid protocol on a `peer` object in Javascript
+http-client.js      # Implements the Braid HTTP protocol to web browsers
+http-server.js      # Implements the Braid HTTP protocol in nodejs servers
+state-control.js    # Supports validation, access control, programmatic state on a peer
+reactivity.js       # Supports a reactive programming on a peer
+proxy.js            # Implements a Braid peer as ES6 Proxy
+merge-algos/        # Implementations for OT and CRDT merge-types
   /sync9.js
 tests.js
 ```
