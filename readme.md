@@ -14,11 +14,11 @@ robust enough for production sites.
 
 ```
 braid-peer.js       # Implements the abstract Braid protocol on a `peer` object in Javascript
-http-client.js      # Implements the Braid HTTP protocol to web browsers
+http-client.js      # Implements the Braid HTTP protocol in web browsers
 http-server.js      # Implements the Braid HTTP protocol in nodejs servers
-state-control.js    # Supports validation, access control, programmatic state on a peer
-reactivity.js       # Supports a reactive programming on a peer
-proxy.js            # Implements a Braid peer as ES6 Proxy
+state-control.js    # Implements support for validation, access control, programmatic state on a peer
+reactivity.js       # Implements a reactive version of the abstract Braid protocol
+proxy.js            # Implements a reactive ES6 Proxy of the abstract Braid protocol
 merge-algos/        # Implementations for OT and CRDT merge-types
   /sync9.js
 tests.js
