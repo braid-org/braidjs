@@ -20,8 +20,8 @@ http-server.js     # Implements the Braid HTTP protocol in nodejs servers
 state-control.js   # Implements support for validation, access control, programmatic state on a peer
 reactivity.js      # Implements a reactive version of the abstract Braid protocol
 proxy.js           # Implements a reactive ES6 Proxy of the abstract Braid protocol
-merge-algos/       # Implementations for OT and CRDT merge-types
-  /sync9.js
+merge-algorithms/  # Implementations for OT and CRDT merge-types
+  sync9.js
 show-and-tell/
   tests.js         # Unit tests
   vis-sim.html     # Visual demonstration of a simulated peer-to-peer network
