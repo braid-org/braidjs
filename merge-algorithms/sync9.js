@@ -13,10 +13,10 @@ function create (resource) {
             return read(resource, version)
         },
 
-        prune2: function (has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2) {
-            prune2(resource,
-                   has_everyone_whos_seen_a_seen_b,
-                   has_everyone_whos_seen_a_seen_b2)
+        prune: function (has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2) {
+            prune(resource,
+                  has_everyone_whos_seen_a_seen_b,
+                  has_everyone_whos_seen_a_seen_b2)
         },
 
         generate_braid: function(is_anc
@@ -124,14 +124,14 @@ function space_dag_generate_braid(S, resource, vid, is_anc) {
 
 
 
-function prune2(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2) {
+function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2) {
     var seen_versions = {}
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
     function recurse(x) {
         if (is_lit(x)) return x
         if (x.t == 'val') {
-            space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
+            space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
             traverse_space_dag(x.S, () => true, node => {
                 node.elems = node.elems.slice(0, 1).map(recurse)
             }, true)
@@ -139,7 +139,7 @@ function prune2(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_see
             return x
         }
         if (x.t == 'arr') {
-            space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
+            space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
             traverse_space_dag(x.S, () => true, node => {
                 node.elems = node.elems.map(recurse)
             }, true)
@@ -156,7 +156,7 @@ function prune2(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_see
             return x
         }
         if (x.t == 'str') {
-            space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
+            space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
             if (x.S.nexts.length == 0 && !x.S.next && !Object.keys(x.S.deleted_by).length) return x.S.elems
             return x
         }
@@ -200,7 +200,7 @@ function prune2(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_see
     return delete_us
 }
 
-function space_dag_prune2(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
+function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
     function set_nnnext(node, next) {
         while (node.next) node = node.next
         node.next = next
@@ -570,17 +570,8 @@ function space_dag_add_version(S, vid, splices, is_anc) {
         if (node.next) helper(node.next, node, vid)
     }
     try {
-        
-        
-        
-        if (!S) {
-            debugger
-        }
-        
-        
+        if (!S) debugger
         helper(S, null, S.vid)
-        
-        
     } catch (e) {
         if (e != exit_early) throw e
     }
@@ -632,238 +623,6 @@ function parse_change(change) {
     return ret
 }
 
-function diff_ODI(a, b) {
-    var offset = 0
-    var prev = null
-    var ret = []
-    var d = diff_main(a, b)
-    for (var i = 0; i < d.length; i++) {
-        if (d[i][0] == 0) {
-            if (prev) ret.push(prev)
-            prev = null
-            offset += d[i][1].length
-        } else if (d[i][0] == 1) {
-            if (prev)
-                prev[2] += d[i][1]
-            else
-                prev = [offset, 0, d[i][1]]
-        } else {
-            if (prev)
-                prev[1] += d[i][1].length
-            else
-                prev = [offset, d[i][1].length, '']
-            offset += d[i][1].length
-        }
-    }
-    if (prev) ret.push(prev)
-    return ret
-}
-
-function guid() {
-    var x = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    var s = []
-    for (var i = 0; i < 15; i++)
-        s.push(x[Math.floor(Math.random() * x.length)])
-    return s.join('')
-}
-
-function create_proxy(x, cb, path) {
-    path = path || ''
-    var child_path = key => path + '[' + JSON.stringify(key) + ']'
-    return new Proxy(x, {
-        get : (x, key) => {
-            if (['copyWithin', 'reverse', 'sort', 'fill'].includes(key))
-                throw 'proxy does not support function: ' + key
-            if (key == 'push') return function () {
-                var args = Array.from(arguments)
-                cb([path + '[' + x.length + ':' + x.length + '] = ' + JSON.stringify(args)])
-                return x.push.apply(x, args)
-            }
-            if (key == 'pop') return function () {
-                cb([path + '[' + (x.length - 1) + ':' + x.length + '] = []'])
-                return x.pop()
-            }
-            if (key == 'shift') return function () {
-                cb([path + '[0:1] = []'])
-                return x.shift()
-            }
-            if (key == 'unshift') return function () {
-                var args = Array.from(arguments)
-                cb([path + '[0:0] = ' + JSON.stringify(args)])
-                return x.unshift.apply(x, args)
-            }
-            if (key == 'splice') return function () {
-                var args = Array.from(arguments)
-                cb([child_path(key) + '[' + args[0] + ':' + (args[0] + args[1]) + '] = ' + JSON.stringify(args.slice(2))])
-                return x.splice.apply(x, args)
-            }
-            
-            var y = x[key]
-            if (y && typeof(y) == 'object') {
-                return create_proxy(y, cb, child_path(key))
-            } else return y
-        },
-        set : (x, key, val) => {
-            if (typeof(val) == 'string' && typeof(x[key]) == 'string') {
-                cb(diff_ODI(x[key], val).map(splice => {
-                    return child_path(key) + '[' + splice[0] + ':' + (splice[0] + splice[1]) + '] = ' + JSON.stringify(splice[2])
-                }))
-            } else {
-                if ((x instanceof Array) && key.match(/^\d+$/)) key = +key
-                cb([child_path(key) + ' = ' + JSON.stringify(val)])
-            }
-            x[key] = val
-            return true
-        }
-    })
-}
-
-function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b_2) {
-    var seen_versions = {}
-    var did_something = true
-    function recurse(x) {
-        if (x && typeof(x) == 'object') {
-            if (!x.t && x.space_dag) {
-                recurse(x.space_dag)
-            } else if (x.t == 'val') {
-                if (space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
-                recurse(space_dag_get(x.S, 0))
-            } else if (x.t == 'obj') {
-                Object.values(x.S).forEach(v => recurse(v))
-            } else if (x.t == 'arr') {
-                if (space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
-                traverse_space_dag(x.S, () => true, node => {
-                    node.elems.forEach(e => recurse(e))
-                })
-            } else if (x.t == 'str') {
-                if (space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
-            }
-        }
-    }
-    while (did_something) {
-        did_something = false
-        recurse(x)
-    }
-
-    var visited = {}    
-    var delete_us = {}
-    function f(vid) {
-        if (visited[vid]) return
-        visited[vid] = true
-        Object.keys(x.time_dag[vid]).forEach(pid => {
-            if (has_everyone_whos_seen_a_seen_b_2(pid, vid) && !seen_versions[pid]) {
-                delete_us[pid] = true
-            }
-            f(pid)
-        })
-    }
-    Object.keys(x.current_version).forEach(f)
-
-    var visited = {}
-    var forwards = {}
-    function g(vid) {
-        if (visited[vid]) return
-        visited[vid] = true
-        if (delete_us[vid])
-            forwards[vid] = {}
-        Object.keys(x.time_dag[vid]).forEach(pid => {
-            g(pid)
-            if (delete_us[vid]) {
-                if (delete_us[pid])
-                    Object.assign(forwards[vid], forwards[pid])
-                else
-                    forwards[vid][pid] = true
-            } else if (delete_us[pid]) {
-                delete x.time_dag[vid][pid]
-                Object.assign(x.time_dag[vid], forwards[pid])
-            }
-        })
-    }
-    Object.keys(x.current_version).forEach(g)
-    Object.keys(delete_us).forEach(vid => delete x.time_dag[vid])
-    return delete_us
-}
-
-function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
-    function set_nnnext(node, next) {
-        while (node.next) node = node.next
-        node.next = next
-    }
-    function process_node(node, offset, vid, prev) {
-        var nexts = node.nexts
-        var next = node.next
-
-        var first_prunable = nexts.findIndex(x => has_everyone_whos_seen_a_seen_b(vid, x.vid))
-        if (first_prunable > 0 && (node.elems.length > 0 || !prev)) {
-            first_prunable = nexts.findIndex((x, i) => (i > first_prunable) && has_everyone_whos_seen_a_seen_b(vid, x.vid))
-        }
-        
-        if (first_prunable >= 0) {
-            var gamma = next
-            if (first_prunable + 1 < nexts.length) {
-                gamma = create_space_dag_node(null, typeof(node.elems) == 'string' ? '' : [])
-                gamma.nexts = nexts.slice(first_prunable + 1)
-                gamma.next = next
-            }
-            if (first_prunable == 0) {
-                if (nexts[0].elems.length == 0 && !nexts[0].end_cap && nexts[0].nexts.length > 0) {
-                    var beta = gamma
-                    if (nexts[0].next) {
-                        beta = nexts[0].next
-                        set_nnnext(beta, gamma)
-                    }
-                    node.nexts = nexts[0].nexts
-                    node.next = beta
-                } else {
-                    delete node.end_cap
-                    node.nexts = []
-                    node.next = nexts[0]
-                    node.next.vid = null
-                    set_nnnext(node, gamma)
-                }
-            } else {
-                node.nexts = nexts.slice(0, first_prunable)
-                node.next = nexts[first_prunable]
-                node.next.vid = null
-                set_nnnext(node, gamma)
-            }
-            return true
-        }
-        
-        if (Object.keys(node.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(vid, k))) {
-            node.deleted_by = {}
-            node.elems = typeof(node.elems) == 'string' ? '' : []
-            delete node.gash
-            return true
-        } else {
-            Object.assign(seen_versions, node.deleted_by)
-        }
-        
-        if (next && !next.nexts[0] && (Object.keys(next.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(vid, k)) || next.elems.length == 0)) {
-            node.next = next.next
-            return true
-        }
-        
-        if (nexts.length == 0 && next &&
-            !(next.elems.length == 0 && !next.end_cap && next.nexts.length > 0) &&
-            Object.keys(node.deleted_by).every(x => next.deleted_by[x]) &&
-            Object.keys(next.deleted_by).every(x => node.deleted_by[x])) {
-            node.elems = node.elems.concat(next.elems)
-            node.end_cap = next.end_cap
-            node.nexts = next.nexts
-            node.next = next.next
-            return true
-        }
-    }
-    var did_something = false
-    traverse_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
-        if (!prev) seen_versions[vid] = true
-        while (process_node(node, offset, vid, prev)) {
-            did_something = true
-        }
-    }, true)
-    return did_something
-}
 
 // modified from https://stackoverflow.com/questions/22697936/binary-search-in-javascript
 function binarySearch(ar, compare_fn) {

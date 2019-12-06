@@ -863,7 +863,7 @@ function create_resource(conn_funcs) {
             if (!a) a = 'null'
             return a && b && !frozen[a] && !frozen[b] && (tags[a].tag == tags[b].tag)
         }
-        self.mergeable.prune2(q, q)
+        self.mergeable.prune(q, q)
 
         var leaves = Object.keys(self.current_version)
         var ack_leaves = Object.keys(self.ack_leaves)
