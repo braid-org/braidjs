@@ -40,8 +40,8 @@ function node_connection (id, pid, node) {
     this.set = (conn, vid, parents, changes, joiner_num) =>
         node.on_set(key, changes, {version: vid, parents: parents, conn}, joiner_num)
 
-    this.multiset = (conn, vs, fs, conn_leaves, min_leaves) =>
-        node.on_multiset(key, vs, fs.map(x => ({
+    this.multiset = (conn, versions, fissures, conn_leaves, min_leaves) =>
+        node.on_multiset(key, versions, fissures.map(x => ({
             name: x.a + ':' + x.b + ':' + x.conn,
             versions: x.nodes,
             parents: x.parents
@@ -492,8 +492,8 @@ function create_node() {
             set: (conn, vid, parents, changes, joiner_num) => {
                 node.on_set(key, changes, {version: vid, parents: parents, conn}, joiner_num)
             },
-            multiset: (conn, vs, fs, conn_leaves, min_leaves) => {
-                node.on_multiset(key, vs, fs.map(x => ({
+            multiset: (conn, versions, fissures, conn_leaves, min_leaves) => {
+                node.on_multiset(key, versions, fissures.map(x => ({
                     name: x.a + ':' + x.b + ':' + x.conn,
                     versions: x.nodes,
                     parents: x.parents
@@ -520,8 +520,8 @@ function create_node() {
         get_key(key).set(t.conn, t.version, t.parents, patches, joiner_num)
     }
     
-    node.multiset = (key, vs, fs, conn_leaves, min_leaves, t) => {
-        get_key(key).multiset(t.conn, vs, fs.map(x => {
+    node.multiset = (key, versions, fissures, conn_leaves, min_leaves, t) => {
+        get_key(key).multiset(t.conn, versions, fissures.map(x => {
             var [a, b, conn] = x.name.split(/:/)
             return {a, b, conn, nodes: x.versions, parents: x.parents}
         }), conn_leaves, min_leaves)
@@ -592,12 +592,13 @@ function create_resource(conn_funcs) {
     //      id: connection id,
     //      pid: (optional) peer id, implies symmetric connection
     // }
+
     self.get = (sender, initial) => {
         self.subscriptions[sender.id] = sender
         if (sender.pid && initial) conn_funcs.get(sender, false)
-        var vs = (Object.keys(self.time_dag).length > 0) ? self.mergeable.generate_braid(x => false) : []
-        var fs = Object.values(self.fissures)
-        conn_funcs.multiset(sender, vs, fs)
+        var versions = (Object.keys(self.time_dag).length > 0) ? self.mergeable.generate_braid(x => false) : []
+        var fissures = Object.values(self.fissures)
+        conn_funcs.multiset(sender, versions, fissures)
     }
     
     self.forget = (sender) => {
@@ -622,46 +623,46 @@ function create_resource(conn_funcs) {
         check_ack_count(vid)
     }
 
-    self.multiset = (sender, vs, fs, conn_leaves, min_leaves) => {
-        var new_vs = []
+    self.multiset = (sender, versions, fissures, conn_leaves, min_leaves) => {
+        var new_versions = []
         
-        var v = vs[0]
+        var v = versions[0]
         if (v && !v.vid) {
-            vs.shift()
+            versions.shift()
             if (!Object.keys(self.time_dag).length) {
-                new_vs.push(v)
+                new_versions.push(v)
                 self.mergeable.add_version(v.vid, v.parents, v.changes)
             }
         }
         
-        var vs_T = {}
-        vs.forEach(v => vs_T[v.vid] = v.parents)
-        vs.forEach(v => {
+        var versions_T = {}
+        versions.forEach(v => versions_T[v.vid] = v.parents)
+        versions.forEach(v => {
             if (self.time_dag[v.vid]) {
                 function f(v) {
-                    if (vs_T[v]) {
-                        Object.keys(vs_T[v]).forEach(f)
-                        delete vs_T[v]
+                    if (versions_T[v]) {
+                        Object.keys(versions_T[v]).forEach(f)
+                        delete versions_T[v]
                     }
                 }
                 f(v.vid)
             }
         })
-        vs.forEach(v => {
-            if (vs_T[v.vid]) {
-                new_vs.push(v)
+        versions.forEach(v => {
+            if (versions_T[v.vid]) {
+                new_versions.push(v)
                 self.mergeable.add_version(v.vid, v.parents, v.changes)
             }
         })
         
-        var new_fs = []
-        var gen_fs = []
-        fs.forEach(f => {
+        var new_fissures = []
+        var gen_fissures = []
+        fissures.forEach(f => {
             var key = f.a + ':' + f.b + ':' + f.conn
             if (!self.fissures[key]) {
-                new_fs.push(f)
+                new_fissures.push(f)
                 self.fissures[key] = f
-                if (f.b == self.pid) gen_fs.push({
+                if (f.b == self.pid) gen_fissures.push({
                     a: self.pid,
                     b: f.a,
                     conn: f.conn,
@@ -687,7 +688,7 @@ function create_resource(conn_funcs) {
         
         if (!min_leaves) {
             min_leaves = {}
-            var min = vs.filter(v => !vs_T[v.vid])
+            var min = versions.filter(v => !versions_T[v.vid])
             min.forEach(v => min_leaves[v.vid] = true)
             min.forEach(v => {
                 Object.keys(v.parents).forEach(p => {
@@ -708,12 +709,12 @@ function create_resource(conn_funcs) {
         
         self.phase_one = {}
         
-        if (new_vs.length > 0 || new_fs.length > 0) {
+        if (new_versions.length > 0 || new_fissures.length > 0) {
             Object.values(self.subscriptions).forEach(c => {
-                if (c.id != sender.id) conn_funcs.multiset(c, new_vs, new_fs, conn_leaves, min_leaves)
+                if (c.id != sender.id) conn_funcs.multiset(c, new_versions, new_fissures, conn_leaves, min_leaves)
             })
         }
-        gen_fs.forEach(f => self.fissure(null, f))
+        gen_fissures.forEach(f => self.fissure(null, f))
     }
     
     self.ack = (sender, vid, joiner_num) => {
