@@ -43,7 +43,7 @@ function node_connection (id, pid, node) {
     this.multiset = (conn, versions, fissures, conn_leaves, min_leaves) =>
         node.on_multiset(key, versions, fissures.map(x => ({
             name: x.a + ':' + x.b + ':' + x.conn,
-            versions: x.nodes,
+            versions: x.versions,
             parents: x.parents
         })), conn_leaves, min_leaves, {conn})
 
@@ -54,7 +54,7 @@ function node_connection (id, pid, node) {
         node.on_ack(key, null, 'global', {version: vid, conn})
 
     this.fissure = (conn, fissure) =>
-        node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.nodes, fissure.parents, {conn})
+        node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})
 }
 
 function run_trial(seed, N, show_debug, trial_num) {
@@ -495,7 +495,7 @@ function create_node() {
             multiset: (conn, versions, fissures, conn_leaves, min_leaves) => {
                 node.on_multiset(key, versions, fissures.map(x => ({
                     name: x.a + ':' + x.b + ':' + x.conn,
-                    versions: x.nodes,
+                    versions: x.versions,
                     parents: x.parents
                 })), conn_leaves, min_leaves, {conn})
             },
@@ -506,7 +506,7 @@ function create_node() {
                 node.on_ack(key, null, 'global', {version: vid, conn})
             },
             fissure: (conn, fissure) => {
-                node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.nodes, fissure.parents, {conn})
+                node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})
             }
         })
         return node.keys[key]
@@ -523,7 +523,7 @@ function create_node() {
     node.multiset = (key, versions, fissures, conn_leaves, min_leaves, t) => {
         get_key(key).multiset(t.conn, versions, fissures.map(x => {
             var [a, b, conn] = x.name.split(/:/)
-            return {a, b, conn, nodes: x.versions, parents: x.parents}
+            return {a, b, conn, versions: x.versions, parents: x.parents}
         }), conn_leaves, min_leaves)
     }
     
@@ -545,7 +545,7 @@ function create_node() {
             var [a, b, conn] = name.split(/:/)
             f = {
                 a, b, conn,
-                nodes: versions,
+                versions: versions,
                 parents: parents
             }            
         }

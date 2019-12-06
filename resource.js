@@ -16,6 +16,7 @@ module.exports = function create_resource(conn_funcs) {
         return result
     }
 
+    // A data structure that can merge simultaneous operations
     self.mergeable = require('./merge-algorithms/sync9.js').create(self)
 
     // The peers we are connected to, and whether they can send us edits
@@ -131,7 +132,7 @@ module.exports = function create_resource(conn_funcs) {
                     a: self.pid,
                     b: f.a,
                     conn: f.conn,
-                    nodes: f.nodes,
+                    versions: f.versions,
                     parents: {}
                 })
             }
@@ -140,15 +141,15 @@ module.exports = function create_resource(conn_funcs) {
         if (!conn_leaves) {
             conn_leaves = Object.assign({}, self.current_version)
         }
-        var our_conn_nodes = self.ancestors(self.conn_leaves)
-        var new_conn_nodes = self.ancestors(conn_leaves)
+        var our_conn_versions = self.ancestors(self.conn_leaves)
+        var new_conn_versions = self.ancestors(conn_leaves)
         Object.keys(self.conn_leaves).forEach(x => {
-            if (new_conn_nodes[x] && !conn_leaves[x]) {
+            if (new_conn_versions[x] && !conn_leaves[x]) {
                 delete self.conn_leaves[x]
             }
         })
         Object.keys(conn_leaves).forEach(x => {
-            if (!our_conn_nodes[x]) self.conn_leaves[x] = true
+            if (!our_conn_versions[x]) self.conn_leaves[x] = true
         })
         
         if (!min_leaves) {
@@ -161,15 +162,15 @@ module.exports = function create_resource(conn_funcs) {
                 })
             })
         }
-        var min_nodes = self.ancestors(min_leaves)
-        var ack_nodes = self.ancestors(self.ack_leaves)
+        var min_versions = self.ancestors(min_leaves)
+        var ack_versions = self.ancestors(self.ack_leaves)
         Object.keys(self.ack_leaves).forEach(x => {
-            if (!min_nodes[x]) {
+            if (!min_versions[x]) {
                 delete self.ack_leaves[x]
             }
         })
         Object.keys(min_leaves).forEach(x => {
-            if (ack_nodes[x]) self.ack_leaves[x] = true
+            if (ack_versions[x]) self.ack_leaves[x] = true
         })
         
         self.phase_one = {}
@@ -238,11 +239,11 @@ module.exports = function create_resource(conn_funcs) {
         if (!fissure) {
             if (!self.subscriptions[sender.id]) return
             if (sender.pid) {
-                var nodes = {}
-                var ack_nodes = self.ancestors(self.ack_leaves)
+                var versions = {}
+                var ack_versions = self.ancestors(self.ack_leaves)
                 Object.keys(self.time_dag).forEach(v => {
-                    if (!ack_nodes[v] || self.ack_leaves[v]) {
-                        nodes[v] = true
+                    if (!ack_versions[v] || self.ack_leaves[v]) {
+                        versions[v] = true
                     }
                 })
                 
@@ -255,7 +256,7 @@ module.exports = function create_resource(conn_funcs) {
                     a: self.pid,
                     b: sender.pid,
                     conn: sender.id,
-                    nodes,
+                    versions,
                     parents
                 }
             }
@@ -277,7 +278,7 @@ module.exports = function create_resource(conn_funcs) {
                     a: self.pid,
                     b: fissure.a,
                     conn: fissure.conn,
-                    nodes: fissure.nodes,
+                    versions: fissure.versions,
                     parents: {}
                 })
             }
@@ -310,7 +311,7 @@ module.exports = function create_resource(conn_funcs) {
                 done[x[0]] = true
                 done[other_key] = true
                 
-                if (Object.keys(x[1].nodes).every(x => acked[x] || !self.time_dag[x])) {
+                if (Object.keys(x[1].versions).every(x => acked[x] || !self.time_dag[x])) {
                     delete self.fissures[x[0]]
                     delete self.fissures[other_key]
                 }
@@ -330,7 +331,7 @@ module.exports = function create_resource(conn_funcs) {
             }
         }
         Object.entries(self.fissures).forEach(x => {
-            Object.keys(x[1].nodes).forEach(v => {
+            Object.keys(x[1].versions).forEach(v => {
                 if (!self.time_dag[v]) return
                 tag(v, v)
                 frozen[v] = true
