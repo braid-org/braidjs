@@ -1,18 +1,6 @@
-require('./greg/random001.js')
-require('./greg/sjcl.min.js')
+require('../greg/random001.js')
+require('../greg/sjcl.min.js')
 
-function each (o, cb) {
-    if (o instanceof Array) {
-        for (var i = 0; i < o.length; i++)
-            if (cb(o[i], i, o) == false)
-                return false
-    } else
-        for (var k in o)
-            if (o.hasOwnProperty(k))
-                if (cb(o[k], k, o) == false)
-                    return false
-    return true
-}
 random_id = () => Math.random().toString(36).substr(2)
 
 function main() {
@@ -43,6 +31,24 @@ function main() {
 }
 
 function run_trial(seed, N, show_debug, trial_num) {
+    function deep_equals(a, b) {
+        if (typeof(a) != 'object' || typeof(b) != 'object') return a == b
+        if (a == null) return b == null
+        if (Array.isArray(a)) {
+            if (!Array.isArray(b)) return false
+            if (a.length != b.length) return false
+            for (var i = 0; i < a.length; i++)
+                if (!deep_equals(a[i], b[i])) return false
+            return true
+        }
+        var ak = Object.keys(a).sort()
+        var bk = Object.keys(b).sort()
+        if (ak.length != bk.length) return false
+        for (var k of ak)
+            if (!deep_equals(a[k], b[k])) return false
+        return true
+    }
+
     Math.randomSeed(seed)
     var rand = () => Math.random()
     
@@ -337,7 +343,7 @@ function run_trial(seed, N, show_debug, trial_num) {
     if (!check_good) {
         Object.values(peers).forEach((x, i) => {
             console.log(x)
-            var val = sync9_read(x.keys.my_key.s9)
+            var val = x.keys.my_key.mergeable.read()
             console.log('val: ' + JSON.stringify(val))
         })
         console.log('too_many_fissures: ' + too_many_fissures)
@@ -426,96 +432,8 @@ function run_trial(seed, N, show_debug, trial_num) {
 
     if (show_debug) {
         Object.values(peers).forEach(x => {
-            console.log('peer: ' + JSON.stringify(sync9_read(x.keys.my_key.s9)))
+            console.log('peer: ' + JSON.stringify(x.keys.my_key.mergeable.read()))
         })
-    }
-    
-    if (debug_frames) {
-        var a = document.createElement('div')
-        a.style.display = 'grid'
-        a.style['grid-template-rows'] = '300px 1fr 20px'
-        a.style.width = '100%'
-        a.style.height = '100%'
-        document.body.append(a)
-        
-        var c = document.createElement('canvas')
-        c.width = window.innerWidth * devicePixelRatio
-        c.height = 300 * devicePixelRatio
-        c.style.width = (c.width / devicePixelRatio) + 'px'
-        c.style.height = (c.height / devicePixelRatio) + 'px'
-        var g = c.getContext('2d')
-        a.append(c)
-        
-        var top_part = document.createElement('div')
-        a.append(top_part)
-        
-        var slider = document.createElement('input')
-        slider.style.width = '100%'
-        slider.setAttribute('type', 'range')
-        slider.setAttribute('min', '0')
-        slider.setAttribute('max', debug_frames.length - 1)
-        slider.setAttribute('value', debug_frames.length - 1)
-        slider.oninput = () => {
-            var d = debug_frames[1*slider.value]
-            
-            top_part.innerHTML = ''
-            top_part.style.display = 'grid'
-            top_part.style['grid-template-columns'] = '1fr 1fr 1fr'
-            top_part.style['grid-template-rows'] = '1fr 2fr'
-            
-            peers_array.forEach((p, i) => {
-                var notes = d.peer_notes[p.pid]
-                if (notes && typeof(notes) == 'object') notes = notes.join('\n\n')
-                if (!notes) notes = 'N/A'
-                var dd = document.createElement('textarea')
-                dd.value = notes
-                top_part.append(dd)
-            })
-            
-            peers_array.forEach((p, i) => {
-                p = d.peers[i]
-                var dd = document.createElement('textarea')
-                dd.value = '= ' + (p.keys.my_key ? JSON.stringify(sync9_read(p.keys.my_key.s9)) : 'n/a') + '\n\n' + JSON.stringify(p, null, '    ')
-                top_part.append(dd)
-            })
-
-            
-            g.clearRect(0, 0, c.width, c.height)
-            
-            peers_array.forEach((p, i) => {
-                p = d.peers[i]
-                if (p.keys.my_key) {
-                    draw_time_dag(c, g, p.keys.my_key, p.keys.my_key.s9, lerp(0, 0, 6, c.width, i*2), 35*devicePixelRatio, 300, 300, 7)
-                }
-            })
-            
-            g.font = '20px Ariel'
-            g.fillStyle = 'black'
-            g.textBaseline = 'top'
-            if (d.tt) g.fillText('tt: ' + d.tt, 0, 0)
-            else g.fillText('t: ' + d.t, 0, 0)
-            
-            g.lineWidth = 1
-            
-            var peer_locs = [
-                [lerp(0, 0, 1, c.width, 0.2), 10 * devicePixelRatio],
-                [lerp(0, 0, 1, c.width, 0.5), 30 * devicePixelRatio],
-                [lerp(0, 0, 1, c.width, 0.8), 10 * devicePixelRatio]
-            ]
-            
-            ;[[0, 1], [1, 0], [1, 2], [2, 1], [2, 0], [0, 2]].forEach(([a, b]) => {
-                g.beginPath()
-                g.lineWidth = 3
-                g.strokeStyle = Object.values(d.peers[a].keys.my_key ? d.peers[a].keys.my_key.conns : {}).some(x => x.pid == d.peers[b].pid) ? 'green' : (d.peers[b].incoming.some(x => x[0] == d.peers[a].pid) || d.peers[a].incoming.some(x => x[0] == d.peers[b].pid)) ? 'orange' : 'red'
-                g.moveTo(peer_locs[a][0], peer_locs[a][1])
-                g.lineTo(
-                    lerp(0, peer_locs[a][0], 1, peer_locs[b][0], 0.5),
-                    lerp(0, peer_locs[a][1], 1, peer_locs[b][1], 0.5))
-                g.stroke()
-            })
-        }
-        a.append(slider)
-        slider.oninput()
     }
     
     return JSON.stringify(peers_array[0].keys.my_key.mergeable.read()).length
@@ -529,7 +447,7 @@ function create_node() {
     node.keys = {}
     
     function get_key(key) {
-        if (!node.keys[key]) node.keys[key] = sync9_create_peer({
+        if (!node.keys[key]) node.keys[key] = create_resource({
             pid: node.pid,
             get: (conn, initial) => {
                 node.on_get(key, initial, {conn})
@@ -609,13 +527,23 @@ function create_node() {
 
 
 
-function sync9_create_peer(conn_funcs) {
+function create_resource(conn_funcs) {
     var self = {}
     self.pid = conn_funcs.pid || random_id()
-    // self.s9 = sync9_create()
+
     self.time_dag = {}
     self.current_version = {}
-    self.space_dag = null
+    self.ancestors = function ancestors(versions) {
+        var result = {}
+        function mark_ancestor (version) {
+            if (!result[version]) {
+                result[version] = true
+                Object.keys(self.time_dag[version]).forEach(mark_ancestor)
+            }
+        }
+        Object.keys(versions).forEach(mark_ancestor)
+        return result
+    }
 
     self.conns = {}
     self.fissures = {}
@@ -633,7 +561,7 @@ function sync9_create_peer(conn_funcs) {
     self.get = (conn, initial) => {
         self.conns[conn.id] = conn
         if (conn.pid && initial) conn_funcs.get(conn, false)
-        var vs = (Object.keys(self.time_dag).length > 0) ? self.mergeable.generate_patches(x => false) : []
+        var vs = (Object.keys(self.time_dag).length > 0) ? self.mergeable.generate_braid(x => false) : []
         var fs = Object.values(self.fissures)
         conn_funcs.set_multi(conn, vs, fs)
     }
@@ -688,7 +616,6 @@ function sync9_create_peer(conn_funcs) {
         vs.forEach(v => {
             if (vs_T[v.vid]) {
                 new_vs.push(v)
-                // sync9_add_version(self.s9, v.vid, v.parents, v.changes)
                 self.mergeable.add_version(v.vid, v.parents, v.changes)
             }
         })
@@ -713,8 +640,8 @@ function sync9_create_peer(conn_funcs) {
         if (!conn_leaves) {
             conn_leaves = Object.assign({}, self.current_version)
         }
-        var our_conn_nodes = sync9.get_ancestors(self, self.conn_leaves)
-        var new_conn_nodes = sync9.get_ancestors(self, conn_leaves)
+        var our_conn_nodes = self.ancestors(self.conn_leaves)
+        var new_conn_nodes = self.ancestors(conn_leaves)
         Object.keys(self.conn_leaves).forEach(x => {
             if (new_conn_nodes[x] && !conn_leaves[x]) {
                 delete self.conn_leaves[x]
@@ -734,8 +661,8 @@ function sync9_create_peer(conn_funcs) {
                 })
             })
         }
-        var min_nodes = sync9.get_ancestors(self, min_leaves)
-        var ack_nodes = sync9.get_ancestors(self, self.ack_leaves)
+        var min_nodes = self.ancestors(min_leaves)
+        var ack_nodes = self.ancestors(self.ack_leaves)
         Object.keys(self.ack_leaves).forEach(x => {
             if (!min_nodes[x]) {
                 delete self.ack_leaves[x]
@@ -765,10 +692,10 @@ function sync9_create_peer(conn_funcs) {
     self.full_ack = (conn, vid) => {
         if (!self.time_dag[vid]) return
         
-        var ancs = sync9.get_ancestors(self, self.conn_leaves)
+        var ancs = self.ancestors(self.conn_leaves)
         if (ancs[vid]) return
         
-        var ancs = sync9.get_ancestors(self, self.ack_leaves)
+        var ancs = self.ancestors(self.ack_leaves)
         if (ancs[vid]) return
         
         add_full_ack_leaf(vid)
@@ -812,7 +739,7 @@ function sync9_create_peer(conn_funcs) {
             if (!self.conns[conn.id]) return
             if (conn.pid) {
                 var nodes = {}
-                var ack_nodes = sync9.get_ancestors(self, self.ack_leaves)
+                var ack_nodes = self.ancestors(self.ack_leaves)
                 Object.keys(self.time_dag).forEach(v => {
                     if (!ack_nodes[v] || self.ack_leaves[v]) {
                         nodes[v] = true
@@ -874,7 +801,7 @@ function sync9_create_peer(conn_funcs) {
             }
         })
         
-        var acked = sync9.get_ancestors(self, self.ack_leaves)
+        var acked = self.ancestors(self.ack_leaves)
         var done = {}
         Object.entries(self.fissures).forEach(x => {
             var other_key = x[1].b + ':' + x[1].a + ':' + x[1].conn
@@ -913,7 +840,7 @@ function sync9_create_peer(conn_funcs) {
                 })
             })
         })
-        var acked = sync9.get_ancestors(self, self.ack_leaves)
+        var acked = self.ancestors(self.ack_leaves)
         Object.keys(self.time_dag).forEach(x => {
             if (!acked[x] || self.ack_leaves[x]) {
                 tag(x, x)
@@ -962,26 +889,6 @@ function sync9_create_peer(conn_funcs) {
 }
 
 
-function deep_equals(a, b) {
-    if (typeof(a) != 'object' || typeof(b) != 'object') return a == b
-    if (a == null) return b == null
-    if (Array.isArray(a)) {
-        if (!Array.isArray(b)) return false
-        if (a.length != b.length) return false
-        for (var i = 0; i < a.length; i++)
-            if (!deep_equals(a[i], b[i])) return false
-        return true
-    }
-    var ak = Object.keys(a).sort()
-    var bk = Object.keys(b).sort()
-    if (ak.length != bk.length) return false
-    for (var k of ak)
-        if (!deep_equals(a[k], b[k])) return false
-    return true
-}
-
-
-sync9 = require('./merge-algorithms/sync9.js')
-console.log('sync9 is', sync9)
+sync9 = require('../merge-algorithms/sync9.js')
 
 main()

@@ -1,11 +1,9 @@
 // Adapted from https://github.com/dglittle/cdn/blob/gh-pages/sync9_047.html
 
-module.exports = {
-    get_ancestors: sync9_get_ancestors,
-    create: create
-}
+module.exports = { create: create }
 
 function create (resource) {
+    resource.space_dag = null
     return {
         add_version: function (version, parents, patches, is_anc) {
             return add_version(resource, version, parents, patches, is_anc)
@@ -21,27 +19,15 @@ function create (resource) {
                    has_everyone_whos_seen_a_seen_b2)
         },
 
-        generate_patches: function(is_anc
+        generate_braid: function(is_anc
                                    /*from_parents, to_parents*/) {
-            return extract_versions(resource, is_anc)
+            return generate_braid(resource, is_anc)
         }
     }
 }
 
-// function each (o, cb) {
-//     if (o instanceof Array) {
-//         for (var i = 0; i < o.length; i++)
-//             if (cb(o[i], i, o) == false)
-//                 return false
-//     } else
-//         for (var k in o)
-//             if (o.hasOwnProperty(k))
-//                 if (cb(o[k], k, o) == false)
-//                     return false
-//     return true
-// }
 
-function extract_versions(resource, is_anc) {
+function generate_braid(resource, is_anc) {
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
     
@@ -51,41 +37,41 @@ function extract_versions(resource, is_anc) {
         changes: [` = ${JSON.stringify(read(resource, is_anc))}`]
     }]
     Object.keys(resource.time_dag).filter(x => !is_anc(x)).forEach(vid => {
-        var ancs = sync9_get_ancestors(resource, {[vid]: true})
+        var ancs = resource.ancestors({[vid]: true})
         delete ancs[vid]
         var is_anc = x => ancs[x]
         var path = []
         var changes = []
-        rec(resource.space_dag)
-        function rec(x) {
+        recurse(resource.space_dag)
+        function recurse(x) {
             if (is_lit(x)) {
             } else if (x.t == 'val') {
-                space_dag_extract_version(x.S, resource, vid, is_anc).forEach(s => {
+                space_dag_generate_braid(x.S, resource, vid, is_anc).forEach(s => {
                     if (s[2].length) changes.push(`${path.join('')} = ${JSON.stringify(s[2][0])}`)
                 })
-                sync9_trav_space_dag(x.S, is_anc, node => {
-                    node.elems.forEach(rec)
+                traverse_space_dag(x.S, is_anc, node => {
+                    node.elems.forEach(recurse)
                 })
             } else if (x.t == 'arr') {
-                space_dag_extract_version(x.S, resource, vid, is_anc).forEach(s => {
+                space_dag_generate_braid(x.S, resource, vid, is_anc).forEach(s => {
                     changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
                 })
                 var i = 0
-                sync9_trav_space_dag(x.S, is_anc, node => {
+                traverse_space_dag(x.S, is_anc, node => {
                     node.elems.forEach(e => {
                         path.push(`[${i++}]`)
-                        rec(e)
+                        recurse(e)
                         path.pop()
                     })
                 })
             } else if (x.t == 'obj') {
                 Object.entries(x.S).forEach(e => {
                     path.push('[' + JSON.stringify(e[0]) + ']')
-                    rec(e[1])
+                    recurse(e[1])
                     path.pop()
                 })
             } else if (x.t == 'str') {
-                space_dag_extract_version(x.S, resource, vid, is_anc).forEach(s => {
+                space_dag_generate_braid(x.S, resource, vid, is_anc).forEach(s => {
                     changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
                 })
             }
@@ -100,7 +86,7 @@ function extract_versions(resource, is_anc) {
     return versions
 }
 
-function space_dag_extract_version(S, resource, vid, is_anc) {
+function space_dag_generate_braid(S, resource, vid, is_anc) {
     var splices = []
     
     function add_result(offset, del, ins) {
@@ -142,26 +128,26 @@ function prune2(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_see
     var seen_versions = {}
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
-    function rec(x) {
+    function recurse(x) {
         if (is_lit(x)) return x
         if (x.t == 'val') {
-            sync9_space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
-            sync9_trav_space_dag(x.S, () => true, node => {
-                node.elems = node.elems.slice(0, 1).map(rec)
+            space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
+            traverse_space_dag(x.S, () => true, node => {
+                node.elems = node.elems.slice(0, 1).map(recurse)
             }, true)
             if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.length == 1 && is_lit(x.S.elems[0])) return x.S.elems[0]
             return x
         }
         if (x.t == 'arr') {
-            sync9_space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
-            sync9_trav_space_dag(x.S, () => true, node => {
-                node.elems = node.elems.map(rec)
+            space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
+            traverse_space_dag(x.S, () => true, node => {
+                node.elems = node.elems.map(recurse)
             }, true)
             if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.every(is_lit) && !Object.keys(x.S.deleted_by).length) return {t: 'lit', S: x.S.elems.map(get_lit)}
             return x
         }
         if (x.t == 'obj') {
-            Object.entries(x.S).forEach(e => x.S[e[0]] = rec(e[1]))
+            Object.entries(x.S).forEach(e => x.S[e[0]] = recurse(e[1]))
             if (Object.values(x.S).every(is_lit)) {
                 var o = {}
                 Object.entries(x.S).forEach(e => o[e[0]] = get_lit(e[1]))
@@ -170,12 +156,12 @@ function prune2(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_see
             return x
         }
         if (x.t == 'str') {
-            sync9_space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
+            space_dag_prune2(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
             if (x.S.nexts.length == 0 && !x.S.next && !Object.keys(x.S.deleted_by).length) return x.S.elems
             return x
         }
     }
-    x.space_dag = rec(x.space_dag)
+    x.space_dag = recurse(x.space_dag)
 
     var delete_us = {}
     var children = {}
@@ -214,7 +200,7 @@ function prune2(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_see
     return delete_us
 }
 
-function sync9_space_dag_prune2(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
+function space_dag_prune2(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
     function set_nnnext(node, next) {
         while (node.next) node = node.next
         node.next = next
@@ -228,7 +214,7 @@ function sync9_space_dag_prune2(S, has_everyone_whos_seen_a_seen_b, seen_version
             var first_prunable = 0
             var gamma = next
             if (first_prunable + 1 < nexts.length) {
-                gamma = sync9_create_space_dag_node(null, typeof(node.elems) == 'string' ? '' : [])
+                gamma = create_space_dag_node(null, typeof(node.elems) == 'string' ? '' : [])
                 gamma.nexts = nexts.slice(first_prunable + 1)
                 gamma.next = next
             }
@@ -287,14 +273,14 @@ function sync9_space_dag_prune2(S, has_everyone_whos_seen_a_seen_b, seen_version
     var did_something_this_time = true
     while (did_something_this_time) {
         did_something_this_time = false
-        sync9_trav_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
+        traverse_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
             if (process_node(node, offset, vid, prev)) {
                 did_something_this_time = true
                 did_something_ever = true
             }
         }, true)
     }
-    sync9_trav_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
+    traverse_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
         if (vid) seen_versions[vid] = true
     }, true)
     return did_something_ever
@@ -304,47 +290,47 @@ function sync9_space_dag_prune2(S, has_everyone_whos_seen_a_seen_b, seen_version
 
 
 
-function add_version(x, vid, parents, changes, is_anc) {
+function add_version(resource, vid, parents, changes, is_anc) {
     let make_lit = x => (x && typeof(x) == 'object') ? {t: 'lit', S: x} : x
     
-    if (!vid && Object.keys(x.time_dag).length == 0) {
-        var parse = sync9_parse_change(changes[0])
-        x.space_dag = make_lit(parse.val)
+    if (!vid && Object.keys(resource.time_dag).length == 0) {
+        var parse = parse_change(changes[0])
+        resource.space_dag = make_lit(parse.val)
         return
     } else if (!vid) return
     
-    if (x.time_dag[vid]) return
-    x.time_dag[vid] = Object.assign({}, parents)
+    if (resource.time_dag[vid]) return
+    resource.time_dag[vid] = Object.assign({}, parents)
     
     Object.keys(parents).forEach(k => {
-        if (x.current_version[k]) delete x.current_version[k]
+        if (resource.current_version[k]) delete resource.current_version[k]
     })
-    x.current_version[vid] = true
+    resource.current_version[vid] = true
     
     if (!is_anc) {
-        if (parents == x.current_version) {
+        if (parents == resource.current_version) {
             is_anc = (_vid) => _vid != vid
         } else {
-            var ancs = sync9_get_ancestors(x, parents)
+            var ancs = resource.ancestors(parents)
             is_anc = _vid => ancs[_vid]
         }
     }
     
     changes.forEach(change => {
-        var parse = sync9_parse_change(change)
-        var cur = x.space_dag
+        var parse = parse_change(change)
+        var cur = resource.space_dag
         if (!cur || typeof(cur) != 'object' || cur.t == 'lit')
-            cur = x.space_dag = {t: 'val', S: sync9_create_space_dag_node(null, [cur])}
+            cur = resource.space_dag = {t: 'val', S: create_space_dag_node(null, [cur])}
         var prev_S = null
         var prev_i = 0
         for (var i=0; i<parse.keys.length; i++) {
             var key = parse.keys[i]
-            if (cur.t == 'val') cur = sync9_space_dag_get(prev_S = cur.S, prev_i = 0, is_anc)
+            if (cur.t == 'val') cur = space_dag_get(prev_S = cur.S, prev_i = 0, is_anc)
             if (cur.t == 'lit') {
                 var new_cur = {}
                 if (cur.S instanceof Array) {
                     new_cur.t = 'arr'
-                    new_cur.S = sync9_create_space_dag_node(null, cur.S.map(x => make_lit(x)))
+                    new_cur.S = create_space_dag_node(null, cur.S.map(x => make_lit(x)))
                 } else {
                     if (typeof(cur.S) != 'object') throw 'bad'
                     new_cur.t = 'obj'
@@ -352,33 +338,33 @@ function add_version(x, vid, parents, changes, is_anc) {
                     Object.entries(cur.S).forEach(e => new_cur.S[e[0]] = make_lit(e[1]))
                 }
                 cur = new_cur
-                sync9_space_dag_set(prev_S, prev_i, cur, is_anc)
+                space_dag_set(prev_S, prev_i, cur, is_anc)
             }
             if (cur.t == 'obj') {
                 let x = cur.S[key]
                 if (!x || typeof(x) != 'object' || x.t == 'lit')
-                    x = cur.S[key] = {t: 'val', S: sync9_create_space_dag_node(null, [x])}
+                    x = cur.S[key] = {t: 'val', S: create_space_dag_node(null, [x])}
                 cur = x
             } else if (i == parse.keys.length - 1 && !parse.range) {
                 parse.range = [key, key + 1]
                 parse.val = (cur.t == 'str') ? parse.val : [parse.val]
             } else if (cur.t == 'arr') {
-                cur = sync9_space_dag_get(prev_S = cur.S, prev_i = key, is_anc)
+                cur = space_dag_get(prev_S = cur.S, prev_i = key, is_anc)
             } else throw 'bad'
         }
         if (!parse.range) {
             if (cur.t != 'val') throw 'bad'
-            var len = sync9_space_dag_length(cur.S, is_anc)
-            sync9_space_dag_add_version(cur.S, vid, [[0, len, [make_lit(parse.val)]]], is_anc)
+            var len = space_dag_length(cur.S, is_anc)
+            space_dag_add_version(cur.S, vid, [[0, len, [make_lit(parse.val)]]], is_anc)
         } else {
-            if (cur.t == 'val') cur = sync9_space_dag_get(prev_S = cur.S, prev_i = 0, is_anc)
+            if (cur.t == 'val') cur = space_dag_get(prev_S = cur.S, prev_i = 0, is_anc)
             if (typeof(cur) == 'string') {
-                cur = {t: 'str', S: sync9_create_space_dag_node(null, cur)}
-                sync9_space_dag_set(prev_S, prev_i, cur, is_anc)
+                cur = {t: 'str', S: create_space_dag_node(null, cur)}
+                space_dag_set(prev_S, prev_i, cur, is_anc)
             } else if (cur.t == 'lit') {
                 if (!(cur.S instanceof Array)) throw 'bad'
-                cur = {t: 'arr', S: sync9_create_space_dag_node(null, cur.S.map(x => make_lit(x)))}
-                sync9_space_dag_set(prev_S, prev_i, cur, is_anc)
+                cur = {t: 'arr', S: create_space_dag_node(null, cur.S.map(x => make_lit(x)))}
+                space_dag_set(prev_S, prev_i, cur, is_anc)
             }
             
 
@@ -386,7 +372,7 @@ function add_version(x, vid, parents, changes, is_anc) {
             
             if (parse.val instanceof String && cur.t != 'str') throw 'bad'
             if (parse.val instanceof Array) parse.val = parse.val.map(x => make_lit(x))
-            sync9_space_dag_add_version(cur.S, vid, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
+            space_dag_add_version(cur.S, vid, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
         }
     })
 }
@@ -396,7 +382,7 @@ function read(x, is_anc) {
     if (x && typeof(x) == 'object') {
         if (!x.t) return read(x.space_dag, is_anc)
         if (x.t == 'lit') return x.S
-        if (x.t == 'val') return read(sync9_space_dag_get(x.S, 0, is_anc), is_anc)
+        if (x.t == 'val') return read(space_dag_get(x.S, 0, is_anc), is_anc)
         if (x.t == 'obj') {
             var o = {}
             Object.entries(x.S).forEach(([k, v]) => {
@@ -406,7 +392,7 @@ function read(x, is_anc) {
         }
         if (x.t == 'arr') {
             var a = []
-            sync9_trav_space_dag(x.S, is_anc, (node) => {
+            traverse_space_dag(x.S, is_anc, (node) => {
                 node.elems.forEach((e) => {
                     a.push(read(e, is_anc))
                 })
@@ -415,7 +401,7 @@ function read(x, is_anc) {
         }
         if (x.t == 'str') {
             var s = []
-            sync9_trav_space_dag(x.S, is_anc, (node) => {
+            traverse_space_dag(x.S, is_anc, (node) => {
                 s.push(node.elems)
             })
             return s.join('')
@@ -424,7 +410,7 @@ function read(x, is_anc) {
     } return x
 }
 
-function sync9_create_space_dag_node(vid, elems, end_cap) {
+function create_space_dag_node(vid, elems, end_cap) {
     return {
         vid : vid,
         elems : elems,
@@ -435,10 +421,10 @@ function sync9_create_space_dag_node(vid, elems, end_cap) {
     }
 }
 
-function sync9_space_dag_get(S, i, is_anc) {
+function space_dag_get(S, i, is_anc) {
     var ret = null
     var offset = 0
-    sync9_trav_space_dag(S, is_anc ? is_anc : () => true, (node) => {
+    traverse_space_dag(S, is_anc ? is_anc : () => true, (node) => {
         if (i - offset < node.elems.length) {
             ret = node.elems[i - offset]
             return false
@@ -448,9 +434,9 @@ function sync9_space_dag_get(S, i, is_anc) {
     return ret
 }
 
-function sync9_space_dag_set(S, i, v, is_anc) {
+function space_dag_set(S, i, v, is_anc) {
     var offset = 0
-    sync9_trav_space_dag(S, is_anc ? is_anc : () => true, (node) => {
+    traverse_space_dag(S, is_anc ? is_anc : () => true, (node) => {
         if (i - offset < node.elems.length) {
             node.elems[i - offset] = v
             return false
@@ -459,22 +445,22 @@ function sync9_space_dag_set(S, i, v, is_anc) {
     })
 }
 
-function sync9_space_dag_length(S, is_anc) {
+function space_dag_length(S, is_anc) {
     var count = 0
-    sync9_trav_space_dag(S, is_anc ? is_anc : () => true, node => {
+    traverse_space_dag(S, is_anc ? is_anc : () => true, node => {
         count += node.elems.length
     })
     return count
 }
 
-function sync9_space_dag_break_node(node, x, end_cap, new_next) {
+function space_dag_break_node(node, x, end_cap, new_next) {
     function subseq(x, start, stop) {
         return (x instanceof Array) ?
             x.slice(start, stop) :
             x.substring(start, stop)
     }
     
-    var tail = sync9_create_space_dag_node(null, subseq(node.elems, x), node.end_cap)
+    var tail = create_space_dag_node(null, subseq(node.elems, x), node.end_cap)
     Object.assign(tail.deleted_by, node.deleted_by)
     tail.nexts = node.nexts
     tail.next = node.next
@@ -488,7 +474,7 @@ function sync9_space_dag_break_node(node, x, end_cap, new_next) {
     return tail
 }
 
-function sync9_space_dag_add_version(S, vid, splices, is_anc) {
+function space_dag_add_version(S, vid, splices, is_anc) {
     
     function add_to_nexts(nexts, to) {
         var i = binarySearch(nexts, function (x) {
@@ -509,11 +495,11 @@ function sync9_space_dag_add_version(S, vid, splices, is_anc) {
         if (deleted) {
             if (s[1] == 0 && s[0] == offset) {
                 if (node.elems.length == 0 && !node.end_cap && has_nexts) return
-                var new_node = sync9_create_space_dag_node(vid, s[2])
+                var new_node = create_space_dag_node(vid, s[2])
                 if (node.elems.length == 0 && !node.end_cap)
                     add_to_nexts(node.nexts, new_node)
                 else
-                    sync9_space_dag_break_node(node, 0, undefined, new_node)
+                    space_dag_break_node(node, 0, undefined, new_node)
                 si++
             }
             return            
@@ -523,11 +509,11 @@ function sync9_space_dag_add_version(S, vid, splices, is_anc) {
             var d = s[0] - (offset + node.elems.length)
             if (d > 0) return
             if (d == 0 && !node.end_cap && has_nexts) return
-            var new_node = sync9_create_space_dag_node(vid, s[2])
+            var new_node = create_space_dag_node(vid, s[2])
             if (d == 0 && !node.end_cap) {
                 add_to_nexts(node.nexts, new_node)
             } else {
-                sync9_space_dag_break_node(node, s[0] - offset, undefined, new_node)
+                space_dag_break_node(node, s[0] - offset, undefined, new_node)
             }
             si++
             return
@@ -539,18 +525,18 @@ function sync9_space_dag_add_version(S, vid, splices, is_anc) {
             delete_up_to = s[0] + s[1]
             
             if (s[2]) {
-                var new_node = sync9_create_space_dag_node(vid, s[2])
+                var new_node = create_space_dag_node(vid, s[2])
                 if (s[0] == offset && node.gash) {
                     if (!prev.end_cap) throw 'no end_cap?'
                     add_to_nexts(prev.nexts, new_node)
                 } else {
-                    sync9_space_dag_break_node(node, s[0] - offset, true, new_node)
+                    space_dag_break_node(node, s[0] - offset, true, new_node)
                     return
                 }
             } else {
                 if (s[0] == offset) {
                 } else {
-                    sync9_space_dag_break_node(node, s[0] - offset)
+                    space_dag_break_node(node, s[0] - offset)
                     return
                 }
             }
@@ -559,7 +545,7 @@ function sync9_space_dag_add_version(S, vid, splices, is_anc) {
         if (delete_up_to > offset) {
             if (delete_up_to <= offset + node.elems.length) {
                 if (delete_up_to < offset + node.elems.length) {
-                    sync9_space_dag_break_node(node, delete_up_to - offset)
+                    space_dag_break_node(node, delete_up_to - offset)
                 }
                 si++
             }
@@ -601,7 +587,7 @@ function sync9_space_dag_add_version(S, vid, splices, is_anc) {
     
 }
 
-function sync9_trav_space_dag(S, f, cb, view_deleted, tail_cb) {
+function traverse_space_dag(S, f, cb, view_deleted, tail_cb) {
     var exit_early = {}
     var offset = 0
     function helper(node, prev, vid) {
@@ -624,19 +610,8 @@ function sync9_trav_space_dag(S, f, cb, view_deleted, tail_cb) {
     }
 }
 
-function sync9_get_ancestors(x, vids) {
-    var ancs = {}
-    function mark_ancs(key) {
-        if (!ancs[key]) {
-            ancs[key] = true
-            Object.keys(x.time_dag[key]).forEach(mark_ancs)
-        }
-    }
-    Object.keys(vids).forEach(mark_ancs)
-    return ancs
-}
 
-function sync9_parse_change(change) {
+function parse_change(change) {
     var ret = { keys : [] }
     var re = /\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|'(\\'|[^'])*'|"(\\"|[^"])*")\]|\s*=\s*(.*)/g
     var m
@@ -657,7 +632,7 @@ function sync9_parse_change(change) {
     return ret
 }
 
-function sync9_diff_ODI(a, b) {
+function diff_ODI(a, b) {
     var offset = 0
     var prev = null
     var ret = []
@@ -684,7 +659,7 @@ function sync9_diff_ODI(a, b) {
     return ret
 }
 
-function sync9_guid() {
+function guid() {
     var x = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     var s = []
     for (var i = 0; i < 15; i++)
@@ -692,7 +667,7 @@ function sync9_guid() {
     return s.join('')
 }
 
-function sync9_create_proxy(x, cb, path) {
+function create_proxy(x, cb, path) {
     path = path || ''
     var child_path = key => path + '[' + JSON.stringify(key) + ']'
     return new Proxy(x, {
@@ -725,12 +700,12 @@ function sync9_create_proxy(x, cb, path) {
             
             var y = x[key]
             if (y && typeof(y) == 'object') {
-                return sync9_create_proxy(y, cb, child_path(key))
+                return create_proxy(y, cb, child_path(key))
             } else return y
         },
         set : (x, key, val) => {
             if (typeof(val) == 'string' && typeof(x[key]) == 'string') {
-                cb(sync9_diff_ODI(x[key], val).map(splice => {
+                cb(diff_ODI(x[key], val).map(splice => {
                     return child_path(key) + '[' + splice[0] + ':' + (splice[0] + splice[1]) + '] = ' + JSON.stringify(splice[2])
                 }))
             } else {
@@ -746,28 +721,28 @@ function sync9_create_proxy(x, cb, path) {
 function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b_2) {
     var seen_versions = {}
     var did_something = true
-    function rec(x) {
+    function recurse(x) {
         if (x && typeof(x) == 'object') {
             if (!x.t && x.space_dag) {
-                rec(x.space_dag)
+                recurse(x.space_dag)
             } else if (x.t == 'val') {
-                if (sync9_space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
-                rec(sync9_space_dag_get(x.S, 0))
+                if (space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
+                recurse(space_dag_get(x.S, 0))
             } else if (x.t == 'obj') {
-                Object.values(x.S).forEach(v => rec(v))
+                Object.values(x.S).forEach(v => recurse(v))
             } else if (x.t == 'arr') {
-                if (sync9_space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
-                sync9_trav_space_dag(x.S, () => true, node => {
-                    node.elems.forEach(e => rec(e))
+                if (space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
+                traverse_space_dag(x.S, () => true, node => {
+                    node.elems.forEach(e => recurse(e))
                 })
             } else if (x.t == 'str') {
-                if (sync9_space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
+                if (space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)) did_something = true
             }
         }
     }
     while (did_something) {
         did_something = false
-        rec(x)
+        recurse(x)
     }
 
     var visited = {}    
@@ -809,7 +784,7 @@ function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen
     return delete_us
 }
 
-function sync9_space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
+function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
     function set_nnnext(node, next) {
         while (node.next) node = node.next
         node.next = next
@@ -826,7 +801,7 @@ function sync9_space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions
         if (first_prunable >= 0) {
             var gamma = next
             if (first_prunable + 1 < nexts.length) {
-                gamma = sync9_create_space_dag_node(null, typeof(node.elems) == 'string' ? '' : [])
+                gamma = create_space_dag_node(null, typeof(node.elems) == 'string' ? '' : [])
                 gamma.nexts = nexts.slice(first_prunable + 1)
                 gamma.next = next
             }
@@ -881,7 +856,7 @@ function sync9_space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions
         }
     }
     var did_something = false
-    sync9_trav_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
+    traverse_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
         if (!prev) seen_versions[vid] = true
         while (process_node(node, offset, vid, prev)) {
             did_something = true
