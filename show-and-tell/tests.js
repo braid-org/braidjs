@@ -592,29 +592,29 @@ function create_resource(conn_funcs) {
     //      id: connection id,
     //      pid: (optional) peer id, implies symmetric connection
     // }
-    self.get = (conn, initial) => {
-        self.subscriptions[conn.id] = conn
-        if (conn.pid && initial) conn_funcs.get(conn, false)
+    self.get = (sender, initial) => {
+        self.subscriptions[sender.id] = sender
+        if (sender.pid && initial) conn_funcs.get(sender, false)
         var vs = (Object.keys(self.time_dag).length > 0) ? self.mergeable.generate_braid(x => false) : []
         var fs = Object.values(self.fissures)
-        conn_funcs.multiset(conn, vs, fs)
+        conn_funcs.multiset(sender, vs, fs)
     }
     
-    self.forget = (conn) => {
-        delete self.subscriptions[conn.id]
+    self.forget = (sender) => {
+        delete self.subscriptions[sender.id]
     }
     
     function symmetric_subscriptions() {
         return Object.values(self.subscriptions).filter(c => c.pid)
     }
     
-    self.set = (conn, vid, parents, changes, joiner_num) => {
-        if (!conn || !self.time_dag[vid] || (joiner_num > self.joiners[vid])) {
+    self.set = (sender, vid, parents, changes, joiner_num) => {
+        if (!sender || !self.time_dag[vid] || (joiner_num > self.joiners[vid])) {
             self.mergeable.add_version(vid, parents, changes)
-            self.phase_one[vid] = {origin: conn, count: symmetric_subscriptions().length - (conn ? 1 : 0)}
+            self.phase_one[vid] = {origin: sender, count: symmetric_subscriptions().length - (sender ? 1 : 0)}
             if (joiner_num) self.joiners[vid] = joiner_num
             Object.values(self.subscriptions).forEach(c => {
-                if (!conn || (c.id != conn.id)) conn_funcs.set(c, vid, parents, changes, joiner_num)
+                if (!sender || (c.id != sender.id)) conn_funcs.set(c, vid, parents, changes, joiner_num)
             })
         } else if (self.phase_one[vid] && (joiner_num == self.joiners[vid])) {
             self.phase_one[vid].count--
@@ -622,7 +622,7 @@ function create_resource(conn_funcs) {
         check_ack_count(vid)
     }
 
-    self.multiset = (conn, vs, fs, conn_leaves, min_leaves) => {
+    self.multiset = (sender, vs, fs, conn_leaves, min_leaves) => {
         var new_vs = []
         
         var v = vs[0]
@@ -710,20 +710,20 @@ function create_resource(conn_funcs) {
         
         if (new_vs.length > 0 || new_fs.length > 0) {
             Object.values(self.subscriptions).forEach(c => {
-                if (c.id != conn.id) conn_funcs.multiset(c, new_vs, new_fs, conn_leaves, min_leaves)
+                if (c.id != sender.id) conn_funcs.multiset(c, new_vs, new_fs, conn_leaves, min_leaves)
             })
         }
         gen_fs.forEach(f => self.fissure(null, f))
     }
     
-    self.ack = (conn, vid, joiner_num) => {
+    self.ack = (sender, vid, joiner_num) => {
         if (self.phase_one[vid] && (joiner_num == self.joiners[vid])) {
             self.phase_one[vid].count--
             check_ack_count(vid)
         }
     }
     
-    self.full_ack = (conn, vid) => {
+    self.full_ack = (sender, vid) => {
         if (!self.time_dag[vid]) return
         
         var ancs = self.ancestors(self.conn_leaves)
@@ -734,7 +734,7 @@ function create_resource(conn_funcs) {
         
         add_full_ack_leaf(vid)
         symmetric_subscriptions().forEach(c => {
-            if (c.id != conn.id) conn_funcs.full_ack(c, vid)
+            if (c.id != sender.id) conn_funcs.full_ack(c, vid)
         })
     }
     
@@ -768,10 +768,10 @@ function create_resource(conn_funcs) {
         }
     }
     
-    self.fissure = (conn, fissure) => {
+    self.fissure = (sender, fissure) => {
         if (!fissure) {
-            if (!self.subscriptions[conn.id]) return
-            if (conn.pid) {
+            if (!self.subscriptions[sender.id]) return
+            if (sender.pid) {
                 var nodes = {}
                 var ack_nodes = self.ancestors(self.ack_leaves)
                 Object.keys(self.time_dag).forEach(v => {
@@ -787,13 +787,13 @@ function create_resource(conn_funcs) {
                 
                 fissure = {
                     a: self.pid,
-                    b: conn.pid,
-                    conn: conn.id,
+                    b: sender.pid,
+                    conn: sender.id,
                     nodes,
                     parents
                 }
             }
-            delete self.subscriptions[conn.id]
+            delete self.subscriptions[sender.id]
         }
     
         var key = fissure.a + ':' + fissure.b + ':' + fissure.conn
@@ -803,7 +803,7 @@ function create_resource(conn_funcs) {
             self.phase_one = {}
             
             symmetric_subscriptions().forEach(c => {
-                if (!conn || (c.id != conn.id)) conn_funcs.fissure(c, fissure)
+                if (!sender || (c.id != sender.id)) conn_funcs.fissure(c, fissure)
             })
             
             if (fissure.b == self.pid) {
