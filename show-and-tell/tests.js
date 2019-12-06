@@ -561,6 +561,4 @@ function create_node() {
 
 
 
-sync9 = require('../merge-algorithms/sync9.js')
-
 main()

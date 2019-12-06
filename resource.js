@@ -2,34 +2,52 @@ module.exports = function create_resource(conn_funcs) {
     var self = {}
     self.pid = conn_funcs.pid || random_id()
 
+    // The version history
     self.time_dag = {}
     self.current_version = {}
     self.ancestors = function ancestors(versions) {
         var result = {}
-        function mark_ancestor (version) {
-            if (!result[version]) {
-                result[version] = true
-                Object.keys(self.time_dag[version]).forEach(mark_ancestor)
-            }
+        function recurse (version) {
+            if (result[version]) return
+            result[version] = true
+            Object.keys(self.time_dag[version]).forEach(recurse)
         }
-        Object.keys(versions).forEach(mark_ancestor)
+        Object.keys(versions).forEach(recurse)
         return result
     }
 
+    self.mergeable = require('./merge-algorithms/sync9.js').create(self)
+
+    // The peers we are connected to, and whether they can send us edits
     self.subscriptions = {}
+
+    // Disconnections that have occurred in the network without a forget()
     self.fissures = {}
+
+    // Acknowledgement data
     self.conn_leaves = {}
     self.ack_leaves = {}
     self.phase_one = {}
+
+    // Empty versions sent to collapse outstanding parallel edits
     self.joiners = {}
     
-    self.mergeable = sync9.create(self)
+    // Subscriptions take this form:
+    // 
+    //    subscription: {
+    //         id:  <string>          // ID of the connection
+    //         pid: <optional string> // ID of peer
+    //    }
+    //
+    //    If pid is set, it implies that peer has also subscribed to us.  We
+    //    call this a `symmetric` connection.
+    //
+    // Fissures take this form:
+    //
+    // ...
 
-    // conn: {
-    //      id: connection id,
-    //      pid: (optional) peer id, implies symmetric connection
-    // }
 
+    // Methods
     self.get = (sender, initial) => {
         self.subscriptions[sender.id] = sender
         if (sender.pid && initial) conn_funcs.get(sender, false)
@@ -46,21 +64,31 @@ module.exports = function create_resource(conn_funcs) {
         return Object.values(self.subscriptions).filter(c => c.pid)
     }
     
-    self.set = (sender, vid, parents, changes, joiner_num) => {
-        if (!sender || !self.time_dag[vid] || (joiner_num > self.joiners[vid])) {
-            self.mergeable.add_version(vid, parents, changes)
-            self.phase_one[vid] = {origin: sender, count: symmetric_subscriptions().length - (sender ? 1 : 0)}
-            if (joiner_num) self.joiners[vid] = joiner_num
-            Object.values(self.subscriptions).forEach(c => {
-                if (!sender || (c.id != sender.id)) conn_funcs.set(c, vid, parents, changes, joiner_num)
+    self.set = (sender, version, parents, changes, joiner_num) => {
+        if (!sender
+            || !self.time_dag[version]
+            || (joiner_num > self.joiners[version])) {
+
+            self.mergeable.add_version(version, parents, changes)
+            self.phase_one[version] = {
+                origin: sender,
+                count: symmetric_subscriptions().length - (sender ? 1 : 0)
+            }
+            
+            if (joiner_num) self.joiners[version] = joiner_num
+            Object.values(self.subscriptions).forEach(receiver => {
+                if (!sender || (receiver.id != sender.id))
+                    conn_funcs.set(receiver, version, parents, changes, joiner_num)
             })
-        } else if (self.phase_one[vid] && (joiner_num == self.joiners[vid])) {
-            self.phase_one[vid].count--
+        } else if (self.phase_one[version] && (joiner_num == self.joiners[version])) {
+            self.phase_one[version].count--
         }
-        check_ack_count(vid)
+        check_ack_count(version)
     }
 
     self.multiset = (sender, versions, fissures, conn_leaves, min_leaves) => {
+        // `versions` is actually array of set messages. Each one has a version.
+
         var new_versions = []
         
         var v = versions[0]
@@ -154,25 +182,25 @@ module.exports = function create_resource(conn_funcs) {
         gen_fissures.forEach(f => self.fissure(null, f))
     }
     
-    self.ack = (sender, vid, joiner_num) => {
-        if (self.phase_one[vid] && (joiner_num == self.joiners[vid])) {
-            self.phase_one[vid].count--
-            check_ack_count(vid)
+    self.ack = (sender, version, joiner_num) => {
+        if (self.phase_one[version] && (joiner_num == self.joiners[version])) {
+            self.phase_one[version].count--
+            check_ack_count(version)
         }
     }
     
-    self.full_ack = (sender, vid) => {
-        if (!self.time_dag[vid]) return
+    self.full_ack = (sender, version) => {
+        if (!self.time_dag[version]) return
         
         var ancs = self.ancestors(self.conn_leaves)
-        if (ancs[vid]) return
+        if (ancs[version]) return
         
         var ancs = self.ancestors(self.ack_leaves)
-        if (ancs[vid]) return
+        if (ancs[version]) return
         
-        add_full_ack_leaf(vid)
+        add_full_ack_leaf(version)
         symmetric_subscriptions().forEach(c => {
-            if (c.id != sender.id) conn_funcs.full_ack(c, vid)
+            if (c.id != sender.id) conn_funcs.full_ack(c, version)
         })
     }
     
