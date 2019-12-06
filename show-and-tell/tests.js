@@ -30,6 +30,33 @@ function main() {
     console.log('check_good: ' + check_good)
 }
 
+// XXX Work-in-progress
+function node_connection (id, pid, node) {
+    this.id = id
+    this.pid = node.pid
+
+    // Here I can put some methods:
+    this.get = (conn, initial) => node.on_get(key, initial, {conn})
+    this.set = (conn, vid, parents, changes, joiner_num) =>
+        node.on_set(key, changes, {version: vid, parents: parents, conn}, joiner_num)
+
+    this.multiset = (conn, vs, fs, conn_leaves, min_leaves) =>
+        node.on_multiset(key, vs, fs.map(x => ({
+            name: x.a + ':' + x.b + ':' + x.conn,
+            versions: x.nodes,
+            parents: x.parents
+        })), conn_leaves, min_leaves, {conn})
+
+    this.ack = (conn, vid, joiner_num) =>
+        node.on_ack(key, null, 'local', {version: vid, conn}, joiner_num)
+
+    this.full_ack = (conn, vid) =>
+        node.on_ack(key, null, 'global', {version: vid, conn})
+
+    this.fissure = (conn, fissure) =>
+        node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.nodes, fissure.parents, {conn})
+}
+
 function run_trial(seed, N, show_debug, trial_num) {
     function deep_equals(a, b) {
         if (typeof(a) != 'object' || typeof(b) != 'object') return a == b
@@ -61,19 +88,19 @@ function run_trial(seed, N, show_debug, trial_num) {
         ;(() => {
             var p = create_node()
             ;[['get', 2], ['set', 2], ['multiset', 5], ['ack', 3], ['disconnected', 4]].forEach(x => {
-                var [key, t_index] = x
-                p['on_' + key] = function () {
+                var [method, t_index] = x
+                p['on_' + method] = function () {
                     var args = [...arguments].map(x => (x != null) ? JSON.parse(JSON.stringify(x)) : null)
                     var t = args[t_index]
-                    if ((key != 'get') && !p.keys.my_key.conns[t.conn.id]) throw 'you cannot talk to them!'
-                    notes.push('SEND: ' + key + ' from:' + p.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
+                    if ((method != 'get') && !p.keys.my_key.subscriptions[t.conn.id]) throw 'you cannot talk to them!'
+                    notes.push('SEND: ' + method + ' from:' + p.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
                     if (show_debug) console.log(notes)
                     peers[t.conn.pid].incoming.push([p.pid, () => {
-                        notes.push('RECV: ' + key + ' from:' + p.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
+                        notes.push('RECV: ' + method + ' from:' + p.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
                         if (show_debug) console.log(notes)
                         var to_pid = t.conn.pid
                         t.conn = {id: t.conn.id, pid: p.pid}
-                        peers[to_pid][key](...args)
+                        peers[to_pid][method](...args)
                     }])
                 }
             })
@@ -171,13 +198,13 @@ function run_trial(seed, N, show_debug, trial_num) {
                     other_p = peers_array[Math.floor(rand() * n_peers)]
                 }
                 var disconnect = false
-                Object.values(p.keys.my_key ? p.keys.my_key.conns : []).forEach(c => {
+                Object.values(p.keys.my_key ? p.keys.my_key.subscriptions : []).forEach(c => {
                     if (c.pid == other_p.pid) {
                         disconnect = true
                         p.disconnected('my_key', null, null, null, {conn: c})
                     }
                 })
-                Object.values(other_p.keys.my_key ? other_p.keys.my_key.conns : []).forEach(c => {
+                Object.values(other_p.keys.my_key ? other_p.keys.my_key.subscriptions : []).forEach(c => {
                     if (c.pid == p.pid) {
                         disconnect = true
                         other_p.disconnected('my_key', null, null, null, {conn: c})
@@ -226,7 +253,17 @@ function run_trial(seed, N, show_debug, trial_num) {
         var p1_p = peers_array[p1]
         for (var p2 = p1 + 1; p2 < n_peers; p2++) {
             var p2_p = peers_array[p2]
-            if (!Object.values(p1_p.keys['my_key'] ? p1_p.keys['my_key'].conns : []).some(x => x.pid == p2_p.pid) && !p1_p.incoming.some(x => x[0] == p2_p.pid) && !Object.values(p2_p.keys['my_key'] ? p2_p.keys['my_key'].conns : []).some(x => x.pid == p1_p.pid) && !p2_p.incoming.some(x => x[0] == p1_p.pid)) {
+            if (!Object.values(p1_p.keys['my_key']
+                               ? p1_p.keys['my_key'].subscriptions
+                               : []
+                              ).some(x => x.pid == p2_p.pid)
+                && !p1_p.incoming.some(x => x[0] == p2_p.pid)
+                && !Object.values(p2_p.keys['my_key']
+                                  ? p2_p.keys['my_key'].subscriptions
+                                  : []
+                                 ).some(x => x.pid == p1_p.pid)
+                && !p2_p.incoming.some(x => x[0] == p1_p.pid)) {
+
                 notes = ['connecting ' + p1 + ':' + p1_p.pid + ' and ' + p2 + ':' + p2_p.pid]
                 
                 var alpha = Math.random() < 0.5
@@ -455,7 +492,7 @@ function create_node() {
             set: (conn, vid, parents, changes, joiner_num) => {
                 node.on_set(key, changes, {version: vid, parents: parents, conn}, joiner_num)
             },
-            set_multi: (conn, vs, fs, conn_leaves, min_leaves) => {
+            multiset: (conn, vs, fs, conn_leaves, min_leaves) => {
                 node.on_multiset(key, vs, fs.map(x => ({
                     name: x.a + ':' + x.b + ':' + x.conn,
                     versions: x.nodes,
@@ -484,7 +521,7 @@ function create_node() {
     }
     
     node.multiset = (key, vs, fs, conn_leaves, min_leaves, t) => {
-        get_key(key).set_multi(t.conn, vs, fs.map(x => {
+        get_key(key).multiset(t.conn, vs, fs.map(x => {
             var [a, b, conn] = x.name.split(/:/)
             return {a, b, conn, nodes: x.versions, parents: x.parents}
         }), conn_leaves, min_leaves)
@@ -516,10 +553,7 @@ function create_node() {
     }
     
     node.delete = () => {
-        
-        
         // work here: idea: use "undefined" to represent deletion
-        
     }
     
     return node
@@ -545,7 +579,7 @@ function create_resource(conn_funcs) {
         return result
     }
 
-    self.conns = {}
+    self.subscriptions = {}
     self.fissures = {}
     self.conn_leaves = {}
     self.ack_leaves = {}
@@ -559,27 +593,27 @@ function create_resource(conn_funcs) {
     //      pid: (optional) peer id, implies symmetric connection
     // }
     self.get = (conn, initial) => {
-        self.conns[conn.id] = conn
+        self.subscriptions[conn.id] = conn
         if (conn.pid && initial) conn_funcs.get(conn, false)
         var vs = (Object.keys(self.time_dag).length > 0) ? self.mergeable.generate_braid(x => false) : []
         var fs = Object.values(self.fissures)
-        conn_funcs.set_multi(conn, vs, fs)
+        conn_funcs.multiset(conn, vs, fs)
     }
     
     self.forget = (conn) => {
-        delete self.conns[conn.id]
+        delete self.subscriptions[conn.id]
     }
     
-    function get_symmetric_conns() {
-        return Object.values(self.conns).filter(c => c.pid)
+    function symmetric_subscriptions() {
+        return Object.values(self.subscriptions).filter(c => c.pid)
     }
     
     self.set = (conn, vid, parents, changes, joiner_num) => {
         if (!conn || !self.time_dag[vid] || (joiner_num > self.joiners[vid])) {
             self.mergeable.add_version(vid, parents, changes)
-            self.phase_one[vid] = {origin: conn, count: get_symmetric_conns().length - (conn ? 1 : 0)}
+            self.phase_one[vid] = {origin: conn, count: symmetric_subscriptions().length - (conn ? 1 : 0)}
             if (joiner_num) self.joiners[vid] = joiner_num
-            Object.values(self.conns).forEach(c => {
+            Object.values(self.subscriptions).forEach(c => {
                 if (!conn || (c.id != conn.id)) conn_funcs.set(c, vid, parents, changes, joiner_num)
             })
         } else if (self.phase_one[vid] && (joiner_num == self.joiners[vid])) {
@@ -588,7 +622,7 @@ function create_resource(conn_funcs) {
         check_ack_count(vid)
     }
 
-    self.set_multi = (conn, vs, fs, conn_leaves, min_leaves) => {
+    self.multiset = (conn, vs, fs, conn_leaves, min_leaves) => {
         var new_vs = []
         
         var v = vs[0]
@@ -675,8 +709,8 @@ function create_resource(conn_funcs) {
         self.phase_one = {}
         
         if (new_vs.length > 0 || new_fs.length > 0) {
-            Object.values(self.conns).forEach(c => {
-                if (c.id != conn.id) conn_funcs.set_multi(c, new_vs, new_fs, conn_leaves, min_leaves)
+            Object.values(self.subscriptions).forEach(c => {
+                if (c.id != conn.id) conn_funcs.multiset(c, new_vs, new_fs, conn_leaves, min_leaves)
             })
         }
         gen_fs.forEach(f => self.fissure(null, f))
@@ -699,7 +733,7 @@ function create_resource(conn_funcs) {
         if (ancs[vid]) return
         
         add_full_ack_leaf(vid)
-        get_symmetric_conns().forEach(c => {
+        symmetric_subscriptions().forEach(c => {
             if (c.id != conn.id) conn_funcs.full_ack(c, vid)
         })
     }
@@ -727,7 +761,7 @@ function create_resource(conn_funcs) {
                 conn_funcs.ack(self.phase_one[vid].origin, vid, self.joiners[vid])
             } else {
                 add_full_ack_leaf(vid)
-                get_symmetric_conns().forEach(c => {
+                symmetric_subscriptions().forEach(c => {
                     conn_funcs.full_ack(c, vid)
                 })
             }
@@ -736,7 +770,7 @@ function create_resource(conn_funcs) {
     
     self.fissure = (conn, fissure) => {
         if (!fissure) {
-            if (!self.conns[conn.id]) return
+            if (!self.subscriptions[conn.id]) return
             if (conn.pid) {
                 var nodes = {}
                 var ack_nodes = self.ancestors(self.ack_leaves)
@@ -759,7 +793,7 @@ function create_resource(conn_funcs) {
                     parents
                 }
             }
-            delete self.conns[conn.id]
+            delete self.subscriptions[conn.id]
         }
     
         var key = fissure.a + ':' + fissure.b + ':' + fissure.conn
@@ -768,7 +802,7 @@ function create_resource(conn_funcs) {
             
             self.phase_one = {}
             
-            get_symmetric_conns().forEach(c => {
+            symmetric_subscriptions().forEach(c => {
                 if (!conn || (c.id != conn.id)) conn_funcs.fissure(c, fissure)
             })
             
