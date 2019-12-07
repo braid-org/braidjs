@@ -109,7 +109,7 @@ function run_trial(seed, N, show_debug, trial_num) {
             peer.pid = 'P' + (i + 1)
             
             peer.incoming = []
-            peers[peer.pid] = p
+            peers[peer.pid] = peer
             
             peer.connect = (pid, alpha) => {
                 if (alpha) {
