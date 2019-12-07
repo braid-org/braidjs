@@ -86,55 +86,55 @@ function run_trial(seed, N, show_debug, trial_num) {
     var peers = {}
     for (var i = 0; i < n_peers; i++) {
         ;(() => {
-            var p = create_node()
+            var peer = create_node()
             ;[['get', 2], ['set', 2], ['multiset', 5], ['ack', 3], ['disconnected', 4]].forEach(x => {
                 var [method, t_index] = x
-                p['on_' + method] = function () {
+                peer['on_' + method] = function () {
                     var args = [...arguments].map(x => (x != null) ? JSON.parse(JSON.stringify(x)) : null)
                     var t = args[t_index]
-                    if ((method != 'get') && !p.keys.my_key.subscriptions[t.conn.id]) throw 'you cannot talk to them!'
-                    notes.push('SEND: ' + method + ' from:' + p.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
+                    if ((method != 'get') && !peer.keys.my_key.subscriptions[t.conn.id]) throw 'you cannot talk to them!'
+                    notes.push('SEND: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
                     if (show_debug) console.log(notes)
-                    peers[t.conn.pid].incoming.push([p.pid, () => {
-                        notes.push('RECV: ' + method + ' from:' + p.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
+                    peers[t.conn.pid].incoming.push([peer.pid, () => {
+                        notes.push('RECV: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
                         if (show_debug) console.log(notes)
                         var to_pid = t.conn.pid
-                        t.conn = {id: t.conn.id, pid: p.pid}
+                        t.conn = {id: t.conn.id, pid: peer.pid}
                         peers[to_pid][method](...args)
                     }])
                 }
             })
             
             // work here
-            p.pid = 'P' + (i + 1)
+            peer.pid = 'P' + (i + 1)
             
-            p.incoming = []
-            peers[p.pid] = p
+            peer.incoming = []
+            peers[peer.pid] = p
             
-            p.connect = (pid, alpha) => {
+            peer.connect = (pid, alpha) => {
                 if (alpha) {
-                    p.on_get('my_key', true, {conn: {id: random_id(), pid}})
+                    peer.on_get('my_key', true, {conn: {id: random_id(), pid}})
                 }
             }
             
             if (i == 0) {
-                p.letters = 'abcdefghijklmnopqrstuvwxyz'
+                peer.letters = 'abcdefghijklmnopqrstuvwxyz'
                 for (var ii = 0; ii < 100; ii++) {
-                    p.letters += String.fromCharCode(12032 + ii)
+                    peer.letters += String.fromCharCode(12032 + ii)
                 }
-                p.letters_i = 0
+                peer.letters_i = 0
             } else if (i == 1) {
-                p.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                peer.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
                 for (var ii = 0; ii < 100; ii++) {
-                    p.letters += String.fromCharCode(12032 + 1000 + ii)
+                    peer.letters += String.fromCharCode(12032 + 1000 + ii)
                 }
-                p.letters_i = 0
+                peer.letters_i = 0
             } else {
-                p.letters = ''
+                peer.letters = ''
                 for (var ii = 0; ii < 100; ii++) {
-                    p.letters += String.fromCharCode(12032 + 2000 + ii)
+                    peer.letters += String.fromCharCode(12032 + 2000 + ii)
                 }
-                p.letters_i = 0
+                peer.letters_i = 0
             }
         })()
     }

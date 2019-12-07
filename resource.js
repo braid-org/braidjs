@@ -156,18 +156,17 @@ module.exports = function create_resource(conn_funcs) {
             min_leaves = {}
             var min = versions.filter(v => !versions_T[v.version])
             min.forEach(v => min_leaves[v.version] = true)
-            min.forEach(v => {
+            min.forEach(v =>
                 Object.keys(v.parents).forEach(p => {
                     delete min_leaves[p]
                 })
-            })
+            )
         }
         var min_versions = self.ancestors(min_leaves)
         var ack_versions = self.ancestors(self.ack_leaves)
         Object.keys(self.ack_leaves).forEach(x => {
-            if (!min_versions[x]) {
+            if (!min_versions[x])
                 delete self.ack_leaves[x]
-            }
         })
         Object.keys(min_leaves).forEach(x => {
             if (ack_versions[x]) self.ack_leaves[x] = true
