@@ -37,8 +37,8 @@ function node_connection (id, pid, node) {
 
     // Here I can put some methods:
     this.get = (conn, initial) => node.on_get(key, initial, {conn})
-    this.set = (conn, vid, parents, changes, joiner_num) =>
-        node.on_set(key, changes, {version: vid, parents: parents, conn}, joiner_num)
+    this.set = (conn, version, parents, changes, joiner_num) =>
+        node.on_set(key, changes, {version: version, parents: parents, conn}, joiner_num)
 
     this.multiset = (conn, versions, fissures, conn_leaves, min_leaves) =>
         node.on_multiset(key, versions, fissures.map(x => ({
@@ -47,11 +47,11 @@ function node_connection (id, pid, node) {
             parents: x.parents
         })), conn_leaves, min_leaves, {conn})
 
-    this.ack = (conn, vid, joiner_num) =>
-        node.on_ack(key, null, 'local', {version: vid, conn}, joiner_num)
+    this.ack = (conn, version, joiner_num) =>
+        node.on_ack(key, null, 'local', {version: version, conn}, joiner_num)
 
-    this.full_ack = (conn, vid) =>
-        node.on_ack(key, null, 'global', {version: vid, conn})
+    this.full_ack = (conn, version) =>
+        node.on_ack(key, null, 'global', {version: version, conn})
 
     this.fissure = (conn, fissure) =>
         node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})
@@ -176,63 +176,77 @@ function run_trial(seed, N, show_debug, trial_num) {
     for (var t = 0; t < N; t++) {
         if (show_debug) console.log('t == ' + t)
         
-        
-        
         var i = Math.floor(rand() * n_peers)
-        var p = peers_array[i]
+        var peer = peers_array[i]
         
         notes = []
         
         if (rand() < 0.1) {
             if (rand() < 0.9) {
-                if (p.keys['my_key'] && Object.keys(p.keys['my_key'].time_dag).length) {
-                    if (p.letters_i >= p.letters.length) {
-                        p.letters_i = 0
+                // Edit text
+                if (peer.keys['my_key'] && Object.keys(peer.keys['my_key'].time_dag).length) {
+                    if (peer.letters_i >= peer.letters.length) {
+                        peer.letters_i = 0
                     }
-                    var e = create_random_edit(p.keys['my_key'], p.letters[p.letters_i++])
-                    p.set('my_key', e.changes, {version: e.vid, parents: e.parents})
+                    var e = create_random_edit(peer.keys['my_key'], peer.letters[peer.letters_i++])
+                    peer.set('my_key', e.changes, {version: e.version, parents: e.parents})
                 }
             } else {
-                var other_p = p
-                while (other_p == p) {
-                    other_p = peers_array[Math.floor(rand() * n_peers)]
-                }
+                // Disconnect or reconnect
+                
+                // First, choose a random other peer to connect/disconnect with
+                var other_peer = peer
+                while (other_peer == peer)
+                    other_peer = peers_array[Math.floor(rand() * n_peers)]
+
                 var disconnect = false
-                Object.values(p.keys.my_key ? p.keys.my_key.subscriptions : []).forEach(c => {
-                    if (c.pid == other_p.pid) {
+                // See if they are connected to us
+                Object.values(peer.keys.my_key ? peer.keys.my_key.subscriptions : []).forEach(s => {
+                    if (s.pid == other_peer.pid) {
                         disconnect = true
-                        p.disconnected('my_key', null, null, null, {conn: c})
+                        // Disconnect, if so
+                        peer.disconnected('my_key', null, null, null, {conn: s})
                     }
                 })
-                Object.values(other_p.keys.my_key ? other_p.keys.my_key.subscriptions : []).forEach(c => {
-                    if (c.pid == p.pid) {
+
+                // Do the same for their connection to us
+                Object.values(other_peer.keys.my_key ? other_peer.keys.my_key.subscriptions : []).forEach(s => {
+                    if (s.pid == peer.pid) {
                         disconnect = true
-                        other_p.disconnected('my_key', null, null, null, {conn: c})
+                        other_peer.disconnected('my_key', null, null, null, {conn: s})
                     }
                 })
+
+                // If we had a disconnection, let's clear out the queues
                 if (disconnect) {
-                    notes.push(' disconnect ' + p.pid + ' and ' + other_p.pid)
-                    p.incoming = p.incoming.filter(x => x[0] != other_p.pid)
-                    other_p.incoming = other_p.incoming.filter(x => x[0] != p.pid)
-                } else {
-                    notes.push(' connect ' + p.pid + ' and ' + other_p.pid)
+                    notes.push(' disconnect ' + peer.pid + ' and ' + other_peer.pid)
+                    peer.incoming = peer.incoming.filter(x => x[0] != other_peer.pid)
+                    other_peer.incoming = other_peer.incoming.filter(x => x[0] != peer.pid)
+
+                }
+
+                // Otherwise, let's connect these peers together
+                else {
+                    notes.push(' connect ' + peer.pid + ' and ' + other_peer.pid)
                     var alpha = Math.random() < 0.5
-                    p.connect(other_p.pid, alpha)
-                    other_p.connect(p.pid, !alpha)
+                    peer.connect(other_peer.pid, alpha)
+                    other_peer.connect(peer.pid, !alpha)
                 }
             }
         } else {
+            // Receive incoming network message
+
             if (show_debug) console.log('process incoming')
             var did_something = false
-            if (p.incoming.length > 0) {
+            if (peer.incoming.length > 0) {
                 did_something = true
                 
                 var possible_peers = {}
-                p.incoming.forEach(x => possible_peers[x[0]] = true)
+                peer.incoming.forEach(x => possible_peers[x[0]] = true)
                 possible_peers = Object.keys(possible_peers)
                 var chosen_peer = possible_peers[Math.floor(Math.random() * possible_peers.length)]
                 
-                var msg = p.incoming.splice(p.incoming.findIndex(x => x[0] == chosen_peer), 1)[0][1]()
+                var msg = peer.incoming.splice(peer.incoming.findIndex(x => x[0] == chosen_peer), 1)[0][1]()
             }
             if (!did_something) {
                 if (show_debug) console.log('did nothing')
@@ -240,11 +254,11 @@ function run_trial(seed, N, show_debug, trial_num) {
         }
         
         if (show_debug)
-            console.log('peer: ' + p.pid + ' -> ' + JSON.stringify(p.keys.my_key && p.keys['my_key'].mergeable.read()))
+            console.log('peer: ' + peer.pid + ' -> ' + JSON.stringify(peer.keys.my_key && peer.keys['my_key'].mergeable.read()))
             
         if (debug_frames) debug_frames.push({
             t: t,
-            peer_notes: {[p.pid]: notes},
+            peer_notes: {[peer.pid]: notes},
             peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
         })
     }
@@ -456,12 +470,12 @@ function run_trial(seed, N, show_debug, trial_num) {
         }
         
         // work here
-        var vid = random_id()
+        var version = random_id()
         resource.next_version_id = (resource.next_version_id || 0) + 1
-        var vid = letters[0] + resource.next_version_id
+        var version = letters[0] + resource.next_version_id
         
         return {
-            vid,
+            version,
             parents : Object.assign({}, resource.current_version),
             changes
         }
@@ -489,8 +503,8 @@ function create_node() {
             get: (conn, initial) => {
                 node.on_get(key, initial, {conn})
             },
-            set: (conn, vid, parents, changes, joiner_num) => {
-                node.on_set(key, changes, {version: vid, parents: parents, conn}, joiner_num)
+            set: (conn, version, parents, changes, joiner_num) => {
+                node.on_set(key, changes, {version: version, parents: parents, conn}, joiner_num)
             },
             multiset: (conn, versions, fissures, conn_leaves, min_leaves) => {
                 node.on_multiset(key, versions, fissures.map(x => ({
@@ -499,11 +513,11 @@ function create_node() {
                     parents: x.parents
                 })), conn_leaves, min_leaves, {conn})
             },
-            ack: (conn, vid, joiner_num) => {
-                node.on_ack(key, null, 'local', {version: vid, conn}, joiner_num)
+            ack: (conn, version, joiner_num) => {
+                node.on_ack(key, null, 'local', {version: version, conn}, joiner_num)
             },
-            full_ack: (conn, vid) => {
-                node.on_ack(key, null, 'global', {version: vid, conn})
+            full_ack: (conn, version) => {
+                node.on_ack(key, null, 'global', {version: version, conn})
             },
             fissure: (conn, fissure) => {
                 node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})

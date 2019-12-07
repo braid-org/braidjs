@@ -93,31 +93,31 @@ module.exports = function create_resource(conn_funcs) {
         var new_versions = []
         
         var v = versions[0]
-        if (v && !v.vid) {
+        if (v && !v.version) {
             versions.shift()
             if (!Object.keys(self.time_dag).length) {
                 new_versions.push(v)
-                self.mergeable.add_version(v.vid, v.parents, v.changes)
+                self.mergeable.add_version(v.version, v.parents, v.changes)
             }
         }
         
         var versions_T = {}
-        versions.forEach(v => versions_T[v.vid] = v.parents)
+        versions.forEach(v => versions_T[v.version] = v.parents)
         versions.forEach(v => {
-            if (self.time_dag[v.vid]) {
+            if (self.time_dag[v.version]) {
                 function f(v) {
                     if (versions_T[v]) {
                         Object.keys(versions_T[v]).forEach(f)
                         delete versions_T[v]
                     }
                 }
-                f(v.vid)
+                f(v.version)
             }
         })
         versions.forEach(v => {
-            if (versions_T[v.vid]) {
+            if (versions_T[v.version]) {
                 new_versions.push(v)
-                self.mergeable.add_version(v.vid, v.parents, v.changes)
+                self.mergeable.add_version(v.version, v.parents, v.changes)
             }
         })
         
@@ -154,8 +154,8 @@ module.exports = function create_resource(conn_funcs) {
         
         if (!min_leaves) {
             min_leaves = {}
-            var min = versions.filter(v => !versions_T[v.vid])
-            min.forEach(v => min_leaves[v.vid] = true)
+            var min = versions.filter(v => !versions_T[v.version])
+            min.forEach(v => min_leaves[v.version] = true)
             min.forEach(v => {
                 Object.keys(v.parents).forEach(p => {
                     delete min_leaves[p]
@@ -205,7 +205,7 @@ module.exports = function create_resource(conn_funcs) {
         })
     }
     
-    function add_full_ack_leaf(vid) {
+    function add_full_ack_leaf(version) {
         var marks = {}
         function f(v) {
             if (!marks[v]) {
@@ -217,34 +217,38 @@ module.exports = function create_resource(conn_funcs) {
                 Object.keys(self.time_dag[v]).forEach(f)
             }
         }
-        f(vid)
-        self.ack_leaves[vid] = true
+        f(version)
+        self.ack_leaves[version] = true
         self.prune()
     }
     
-    function check_ack_count(vid) {
-        if (self.phase_one[vid] && self.phase_one[vid].count == 0) {
-            if (self.phase_one[vid].origin) {
-                conn_funcs.ack(self.phase_one[vid].origin, vid, self.joiners[vid])
+    function check_ack_count(version) {
+        if (self.phase_one[version] && self.phase_one[version].count == 0) {
+            if (self.phase_one[version].origin) {
+                conn_funcs.ack(self.phase_one[version].origin, version, self.joiners[version])
             } else {
-                add_full_ack_leaf(vid)
+                add_full_ack_leaf(version)
                 symmetric_subscriptions().forEach(c => {
-                    conn_funcs.full_ack(c, vid)
+                    conn_funcs.full_ack(c, version)
                 })
             }
         }
     }
     
     self.fissure = (sender, fissure) => {
+        // Let's move this block of code to disconnected()
         if (!fissure) {
+            // Then this is one of the two peers that actually disconnected.
+            // We don't have a fissure object yet -- we need to generate it.
+            // (We will then pass this object along to all the other peers in
+            // their fissure events.)
             if (!self.subscriptions[sender.id]) return
             if (sender.pid) {
                 var versions = {}
                 var ack_versions = self.ancestors(self.ack_leaves)
                 Object.keys(self.time_dag).forEach(v => {
-                    if (!ack_versions[v] || self.ack_leaves[v]) {
+                    if (!ack_versions[v] || self.ack_leaves[v])
                         versions[v] = true
-                    }
                 })
                 
                 var parents = {}
@@ -320,13 +324,13 @@ module.exports = function create_resource(conn_funcs) {
         
         var tags = {'null': {tags: {}}}
         var frozen = {}
-        Object.keys(self.time_dag).forEach(vid => {
-            tags[vid] = {tags: {}}
+        Object.keys(self.time_dag).forEach(version => {
+            tags[version] = {tags: {}}
         })
-        function tag(vid, t) {
-            if (!tags[vid].tags[t]) {
-                tags[vid].tags[t] = true
-                Object.keys(self.time_dag[vid]).forEach(vid => tag(vid, t))
+        function tag(version, t) {
+            if (!tags[version].tags[t]) {
+                tags[version].tags[t] = true
+                Object.keys(self.time_dag[version]).forEach(version => tag(version, t))
                 tags[null].tags[t] = true
             }
         }
@@ -379,11 +383,12 @@ module.exports = function create_resource(conn_funcs) {
     }
     
     self.create_joiner = () => {
-        var vid = sjcl.codec.hex.fromBits(
+        var version = sjcl.codec.hex.fromBits(
             sjcl.hash.sha256.hash(
                 Object.keys(self.current_version).sort().join(':')))
         var joiner_num = Math.random()
-        self.set(null, vid, Object.assign({}, self.current_version), [], joiner_num)
+        self.set(null, version, Object.assign({}, self.current_version),
+                 [], joiner_num)
     }
     
     return self

@@ -32,13 +32,13 @@ function generate_braid(resource, is_anc) {
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
     
     var versions = [{
-        vid: null,
+        version: null,
         parents: {},
         changes: [` = ${JSON.stringify(read(resource, is_anc))}`]
     }]
-    Object.keys(resource.time_dag).filter(x => !is_anc(x)).forEach(vid => {
-        var ancs = resource.ancestors({[vid]: true})
-        delete ancs[vid]
+    Object.keys(resource.time_dag).filter(x => !is_anc(x)).forEach(version => {
+        var ancs = resource.ancestors({[version]: true})
+        delete ancs[version]
         var is_anc = x => ancs[x]
         var path = []
         var changes = []
@@ -46,14 +46,14 @@ function generate_braid(resource, is_anc) {
         function recurse(x) {
             if (is_lit(x)) {
             } else if (x.t == 'val') {
-                space_dag_generate_braid(x.S, resource, vid, is_anc).forEach(s => {
+                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
                     if (s[2].length) changes.push(`${path.join('')} = ${JSON.stringify(s[2][0])}`)
                 })
                 traverse_space_dag(x.S, is_anc, node => {
                     node.elems.forEach(recurse)
                 })
             } else if (x.t == 'arr') {
-                space_dag_generate_braid(x.S, resource, vid, is_anc).forEach(s => {
+                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
                     changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
                 })
                 var i = 0
@@ -71,22 +71,22 @@ function generate_braid(resource, is_anc) {
                     path.pop()
                 })
             } else if (x.t == 'str') {
-                space_dag_generate_braid(x.S, resource, vid, is_anc).forEach(s => {
+                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
                     changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
                 })
             }
         }
         
         versions.push({
-            vid,
-            parents: Object.assign({}, resource.time_dag[vid]),
+            version,
+            parents: Object.assign({}, resource.time_dag[version]),
             changes
         })
     })
     return versions
 }
 
-function space_dag_generate_braid(S, resource, vid, is_anc) {
+function space_dag_generate_braid(S, resource, version, is_anc) {
     var splices = []
     
     function add_result(offset, del, ins) {
@@ -104,19 +104,19 @@ function space_dag_generate_braid(S, resource, vid, is_anc) {
     }
     
     var offset = 0
-    function helper(node, _vid) {
-        if (_vid == vid) {
+    function helper(node, _version) {
+        if (_version == version) {
             add_result(offset, 0, node.elems.slice(0))
-        } else if (node.deleted_by[vid] && node.elems.length > 0) {
+        } else if (node.deleted_by[version] && node.elems.length > 0) {
             add_result(offset, node.elems.length, node.elems.slice(0, 0))
         }
         
-        if ((!_vid || is_anc(_vid)) && !Object.keys(node.deleted_by).some(is_anc)) {
+        if ((!_version || is_anc(_version)) && !Object.keys(node.deleted_by).some(is_anc)) {
             offset += node.elems.length
         }
         
-        node.nexts.forEach(next => helper(next, next.vid))
-        if (node.next) helper(node.next, _vid)
+        node.nexts.forEach(next => helper(next, next.version))
+        if (node.next) helper(node.next, _version)
     }
     helper(S, null)
     return splices
@@ -177,26 +177,26 @@ function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen
 
     var visited = {}
     var forwards = {}
-    function g(vid) {
-        if (visited[vid]) return
-        visited[vid] = true
-        if (delete_us[vid])
-            forwards[vid] = {}
-        Object.keys(x.time_dag[vid]).forEach(pid => {
+    function g(version) {
+        if (visited[version]) return
+        visited[version] = true
+        if (delete_us[version])
+            forwards[version] = {}
+        Object.keys(x.time_dag[version]).forEach(pid => {
             g(pid)
-            if (delete_us[vid]) {
+            if (delete_us[version]) {
                 if (delete_us[pid])
-                    Object.assign(forwards[vid], forwards[pid])
+                    Object.assign(forwards[version], forwards[pid])
                 else
-                    forwards[vid][pid] = true
+                    forwards[version][pid] = true
             } else if (delete_us[pid]) {
-                delete x.time_dag[vid][pid]
-                Object.assign(x.time_dag[vid], forwards[pid])
+                delete x.time_dag[version][pid]
+                Object.assign(x.time_dag[version], forwards[pid])
             }
         })
     }
     Object.keys(x.current_version).forEach(g)
-    Object.keys(delete_us).forEach(vid => delete x.time_dag[vid])
+    Object.keys(delete_us).forEach(version => delete x.time_dag[version])
     return delete_us
 }
 
@@ -205,11 +205,11 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
         while (node.next) node = node.next
         node.next = next
     }
-    function process_node(node, offset, vid, prev) {
+    function process_node(node, offset, version, prev) {
         var nexts = node.nexts
         var next = node.next
         
-        var all_nexts_prunable = nexts.every(x => has_everyone_whos_seen_a_seen_b(vid, x.vid))
+        var all_nexts_prunable = nexts.every(x => has_everyone_whos_seen_a_seen_b(version, x.version))
         if (nexts.length > 0 && all_nexts_prunable) {
             var first_prunable = 0
             var gamma = next
@@ -231,19 +231,19 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
                     delete node.end_cap
                     node.nexts = []
                     node.next = nexts[0]
-                    node.next.vid = null
+                    node.next.version = null
                     set_nnnext(node, gamma)
                 }
             } else {
                 node.nexts = nexts.slice(0, first_prunable)
                 node.next = nexts[first_prunable]
-                node.next.vid = null
+                node.next.version = null
                 set_nnnext(node, gamma)
             }
             return true
         }
         
-        if (Object.keys(node.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(vid, k))) {
+        if (Object.keys(node.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(version, k))) {
             node.deleted_by = {}
             node.elems = node.elems.slice(0, 0)
             delete node.gash
@@ -252,7 +252,7 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
             Object.assign(seen_versions, node.deleted_by)
         }
         
-        if (next && !next.nexts[0] && (Object.keys(next.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(vid, k)) || next.elems.length == 0)) {
+        if (next && !next.nexts[0] && (Object.keys(next.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(version, k)) || next.elems.length == 0)) {
             node.next = next.next
             return true
         }
@@ -273,15 +273,15 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
     var did_something_this_time = true
     while (did_something_this_time) {
         did_something_this_time = false
-        traverse_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
-            if (process_node(node, offset, vid, prev)) {
+        traverse_space_dag(S, () => true, (node, offset, has_nexts, prev, version) => {
+            if (process_node(node, offset, version, prev)) {
                 did_something_this_time = true
                 did_something_ever = true
             }
         }, true)
     }
-    traverse_space_dag(S, () => true, (node, offset, has_nexts, prev, vid) => {
-        if (vid) seen_versions[vid] = true
+    traverse_space_dag(S, () => true, (node, offset, has_nexts, prev, version) => {
+        if (version) seen_versions[version] = true
     }, true)
     return did_something_ever
 }
@@ -290,29 +290,29 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
 
 
 
-function add_version(resource, vid, parents, changes, is_anc) {
+function add_version(resource, version, parents, changes, is_anc) {
     let make_lit = x => (x && typeof(x) == 'object') ? {t: 'lit', S: x} : x
     
-    if (!vid && Object.keys(resource.time_dag).length == 0) {
+    if (!version && Object.keys(resource.time_dag).length == 0) {
         var parse = parse_change(changes[0])
         resource.space_dag = make_lit(parse.val)
         return
-    } else if (!vid) return
+    } else if (!version) return
     
-    if (resource.time_dag[vid]) return
-    resource.time_dag[vid] = Object.assign({}, parents)
+    if (resource.time_dag[version]) return
+    resource.time_dag[version] = Object.assign({}, parents)
     
     Object.keys(parents).forEach(k => {
         if (resource.current_version[k]) delete resource.current_version[k]
     })
-    resource.current_version[vid] = true
+    resource.current_version[version] = true
     
     if (!is_anc) {
         if (parents == resource.current_version) {
-            is_anc = (_vid) => _vid != vid
+            is_anc = (_version) => _version != version
         } else {
             var ancs = resource.ancestors(parents)
-            is_anc = _vid => ancs[_vid]
+            is_anc = _version => ancs[_version]
         }
     }
     
@@ -355,7 +355,7 @@ function add_version(resource, vid, parents, changes, is_anc) {
         if (!parse.range) {
             if (cur.t != 'val') throw 'bad'
             var len = space_dag_length(cur.S, is_anc)
-            space_dag_add_version(cur.S, vid, [[0, len, [make_lit(parse.val)]]], is_anc)
+            space_dag_add_version(cur.S, version, [[0, len, [make_lit(parse.val)]]], is_anc)
         } else {
             if (cur.t == 'val') cur = space_dag_get(prev_S = cur.S, prev_i = 0, is_anc)
             if (typeof(cur) == 'string') {
@@ -372,7 +372,7 @@ function add_version(resource, vid, parents, changes, is_anc) {
             
             if (parse.val instanceof String && cur.t != 'str') throw 'bad'
             if (parse.val instanceof Array) parse.val = parse.val.map(x => make_lit(x))
-            space_dag_add_version(cur.S, vid, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
+            space_dag_add_version(cur.S, version, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
         }
     })
 }
@@ -410,9 +410,9 @@ function read(x, is_anc) {
     } return x
 }
 
-function create_space_dag_node(vid, elems, end_cap) {
+function create_space_dag_node(version, elems, end_cap) {
     return {
-        vid : vid,
+        version : version,
         elems : elems,
         deleted_by : {},
         end_cap : end_cap,
@@ -474,12 +474,12 @@ function space_dag_break_node(node, x, end_cap, new_next) {
     return tail
 }
 
-function space_dag_add_version(S, vid, splices, is_anc) {
+function space_dag_add_version(S, version, splices, is_anc) {
     
     function add_to_nexts(nexts, to) {
         var i = binarySearch(nexts, function (x) {
-            if (to.vid < x.vid) return -1
-            if (to.vid > x.vid) return 1
+            if (to.version < x.version) return -1
+            if (to.version > x.version) return 1
             return 0
         })
         nexts.splice(i, 0, to)
@@ -488,14 +488,14 @@ function space_dag_add_version(S, vid, splices, is_anc) {
     var si = 0
     var delete_up_to = 0
     
-    var cb = (node, offset, has_nexts, prev, _vid, deleted) => {
+    var cb = (node, offset, has_nexts, prev, _version, deleted) => {
         var s = splices[si]
         if (!s) return false
         
         if (deleted) {
             if (s[1] == 0 && s[0] == offset) {
                 if (node.elems.length == 0 && !node.end_cap && has_nexts) return
-                var new_node = create_space_dag_node(vid, s[2])
+                var new_node = create_space_dag_node(version, s[2])
                 if (node.elems.length == 0 && !node.end_cap)
                     add_to_nexts(node.nexts, new_node)
                 else
@@ -509,7 +509,7 @@ function space_dag_add_version(S, vid, splices, is_anc) {
             var d = s[0] - (offset + node.elems.length)
             if (d > 0) return
             if (d == 0 && !node.end_cap && has_nexts) return
-            var new_node = create_space_dag_node(vid, s[2])
+            var new_node = create_space_dag_node(version, s[2])
             if (d == 0 && !node.end_cap) {
                 add_to_nexts(node.nexts, new_node)
             } else {
@@ -525,7 +525,7 @@ function space_dag_add_version(S, vid, splices, is_anc) {
             delete_up_to = s[0] + s[1]
             
             if (s[2]) {
-                var new_node = create_space_dag_node(vid, s[2])
+                var new_node = create_space_dag_node(version, s[2])
                 if (s[0] == offset && node.gash) {
                     if (!prev.end_cap) throw 'no end_cap?'
                     add_to_nexts(prev.nexts, new_node)
@@ -549,7 +549,7 @@ function space_dag_add_version(S, vid, splices, is_anc) {
                 }
                 si++
             }
-            node.deleted_by[vid] = true
+            node.deleted_by[version] = true
             return
         }
     }
@@ -557,21 +557,21 @@ function space_dag_add_version(S, vid, splices, is_anc) {
     var f = is_anc
     var exit_early = {}
     var offset = 0
-    function helper(node, prev, vid) {
-        var has_nexts = node.nexts.find(next => f(next.vid))
-        var deleted = Object.keys(node.deleted_by).some(vid => f(vid))
-        if (cb(node, offset, has_nexts, prev, vid, deleted) == false)
+    function helper(node, prev, version) {
+        var has_nexts = node.nexts.find(next => f(next.version))
+        var deleted = Object.keys(node.deleted_by).some(version => f(version))
+        if (cb(node, offset, has_nexts, prev, version, deleted) == false)
             throw exit_early
         if (!deleted) {
             offset += node.elems.length
         }
         for (var next of node.nexts)
-            if (f(next.vid)) helper(next, null, next.vid)
-        if (node.next) helper(node.next, node, vid)
+            if (f(next.version)) helper(next, null, next.version)
+        if (node.next) helper(node.next, node, version)
     }
     try {
         if (!S) debugger
-        helper(S, null, S.vid)
+        helper(S, null, S.version)
     } catch (e) {
         if (e != exit_early) throw e
     }
@@ -581,21 +581,21 @@ function space_dag_add_version(S, vid, splices, is_anc) {
 function traverse_space_dag(S, f, cb, view_deleted, tail_cb) {
     var exit_early = {}
     var offset = 0
-    function helper(node, prev, vid) {
-        var has_nexts = node.nexts.find(next => f(next.vid))
+    function helper(node, prev, version) {
+        var has_nexts = node.nexts.find(next => f(next.version))
         if (view_deleted ||
-            !Object.keys(node.deleted_by).some(vid => f(vid))) {
-            if (cb(node, offset, has_nexts, prev, vid) == false)
+            !Object.keys(node.deleted_by).some(version => f(version))) {
+            if (cb(node, offset, has_nexts, prev, version) == false)
                 throw exit_early
             offset += node.elems.length
         }
         for (var next of node.nexts)
-            if (f(next.vid)) helper(next, null, next.vid)
-        if (node.next) helper(node.next, node, vid)
+            if (f(next.version)) helper(next, null, next.version)
+        if (node.next) helper(node.next, node, version)
         else if (tail_cb) tail_cb(node)
     }
     try {
-        helper(S, null, S.vid)
+        helper(S, null, S.version)
     } catch (e) {
         if (e != exit_early) throw e
     }
