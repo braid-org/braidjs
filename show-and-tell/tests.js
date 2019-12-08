@@ -565,7 +565,7 @@ function create_node() {
             }            
         }
         else {
-            f = resource.create_fissure(t.conn)
+            f = resource.generate_fissure(t.conn)
             delete resource.subscriptions[t.conn.id]
         }            
 

@@ -234,7 +234,7 @@ module.exports = function create_resource(conn_funcs) {
         }
     }
 
-    self.create_fissure = (sender) => {
+    self.generate_fissure = (sender) => {
         console.assert(self.subscriptions[sender.id])
         console.assert(sender.pid)
 
