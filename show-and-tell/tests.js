@@ -555,6 +555,7 @@ function create_node() {
     
     node.disconnected = (key, name, versions, parents, t) => {
         var f = null
+        var resource = get_key(key)
         if (name) {
             var [a, b, conn] = name.split(/:/)
             f = {
@@ -563,12 +564,13 @@ function create_node() {
                 parents: parents
             }            
         }
-        else
-            f = get_key(key).create_fissure(t.conn)
-        
-        // Note: we aren't testing read-only connections yet.
+        else {
+            f = resource.create_fissure(t.conn)
+            delete resource.subscriptions[t.conn.id]
+        }            
 
-        get_key(key).fissure(t.conn, f)
+        // To do: make this work for read-only connections
+        resource.fissure(t.conn, f)
     }
     
     node.delete = () => {

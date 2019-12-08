@@ -238,32 +238,25 @@ module.exports = function create_resource(conn_funcs) {
         console.assert(self.subscriptions[sender.id])
         console.assert(sender.pid)
 
-        // If the connection is symmetric, then create this fissure object
-        if (sender.pid) {
-            var versions = {}
-            var ack_versions = self.ancestors(self.ack_leaves)
-            Object.keys(self.time_dag).forEach(v => {
-                if (!ack_versions[v] || self.ack_leaves[v])
-                    versions[v] = true
-            })
-                
-            var parents = {}
-            Object.keys(self.fissures).forEach(x => {
-                parents[x] = true
-            })
-                
-            var fissure = {
-                a: self.pid,
-                b: sender.pid,
-                conn: sender.id,
-                versions,
-                parents
-            }
+        var versions = {}
+        var ack_versions = self.ancestors(self.ack_leaves)
+        Object.keys(self.time_dag).forEach(v => {
+            if (!ack_versions[v] || self.ack_leaves[v])
+                versions[v] = true
+        })
+        
+        var parents = {}
+        Object.keys(self.fissures).forEach(x => {
+            parents[x] = true
+        })
+        
+        return {
+            a: self.pid,
+            b: sender.pid,
+            conn: sender.id,
+            versions,
+            parents
         }
-
-        // Otherwise, at least delete the subscription
-        delete self.subscriptions[sender.id]
-        return fissure
     }
 
     self.fissure = (sender, fissure) => {
