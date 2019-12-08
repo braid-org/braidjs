@@ -234,31 +234,6 @@ module.exports = function create_resource(conn_funcs) {
         }
     }
 
-    self.generate_fissure = (sender) => {
-        console.assert(self.subscriptions[sender.id])
-        console.assert(sender.pid)
-
-        var versions = {}
-        var ack_versions = self.ancestors(self.ack_leaves)
-        Object.keys(self.time_dag).forEach(v => {
-            if (!ack_versions[v] || self.ack_leaves[v])
-                versions[v] = true
-        })
-        
-        var parents = {}
-        Object.keys(self.fissures).forEach(x => {
-            parents[x] = true
-        })
-        
-        return {
-            a: self.pid,
-            b: sender.pid,
-            conn: sender.id,
-            versions,
-            parents
-        }
-    }
-
     self.fissure = (sender, fissure) => {
         var key = fissure.a + ':' + fissure.b + ':' + fissure.conn
         if (!self.fissures[key]) {
@@ -282,6 +257,48 @@ module.exports = function create_resource(conn_funcs) {
         }
     }
     
+    self.disconnected = (sender, name, versions, parents) => {
+        // To do: make this work for read-only connections
+        var fissure
+
+        // Generate the fissure
+        if (name) {
+            // Create fissure from name
+            var [a, b, conn] = name.split(/:/)
+            fissure = {
+                a, b, conn,
+                versions: versions,
+                parents: parents
+            }
+        } else {
+            // Create fissure from scratch
+            console.assert(self.subscriptions[sender.id])
+            console.assert(sender.pid)
+
+            var versions = {}
+            var ack_versions = self.ancestors(self.ack_leaves)
+            Object.keys(self.time_dag).forEach(v => {
+                if (!ack_versions[v] || self.ack_leaves[v])
+                    versions[v] = true
+            })
+            
+            var parents = {}
+            Object.keys(self.fissures).forEach(x => parents[x] = true )
+            
+            fissure = {
+                a: self.pid,
+                b: sender.pid,
+                conn: sender.id,
+                versions,
+                parents
+            }
+
+            delete self.subscriptions[sender.id]
+        }
+
+        self.fissure(sender, fissure)
+    }
+
     self.prune = () => {
         var unremovable = {}
         Object.entries(self.fissures).forEach(x => {
