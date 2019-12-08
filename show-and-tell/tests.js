@@ -5,6 +5,7 @@ random_id = () => Math.random().toString(36).substr(2)
 
 function main() {
     var num_trials = 300
+    var trial_length = 500
 
     var special_i = -1
 
@@ -18,7 +19,8 @@ function main() {
         
         check_good = false
         try {
-            var size = run_trial('iiiifIIiiiEiiiiiEEff:' + i, 500, special_i >= 0, i)
+            var size = run_trial('iiiifIIiiiEiiiiiEEff:' + i, trial_length,
+                                 special_i >= 0, i)
             if (size > max_size) max_size = size
         } catch (e) {
             console.log(e)
@@ -57,7 +59,7 @@ function node_connection (id, pid, node) {
         node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})
 }
 
-function run_trial(seed, N, show_debug, trial_num) {
+function run_trial(seed, trial_length, show_debug, trial_num) {
     function deep_equals(a, b) {
         if (typeof(a) != 'object' || typeof(b) != 'object') return a == b
         if (a == null) return b == null
@@ -173,7 +175,7 @@ function run_trial(seed, N, show_debug, trial_num) {
     
     try {
     
-    for (var t = 0; t < N; t++) {
+    for (var t = 0; t < trial_length; t++) {
         if (show_debug) console.log('t == ' + t)
         
         var i = Math.floor(rand() * n_peers)
