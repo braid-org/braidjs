@@ -563,6 +563,11 @@ function create_node() {
                 parents: parents
             }            
         }
+        else
+            f = get_key(key).create_fissure(t.conn)
+        
+        // Note: we aren't testing read-only connections yet.
+
         get_key(key).fissure(t.conn, f)
     }
     

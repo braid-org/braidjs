@@ -233,39 +233,40 @@ module.exports = function create_resource(conn_funcs) {
             }
         }
     }
-    
-    self.fissure = (sender, fissure) => {
-        // Let's move this block of code to disconnected()
-        if (!fissure) {
-            // Then this is one of the two peers that actually disconnected.
-            // We don't have a fissure object yet -- we need to generate it.
-            // (We will then pass this object along to all the other peers in
-            // their fissure events.)
-            if (!self.subscriptions[sender.id]) return
-            if (sender.pid) {
-                var versions = {}
-                var ack_versions = self.ancestors(self.ack_leaves)
-                Object.keys(self.time_dag).forEach(v => {
-                    if (!ack_versions[v] || self.ack_leaves[v])
-                        versions[v] = true
-                })
+
+    self.create_fissure = (sender) => {
+        console.assert(self.subscriptions[sender.id])
+        console.assert(sender.pid)
+
+        // If the connection is symmetric, then create this fissure object
+        if (sender.pid) {
+            var versions = {}
+            var ack_versions = self.ancestors(self.ack_leaves)
+            Object.keys(self.time_dag).forEach(v => {
+                if (!ack_versions[v] || self.ack_leaves[v])
+                    versions[v] = true
+            })
                 
-                var parents = {}
-                Object.keys(self.fissures).forEach(x => {
-                    parents[x] = true
-                })
+            var parents = {}
+            Object.keys(self.fissures).forEach(x => {
+                parents[x] = true
+            })
                 
-                fissure = {
-                    a: self.pid,
-                    b: sender.pid,
-                    conn: sender.id,
-                    versions,
-                    parents
-                }
+            var fissure = {
+                a: self.pid,
+                b: sender.pid,
+                conn: sender.id,
+                versions,
+                parents
             }
-            delete self.subscriptions[sender.id]
         }
-    
+
+        // Otherwise, at least delete the subscription
+        delete self.subscriptions[sender.id]
+        return fissure
+    }
+
+    self.fissure = (sender, fissure) => {
         var key = fissure.a + ':' + fissure.b + ':' + fissure.conn
         if (!self.fissures[key]) {
             self.fissures[key] = fissure
