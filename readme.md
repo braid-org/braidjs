@@ -13,7 +13,7 @@ robust enough for production sites.
 ## What's in this repository?
 
 ```
-braid-peer.js      # Implements the abstract Braid protocol on a `peer` object in Javascript
+resource.js        # Implements the abstract Braid protocol in a `subscribable resource`, in Javascript
                    #   - Demonstrates subscriptions, acknowledgements, and coordinated p2p pruning of history
 http-client.js     # Implements the Braid HTTP protocol in web browsers
 http-server.js     # Implements the Braid HTTP protocol in nodejs servers

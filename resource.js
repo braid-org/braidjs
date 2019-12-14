@@ -1,3 +1,16 @@
+// Example implementation of a `subscribable resource` in Javascript.  This is
+// a resource implementing the abstract Braid protocol, with:
+//
+//  - subscriptions
+//  - acknowledgements
+//  - connections and disconnections
+//  - pruning
+//  - and a merge-type.
+//
+// Right now it only works with the sync9 merge-type, which is implemented in
+// the mergeables/ directory
+
+
 module.exports = function create_resource(conn_funcs) {
     var self = {}
     self.pid = conn_funcs.pid || random_id()
