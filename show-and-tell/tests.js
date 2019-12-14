@@ -29,7 +29,7 @@ function main() {
         }
         if (special_i >= 0) break
     }
-    console.log('check_good: ' + check_good)
+    console.log(check_good ? 'Tests passed!' : 'Tests failed... :( :( :(')
 }
 
 // XXX Work-in-progress
