@@ -1,11 +1,9 @@
-# Braidjs: Synchronization in a Browser API
+# Braidjs: Synchronization in a Browser + Server API
 
 This contains a reference implementation in Javascript of the
 [Braid protocol](https://github.com/braid-work/ietf-braid-draft), which adds
-*synchronization* to HTTP.
-
-Furthermore, this repo demonstrates adding synchronization to the *browser
-API*.
+*synchronization* to HTTP.  This repo also goes one step further, and
+demonstrates adding synchronization to the *browser and server API*.
 
 This implementation is not yet complete, but aims to be fully-functioning and
 robust enough for production sites.
@@ -16,29 +14,31 @@ robust enough for production sites.
 ## What's in this repository?
 
 ```
-resource.js        # Implements the abstract Braid protocol in a `subscribable resource`, in Javascript
-                   #   - Demonstrates subscriptions, acknowledgements, and coordinated p2p pruning of history
-http-client.js     # Implements the Braid HTTP protocol in web browsers
-http-server.js     # Implements the Braid HTTP protocol in nodejs servers
-state-control.js   # Implements support for validation, access control, programmatic state on a peer
-reactivity.js      # Implements a reactive version of the abstract Braid protocol
-proxy.js           # Implements a reactive ES6 Proxy of the abstract Braid protocol
-merge-algorithms/  # Implementations for OT and CRDT merge-types
+resource.js        # A `subscribable HTTP resource`: a URI with subscriptions
+http-client.js     # Braid-HTTP networking for web browsers
+http-server.js     # Braid-HTTP networking for nodejs servers
+state-control.js   # Validation, access control, programmatic state on a peer
+reactivity.js      # Reactive version of the abstract Braid protocol
+proxy.js           # Reactive ES6 Proxy of the abstract Braid protocol
+merge-algorithms/  # A variety of OT and CRDT merge-types
   sync9.js
 show-and-tell/
   tests.js         # Unit tests
   vis-sim.html     # Visual demonstration of a simulated peer-to-peer network
 ```
 
-## Current status & roadmap to release
+## Implementation status
 
-Our high-level strategy:
+The high-level strategy:
 
 1. Refactor the [statebus](https://stateb.us) implementation
-2. And the [sync9](https://braid.news/sync9) implementation
+2. Refactor the [sync9](https://braid.news/sync9) implementation
 3. To meet, in a unified model of synchronization in browser APIs
 
-The statebus code is being refactored at https://github.com/invisible-college/braidjs, according to this [roadmap](https://braid.news/roadmap):
+The statebus code is being refactored at
+https://github.com/invisible-college/braidjs, according to this
+[roadmap](https://braid.news/roadmap):
+
 - [x] Rename `fetch` & `save` -> `get` & `set`
 - [x] Rename `statebus` -> `braidjs`
 - [x] Change JSON encoding
@@ -51,9 +51,8 @@ The statebus code is being refactored at https://github.com/invisible-college/br
 - [ ] New ES6 Proxy implementation
 - [ ] Rename `key` -> `link`
 
-Mike is currently working on refactoring Sync9 in this repository, in the
-`refactor-sync9` branch, and improving the Sync9 spec.  He expects this part
-to be complete by the end of December.
+Mike is currently refactoring Sync9 in the `refactor-sync9` branch of this
+repository.  He expects to complete this step before January.
 
 ## Contributing
 
