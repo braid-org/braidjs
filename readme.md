@@ -1,13 +1,19 @@
-# Braidjs
+# Braidjs: Synchronization in Browser + Server APIs
 
-This is a reference implementation in Javascript of the
+This contains a reference implementation in Javascript of the
 [Braid protocol](https://github.com/braid-work/ietf-braid-draft), which adds
-*synchronization* to HTTP.
+*synchronization* to HTTP.  This code also goes one step further, and
+demonstrates adding synchronization to the *browser and server API*.
 
 This implementation is not yet complete, but aims to be fully-functioning and
 robust enough for production sites.
 
 *We intentionally keep this readme short.* Read more about braid at https://braid.news!
+
+## Development status
+
+Current work is happening in the
+[`refactor-sync9` branch](https://github.com/braid-work/toomim-braidjs/tree/refactor-sync9).  Go there.
 
 
 ## What's in this repository?
