@@ -1,8 +1,8 @@
-# Braidjs: Synchronization in a Browser + Server API
+# Braidjs: Synchronization in Browser + Server APIs
 
 This contains a reference implementation in Javascript of the
 [Braid protocol](https://github.com/braid-work/ietf-braid-draft), which adds
-*synchronization* to HTTP.  This repo also goes one step further, and
+*synchronization* to HTTP.  This code also goes one step further, and
 demonstrates adding synchronization to the *browser and server API*.
 
 This implementation is not yet complete, but aims to be fully-functioning and
@@ -27,11 +27,16 @@ show-and-tell/
   vis-sim.html     # Visual demonstration of a simulated peer-to-peer network
 ```
 
+Note that many of these files are still stubs, but have partial
+implementations in the
+[invisible-college/braidjs](https://github.com/invisible-college/braidjs)
+repository.
+
 ## Implementation status
 
 The high-level strategy:
 
-1. Refactor the [statebus](https://stateb.us) implementation
+1. Refactor the [statebus](https://stateb.us) implementation (see invisible-college/braidjs)
 2. Refactor the [sync9](https://braid.news/sync9) implementation
 3. To meet, in a unified model of synchronization in browser APIs
 
