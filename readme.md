@@ -27,6 +27,30 @@ show-and-tell/
   vis-sim.html     # Visual demonstration of a simulated peer-to-peer network
 ```
 
+## Roadmap to release
+
+At the high level, we are:
+
+1. Refactoring the [statebus](https://stateb.us) implementation
+2. And the [sync9](https://braid.news/sync9) implementation
+3. So that they meet together, within a new browser API, using concepts (e.g. merge-type) from the Braid protocol.
+
+The statebus code is being refactored at https://github.com/invisible-college/braidjs, according to this [roadmap](https://braid.news/roadmap):
+- [x] Rename `fetch` & `save` -> `get` & `set`
+- [x] Rename `statebus` -> `braidjs`
+- [x] Change JSON encoding
+- [x] Remove recursion in `set`
+- [ ] Incorporate the [Sync9](https://braid.news/sync9/performance) pruning peer-to-peer CRDT
+  - [ ] Disk persistence
+- [ ] New [API](https://braid.news/roadmap/new-api)
+  - [ ] Add [cache eviction policy](https://en.wikipedia.org/wiki/Cache_replacement_policies#Most_recently_used_(MRU))
+- [ ] New [network protocol](https://braid.news/protocol)
+- [ ] New ES6 Proxy implementation
+- [ ] Rename `key` -> `link`
+
+Mike is currently working on refactoring Sync9 and improving its spec.  He
+expects this part to be complete by the end of December.
+
 ## Contributing
 
 Be sure to run tests before committing, with:
