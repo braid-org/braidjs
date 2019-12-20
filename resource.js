@@ -33,7 +33,7 @@ module.exports = function create_resource(conn_funcs) {
     self.mergeable = require('./merge-algorithms/sync9.js').create(self)
 
     // The peers we are connected to, and whether they can send us edits
-    self.subscriptions = {}
+    self.connections = {}
 
     // Disconnections that have occurred in the network without a forget()
     self.fissures = {}
@@ -46,9 +46,9 @@ module.exports = function create_resource(conn_funcs) {
     // Empty versions sent to collapse outstanding parallel edits
     self.joiners = {}
     
-    // Subscriptions take this form:
+    // Connections take this form:
     // 
-    //    subscription: {
+    //    connection: {
     //         id:  <string>          // ID of the connection
     //         pid: <optional string> // ID of peer
     //    }
@@ -63,7 +63,7 @@ module.exports = function create_resource(conn_funcs) {
 
     // Methods
     self.get = (sender, initial) => {
-        self.subscriptions[sender.id] = sender
+        self.connections[sender.id] = sender
         if (sender.pid && initial) conn_funcs.get(sender, false)
         var versions = (Object.keys(self.time_dag).length > 0) ? self.mergeable.generate_braid(x => false) : []
         var fissures = Object.values(self.fissures)
@@ -71,11 +71,11 @@ module.exports = function create_resource(conn_funcs) {
     }
     
     self.forget = (sender) => {
-        delete self.subscriptions[sender.id]
+        delete self.connections[sender.id]
     }
     
-    function symmetric_subscriptions() {
-        return Object.values(self.subscriptions).filter(c => c.pid)
+    function connected_citizens() {
+        return Object.values(self.connections).filter(c => c.pid)
     }
     
     self.set = (sender, version, parents, changes, joiner_num) => {
@@ -86,11 +86,11 @@ module.exports = function create_resource(conn_funcs) {
             self.mergeable.add_version(version, parents, changes)
             self.acks_in_process[version] = {
                 origin: sender,
-                count: symmetric_subscriptions().length - (sender ? 1 : 0)
+                count: connected_citizens().length - (sender ? 1 : 0)
             }
             
             if (joiner_num) self.joiners[version] = joiner_num
-            Object.values(self.subscriptions).forEach(receiver => {
+            Object.values(self.connections).forEach(receiver => {
                 if (!sender || (receiver.id != sender.id))
                     conn_funcs.set(receiver, version, parents, changes, joiner_num)
             })
@@ -190,7 +190,7 @@ module.exports = function create_resource(conn_funcs) {
         self.acks_in_process = {}
         
         if (new_versions.length > 0 || new_fissures.length > 0) {
-            Object.values(self.subscriptions).forEach(c => {
+            Object.values(self.connections).forEach(c => {
                 if (c.id != sender.id) conn_funcs.multiset(c, new_versions, new_fissures, unack_boundary, min_leaves)
             })
         }
@@ -214,7 +214,7 @@ module.exports = function create_resource(conn_funcs) {
         if (ancs[version]) return
         
         add_full_ack_leaf(version)
-        symmetric_subscriptions().forEach(c => {
+        connected_citizens().forEach(c => {
             if (c.id != sender.id) conn_funcs.full_ack(c, version)
         })
     }
@@ -244,7 +244,7 @@ module.exports = function create_resource(conn_funcs) {
                                self.joiners[version])
             else {
                 add_full_ack_leaf(version)
-                symmetric_subscriptions().forEach(c => conn_funcs.full_ack(c, version))
+                connected_citizens().forEach(c => conn_funcs.full_ack(c, version))
             }
         }
     }
@@ -256,7 +256,7 @@ module.exports = function create_resource(conn_funcs) {
             
             self.acks_in_process = {}
             
-            symmetric_subscriptions().forEach(c => {
+            connected_citizens().forEach(c => {
                 if (!sender || (c.id != sender.id)) conn_funcs.fissure(c, fissure)
             })
             
@@ -287,7 +287,7 @@ module.exports = function create_resource(conn_funcs) {
             }
         } else {
             // Create fissure from scratch
-            console.assert(self.subscriptions[sender.id])
+            console.assert(self.connections[sender.id])
             console.assert(sender.pid)
 
             var versions = {}
@@ -308,7 +308,7 @@ module.exports = function create_resource(conn_funcs) {
                 parents
             }
 
-            delete self.subscriptions[sender.id]
+            delete self.connections[sender.id]
         }
 
         self.fissure(sender, fissure)

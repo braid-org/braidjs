@@ -32,33 +32,6 @@ function main() {
     console.log(check_good ? 'Tests passed!' : 'Tests failed... :( :( :(')
 }
 
-// XXX Work-in-progress
-function node_connection (id, pid, node) {
-    this.id = id
-    this.pid = node.pid
-
-    // Here I can put some methods:
-    this.get = (conn, initial) => node.on_get(key, initial, {conn})
-    this.set = (conn, version, parents, changes, joiner_num) =>
-        node.on_set(key, changes, {version: version, parents: parents, conn}, joiner_num)
-
-    this.multiset = (conn, versions, fissures, conn_leaves, min_leaves) =>
-        node.on_multiset(key, versions, fissures.map(x => ({
-            name: x.a + ':' + x.b + ':' + x.conn,
-            versions: x.versions,
-            parents: x.parents
-        })), conn_leaves, min_leaves, {conn})
-
-    this.ack = (conn, version, joiner_num) =>
-        node.on_ack(key, null, 'local', {version: version, conn}, joiner_num)
-
-    this.full_ack = (conn, version) =>
-        node.on_ack(key, null, 'global', {version: version, conn})
-
-    this.fissure = (conn, fissure) =>
-        node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})
-}
-
 function run_trial(seed, trial_length, show_debug, trial_num) {
     function deep_equals(a, b) {
         if (typeof(a) != 'object' || typeof(b) != 'object') return a == b
@@ -94,7 +67,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 peer['on_' + method] = function () {
                     var args = [...arguments].map(x => (x != null) ? JSON.parse(JSON.stringify(x)) : null)
                     var t = args[t_index]
-                    if ((method != 'get') && !peer.keys.my_key.subscriptions[t.conn.id]) throw 'you cannot talk to them!'
+                    if ((method != 'get') && !peer.keys.my_key.connections[t.conn.id]) throw 'you cannot talk to them!'
                     notes.push('SEND: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
                     if (show_debug) console.log(notes)
                     peers[t.conn.pid].incoming.push([peer.pid, () => {
@@ -203,7 +176,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
 
                 var disconnect = false
                 // See if they are connected to us
-                Object.values(peer.keys.my_key ? peer.keys.my_key.subscriptions : []).forEach(s => {
+                Object.values(peer.keys.my_key ? peer.keys.my_key.connections : []).forEach(s => {
                     if (s.pid == other_peer.pid) {
                         disconnect = true
                         // Disconnect, if so
@@ -212,7 +185,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 })
 
                 // Do the same for their connection to us
-                Object.values(other_peer.keys.my_key ? other_peer.keys.my_key.subscriptions : []).forEach(s => {
+                Object.values(other_peer.keys.my_key ? other_peer.keys.my_key.connections : []).forEach(s => {
                     if (s.pid == peer.pid) {
                         disconnect = true
                         other_peer.disconnected('my_key', null, null, null, {conn: s})
@@ -270,12 +243,12 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         for (var p2 = p1 + 1; p2 < n_peers; p2++) {
             var p2_p = peers_array[p2]
             if (!Object.values(p1_p.keys['my_key']
-                               ? p1_p.keys['my_key'].subscriptions
+                               ? p1_p.keys['my_key'].connections
                                : []
                               ).some(x => x.pid == p2_p.pid)
                 && !p1_p.incoming.some(x => x[0] == p2_p.pid)
                 && !Object.values(p2_p.keys['my_key']
-                                  ? p2_p.keys['my_key'].subscriptions
+                                  ? p2_p.keys['my_key'].connections
                                   : []
                                  ).some(x => x.pid == p1_p.pid)
                 && !p2_p.incoming.some(x => x[0] == p1_p.pid)) {
@@ -327,10 +300,10 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             })
             
             var too_many_versions = false
-            Object.values(peers).forEach((x, i) => {
-                if (x.keys['my_key'] && (Object.keys(x.keys['my_key'].time_dag).length > 1)) {
+            Object.values(peers).forEach((peer, i) => {
+                if (peer.keys['my_key']
+                    && (Object.keys(peer.keys['my_key'].time_dag).length > 1))
                     too_many_versions = true
-                }
             })
             
             if (too_many_fissures || too_many_versions) {
@@ -500,8 +473,7 @@ function create_node() {
     node.keys = {}
     
     function get_key(key) {
-        if (!node.keys[key]) node.keys[key] = require('../resource.js')({
-            pid: node.pid,
+        var conn_funcs = {
             get: (conn, initial) => {
                 node.on_get(key, initial, {conn})
             },
@@ -524,11 +496,17 @@ function create_node() {
             fissure: (conn, fissure) => {
                 node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})
             }
-        })
+        }
+        if (!node.keys[key])
+            node.keys[key] = require('../resource.js')(node.pid,conn_funcs)
+
         return node.keys[key]
     }
 
     node.get = (key, initial, t) => {
+        // console.log('get: t.conn is', t.conn)
+        var connection = {
+        }
         get_key(key).get(t.conn, initial)
     }
     
