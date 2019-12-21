@@ -473,7 +473,8 @@ function create_node() {
     node.keys = {}
     
     function get_key(key) {
-        var conn_funcs = {
+        if (!node.keys[key]) node.keys[key] = require('../resource.js')({
+            pid: node.pid,
             get: (conn, initial) => {
                 node.on_get(key, initial, {conn})
             },
@@ -496,17 +497,12 @@ function create_node() {
             fissure: (conn, fissure) => {
                 node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})
             }
-        }
-        if (!node.keys[key])
-            node.keys[key] = require('../resource.js')(node.pid,conn_funcs)
+        })
 
         return node.keys[key]
     }
 
     node.get = (key, initial, t) => {
-        // console.log('get: t.conn is', t.conn)
-        var connection = {
-        }
         get_key(key).get(t.conn, initial)
     }
     
