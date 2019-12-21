@@ -67,7 +67,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 peer['on_' + method] = function () {
                     var args = [...arguments].map(x => (x != null) ? JSON.parse(JSON.stringify(x)) : null)
                     var t = args[t_index]
-                    if ((method != 'get') && !peer.keys.my_key.connections[t.conn.id]) throw 'you cannot talk to them!'
+                    if ((method != 'get') && !peer.resources.my_key.connections[t.conn.id]) throw 'you cannot talk to them!'
                     notes.push('SEND: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
                     if (show_debug) console.log(notes)
                     peers[t.conn.pid].incoming.push([peer.pid, () => {
@@ -159,11 +159,11 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         if (rand() < 0.1) {
             if (rand() < 0.9) {
                 // Edit text
-                if (peer.keys['my_key'] && Object.keys(peer.keys['my_key'].time_dag).length) {
+                if (peer.resources['my_key'] && Object.keys(peer.resources['my_key'].time_dag).length) {
                     if (peer.letters_i >= peer.letters.length) {
                         peer.letters_i = 0
                     }
-                    var e = create_random_edit(peer.keys['my_key'], peer.letters[peer.letters_i++])
+                    var e = create_random_edit(peer.resources['my_key'], peer.letters[peer.letters_i++])
                     peer.set('my_key', e.changes, {version: e.version, parents: e.parents})
                 }
             } else {
@@ -176,7 +176,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
 
                 var disconnect = false
                 // See if they are connected to us
-                Object.values(peer.keys.my_key ? peer.keys.my_key.connections : []).forEach(s => {
+                Object.values(peer.resources.my_key ? peer.resources.my_key.connections : []).forEach(s => {
                     if (s.pid == other_peer.pid) {
                         disconnect = true
                         // Disconnect, if so
@@ -185,7 +185,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 })
 
                 // Do the same for their connection to us
-                Object.values(other_peer.keys.my_key ? other_peer.keys.my_key.connections : []).forEach(s => {
+                Object.values(other_peer.resources.my_key ? other_peer.resources.my_key.connections : []).forEach(s => {
                     if (s.pid == peer.pid) {
                         disconnect = true
                         other_peer.disconnected('my_key', null, null, null, {conn: s})
@@ -229,7 +229,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         }
         
         if (show_debug)
-            console.log('peer: ' + peer.pid + ' -> ' + JSON.stringify(peer.keys.my_key && peer.keys['my_key'].mergeable.read()))
+            console.log('peer: ' + peer.pid + ' -> ' + JSON.stringify(peer.resources.my_key && peer.resources['my_key'].mergeable.read()))
             
         if (debug_frames) debug_frames.push({
             t: t,
@@ -242,13 +242,13 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         var p1_p = peers_array[p1]
         for (var p2 = p1 + 1; p2 < n_peers; p2++) {
             var p2_p = peers_array[p2]
-            if (!Object.values(p1_p.keys['my_key']
-                               ? p1_p.keys['my_key'].connections
+            if (!Object.values(p1_p.resources['my_key']
+                               ? p1_p.resources['my_key'].connections
                                : []
                               ).some(x => x.pid == p2_p.pid)
                 && !p1_p.incoming.some(x => x[0] == p2_p.pid)
-                && !Object.values(p2_p.keys['my_key']
-                                  ? p2_p.keys['my_key'].connections
+                && !Object.values(p2_p.resources['my_key']
+                                  ? p2_p.resources['my_key'].connections
                                   : []
                                  ).some(x => x.pid == p1_p.pid)
                 && !p2_p.incoming.some(x => x[0] == p1_p.pid)) {
@@ -294,15 +294,15 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             tt++
             var too_many_fissures = false    
             Object.values(peers).forEach((x, i) => {
-                if (x.keys['my_key'] && (Object.keys(x.keys['my_key'].fissures).length > 0)) {
+                if (x.resources['my_key'] && (Object.keys(x.resources['my_key'].fissures).length > 0)) {
                     too_many_fissures = true
                 }
             })
             
             var too_many_versions = false
             Object.values(peers).forEach((peer, i) => {
-                if (peer.keys['my_key']
-                    && (Object.keys(peer.keys['my_key'].time_dag).length > 1))
+                if (peer.resources['my_key']
+                    && (Object.keys(peer.resources['my_key'].time_dag).length > 1))
                     too_many_versions = true
             })
             
@@ -311,7 +311,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 var p = peers_array[i]
                 
                 notes = ['creating joiner']
-                p.keys['my_key'].create_joiner()
+                p.resources['my_key'].create_joiner()
                 
                 if (debug_frames) debug_frames.push({
                     tt: tt,
@@ -331,7 +331,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     }
 
     Object.values(peers).forEach((x, i) => {
-        if (!x.keys.my_key) {
+        if (!x.resources.my_key) {
             console.log('missing my_key for ' + x.pid)
             check_good = false
             throw 'bad'
@@ -341,7 +341,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     var check_val = null
     check_good = true
     Object.values(peers).forEach((x, i) => {
-        var val = x.keys.my_key.mergeable.read()
+        var val = x.resources.my_key.mergeable.read()
         if (i == 0)
             check_val = val
         else if (!deep_equals(val, check_val))
@@ -350,7 +350,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
 
     var too_many_fissures = false    
     Object.values(peers).forEach((x, i) => {
-        if (Object.keys(x.keys.my_key.fissures).length > 0) {
+        if (Object.keys(x.resources.my_key.fissures).length > 0) {
             check_good = false
             too_many_fissures = true
         }
@@ -358,7 +358,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     
     var too_many_versions = false
     Object.values(peers).forEach((x, i) => {
-        if (Object.keys(x.keys.my_key.time_dag).length > 2) {
+        if (Object.keys(x.resources.my_key.time_dag).length > 2) {
             check_good = false
             too_many_versions = true
         }
@@ -369,7 +369,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     if (!check_good) {
         Object.values(peers).forEach((x, i) => {
             console.log(x)
-            var val = x.keys.my_key.mergeable.read()
+            var val = x.resources.my_key.mergeable.read()
             console.log('val: ' + JSON.stringify(val))
         })
         console.log('too_many_fissures: ' + too_many_fissures)
@@ -458,11 +458,11 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
 
     if (show_debug) {
         Object.values(peers).forEach(x => {
-            console.log('peer: ' + JSON.stringify(x.keys.my_key.mergeable.read()))
+            console.log('peer: ' + JSON.stringify(x.resources.my_key.mergeable.read()))
         })
     }
     
-    return JSON.stringify(peers_array[0].keys.my_key.mergeable.read()).length
+    return JSON.stringify(peers_array[0].resources.my_key.mergeable.read()).length
 }
 
 

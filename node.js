@@ -1,10 +1,10 @@
 module.exports = function create_node() {
     var node = {}
     node.pid = random_id()
-    node.keys = {}
+    node.resources = {}
     
     function get_key(key) {
-        if (!node.keys[key]) node.keys[key] = require('./resource.js')({
+        if (!node.resources[key]) node.resources[key] = require('./resource.js')({
             pid: node.pid,
             get: (conn, initial) => {
                 node.on_get(key, initial, {conn})
@@ -30,7 +30,7 @@ module.exports = function create_node() {
             }
         })
 
-        return node.keys[key]
+        return node.resources[key]
     }
 
     node.get = (key, initial, t) => {
@@ -69,9 +69,9 @@ module.exports = function create_node() {
         // work here: idea: use "undefined" to represent deletion
     }
 
-    node.connect = () => {
+    node.connect = (id, methods) => {
         console.log('Time to connect!', arguments)
-        // ...
+        node.resources
         // node.connections.add({
         //     id:
         //     citizen_id:
