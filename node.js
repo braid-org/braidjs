@@ -2,82 +2,329 @@ module.exports = function create_node() {
     var node = {}
     node.pid = random_id()
     node.resources = {}
-    
-    function get_key(key) {
-        if (!node.resources[key]) node.resources[key] = require('./resource.js')({
-            pid: node.pid,
-            get: (conn, initial) => {
-                node.on_get(key, initial, {conn})
-            },
-            set: (conn, version, parents, changes, joiner_num) => {
-                node.on_set(key, changes, {version: version, parents: parents, conn}, joiner_num)
-            },
-            multiset: (conn, versions, fissures, conn_leaves, min_leaves) => {
-                node.on_multiset(key, versions, fissures.map(x => ({
-                    name: x.a + ':' + x.b + ':' + x.conn,
-                    versions: x.versions,
-                    parents: x.parents
-                })), conn_leaves, min_leaves, {conn})
-            },
-            ack: (conn, version, joiner_num) => {
-                node.on_ack(key, null, 'local', {version: version, conn}, joiner_num)
-            },
-            full_ack: (conn, version) => {
-                node.on_ack(key, null, 'global', {version: version, conn})
-            },
-            fissure: (conn, fissure) => {
-                node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn})
-            }
-        })
+    node.connections = {}
+
+    function resource_at(key) {
+        if (!node.resources[key])
+            node.resources[key] = require('./resource.js')(node.pid)//(conn_funcs)
 
         return node.resources[key]
     }
 
+    function tell_connections(method, args) {
+        for (var conn in node.connections)
+            conn[method] && conn[method].apply(null, args)
+    }
+
+    function connected_citizens(resource) {
+        return Object.values(resource.connections).filter(c => c.pid)
+    }
+
+    function add_full_ack_leaf(resource, version) {
+        var marks = {}
+        function f(v) {
+            if (!marks[v]) {
+                marks[v] = true
+                delete resource.unack_boundary[v]
+                delete resource.acked_boundary[v]
+                delete resource.acks_in_process[v]
+                delete resource.joiners[v]
+                Object.keys(resource.time_dag[v]).forEach(f)
+            }
+        }
+        f(version)
+        resource.acked_boundary[version] = true
+        resource.prune()
+    }
+    
+    function check_ack_count(key, resource, version) {
+        // Todo: This only takes a key so that it can send node.on_ack(key,
+        // ...) but if we can get rid of the need for a key there, we can get
+        // rid of the need for a key here, and stop sending a key to this.
+        if (resource.acks_in_process[version] && resource.acks_in_process[version].count == 0) {
+            if (resource.acks_in_process[version].origin)
+                node.on_ack(key, null, 'local', {version,
+                                                 conn: resource.acks_in_process[version].origin},
+                            resource.joiners[version])
+            else {
+                add_full_ack_leaf(resource, version)
+                connected_citizens(resource).forEach(
+                    c => node.on_ack(key, null, 'global', {version, conn: c})
+                )
+            }
+        }
+    }
+
     node.get = (key, initial, t) => {
-        get_key(key).get(t.conn, initial)
+        var r = resource_at(key),
+            sender = t.conn
+
+        r.connections[sender.id] = sender
+        if (sender.pid && initial)
+            node.on_get(key, false, {conn: sender})//sender.get(false)
+        var versions = (Object.keys(r.time_dag).length > 0) ? r.mergeable.generate_braid(x => false) : []
+        var fissures = Object.values(r.fissures)
+        node.on_multiset(key, versions, fissures.map(x => ({
+            name: x.a + ':' + x.b + ':' + x.conn,
+            versions: x.versions,
+            parents: x.parents
+        })), false, false, {conn: sender})
     }
     
     node.set = (key, patches, t, joiner_num) => {
-        get_key(key).set(t.conn, t.version, t.parents, patches, joiner_num)
+        var resource = resource_at(key),
+            sender = t.conn,
+            version = t.version,
+            parents = t.parents
+        if (!sender
+            || !resource.time_dag[version]
+            || (joiner_num > resource.joiners[version])) {
+
+            resource.mergeable.add_version(version, parents, patches)
+            resource.acks_in_process[version] = {
+                origin: sender,
+                count: connected_citizens(resource).length - (sender ? 1 : 0)
+            }
+            
+            if (joiner_num) resource.joiners[version] = joiner_num
+            Object.values(resource.connections).forEach(receiver => {
+                if (!sender || (receiver.id != sender.id)) {
+                    node.on_set(key, patches, {version: version, parents: parents, conn: receiver}, joiner_num)
+                }
+            })
+        } else if (resource.acks_in_process[version]
+                   // Greg: In what situation is acks_in_process[version] false?
+                   && (joiner_num == resource.joiners[version]))
+            resource.acks_in_process[version].count--
+
+        check_ack_count(key, resource, version)
     }
     
-    node.multiset = (key, versions, fissures, conn_leaves, min_leaves, t) => {
-        get_key(key).multiset(t.conn, versions, fissures.map(x => {
-            var [a, b, conn] = x.name.split(/:/)
-            return {a, b, conn, versions: x.versions, parents: x.parents}
-        }), conn_leaves, min_leaves)
+    node.multiset = (key, versions, fissures, unack_boundary, min_leaves, t) => {
+        var resource = resource_at(key),
+            sender = t.conn,
+            fissures = fissures.map(fiss => {
+                if (!fiss.name) console.log('fiss', fiss)
+                var [a, b, conn] = fiss.name.split(/:/)
+                return {a, b, conn, versions: fiss.versions, parents: fiss.parents}
+            })
+
+        // `versions` is actually array of set messages. Each one has a version.
+        var new_versions = []
+        
+        var v = versions[0]
+        if (v && !v.version) {
+            versions.shift()
+            if (!Object.keys(resource.time_dag).length) {
+                new_versions.push(v)
+                resource.mergeable.add_version(v.version, v.parents, v.changes)
+            }
+        }
+        
+        var versions_T = {}
+        versions.forEach(v => versions_T[v.version] = v.parents)
+        versions.forEach(v => {
+            if (resource.time_dag[v.version]) {
+                function f(v) {
+                    if (versions_T[v]) {
+                        Object.keys(versions_T[v]).forEach(f)
+                        delete versions_T[v]
+                    }
+                }
+                f(v.version)
+            }
+        })
+        versions.forEach(v => {
+            if (versions_T[v.version]) {
+                new_versions.push(v)
+                resource.mergeable.add_version(v.version, v.parents, v.changes)
+            }
+        })
+        
+        var new_fissures = []
+        var gen_fissures = []
+        fissures.forEach(f => {
+            var key = f.a + ':' + f.b + ':' + f.conn
+            if (!resource.fissures[key]) {
+                new_fissures.push(f)
+                resource.fissures[key] = f
+                if (f.b == resource.pid) gen_fissures.push({
+                    a: resource.pid,
+                    b: f.a,
+                    conn: f.conn,
+                    versions: f.versions,
+                    parents: {}
+                })
+            }
+        })
+        
+        if (!unack_boundary) {
+            unack_boundary = Object.assign({}, resource.current_version)
+        }
+        var our_conn_versions = resource.ancestors(resource.unack_boundary)
+        var new_conn_versions = resource.ancestors(unack_boundary)
+        Object.keys(resource.unack_boundary).forEach(x => {
+            if (new_conn_versions[x] && !unack_boundary[x]) {
+                delete resource.unack_boundary[x]
+            }
+        })
+        Object.keys(unack_boundary).forEach(x => {
+            if (!our_conn_versions[x]) resource.unack_boundary[x] = true
+        })
+        
+        if (!min_leaves) {
+            min_leaves = {}
+            var min = versions.filter(v => !versions_T[v.version])
+            min.forEach(v => min_leaves[v.version] = true)
+            min.forEach(v =>
+                        Object.keys(v.parents).forEach(p => {
+                            delete min_leaves[p]
+                        })
+                       )
+        }
+        var min_versions = resource.ancestors(min_leaves)
+        var ack_versions = resource.ancestors(resource.acked_boundary)
+        Object.keys(resource.acked_boundary).forEach(x => {
+            if (!min_versions[x])
+                delete resource.acked_boundary[x]
+        })
+        Object.keys(min_leaves).forEach(x => {
+            if (ack_versions[x]) resource.acked_boundary[x] = true
+        })
+        
+        resource.acks_in_process = {}
+        
+        if (new_versions.length > 0 || new_fissures.length > 0) {
+            Object.values(resource.connections).forEach(conn => {
+                if (conn.id != sender.id)
+                    node.on_multiset(key, new_versions, new_fissures.map(x => ({
+                        name: x.a + ':' + x.b + ':' + x.conn,
+                        versions: x.versions,
+                        parents: x.parents
+                    })), unack_boundary, min_leaves, {conn})
+            })
+        }
+        gen_fissures.forEach(f => node.fissure(key, null, f))
     }
     
     node.forget = (key, t) => {
-        get_key(key).forget(t.conn)
+        delete resource_at(key).connections[t.conn.id]
     }
     
     node.ack = (key, valid, seen, t, joiner_num) => {
+        var resource = resource_at(key)
         if (seen == 'local') {
-            get_key(key).ack(t.conn, t.version, joiner_num)
+            // resource.ack(t.conn, t.version, joiner_num)
+            if (resource.acks_in_process[t.version]
+                && (joiner_num == resource.joiners[t.version])) {
+                resource.acks_in_process[t.version].count--
+                check_ack_count(key, resource, t.version)
+            }
         } else if (seen == 'global') {
-            get_key(key).full_ack(t.conn, t.version)
+            // resource.full_ack(t.conn, t.version)
+
+            if (!resource.time_dag[t.version]) return
+            
+            var ancs = resource.ancestors(resource.unack_boundary)
+            if (ancs[t.version]) return
+            
+            ancs = resource.ancestors(resource.acked_boundary)
+            if (ancs[t.version]) return
+            
+            add_full_ack_leaf(resource, t.version)
+            connected_citizens(resource).forEach(c => {
+                if (c.id != t.conn.id)
+                    node.on_ack(key, null, 'global',
+                                {version: t.version, conn: t.conn})
+            })
         }
     }
     
+    node.fissure = (key, sender, fissure) => {
+        var resource = resource_at(key)
+        var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
+        if (!resource.fissures[fkey]) {
+            resource.fissures[fkey] = fissure
+            
+            resource.acks_in_process = {}
+            
+            connected_citizens(resource).forEach(c => {
+                if (!sender || (c.id != sender.id))
+                    node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn: c})
+            })
+            
+            if (fissure.b == resource.pid) {
+                node.fissure(key, null, {
+                    a: resource.pid,
+                    b: fissure.a,
+                    conn: fissure.conn,
+                    versions: fissure.versions,
+                    parents: {}
+                })
+            }
+        }
+    }
+
     node.disconnected = (key, name, versions, parents, t) => {
         // To do: make this work for read-only connections
-        get_key(key).disconnected(t.conn, name, versions, parents)
+        var resource = resource_at(key),
+            sender = t.conn,
+            fissure
+
+        // Generate the fissure
+        if (name) {
+            // Create fissure from name
+            var [a, b, conn] = name.split(/:/)
+            fissure = {
+                a, b, conn,
+                versions: versions,
+                parents: parents
+            }
+        } else {
+            // Create fissure from scratch
+            console.assert(resource.connections[sender.id])
+            console.assert(sender.pid)
+
+            var versions = {}
+            var ack_versions = resource.ancestors(resource.acked_boundary)
+            Object.keys(resource.time_dag).forEach(v => {
+                if (!ack_versions[v] || resource.acked_boundary[v])
+                    versions[v] = true
+            })
+            
+            var parents = {}
+            Object.keys(resource.fissures).forEach(x => parents[x] = true )
+            
+            fissure = {
+                a: resource.pid,
+                b: sender.pid,
+                conn: sender.id,
+                versions,
+                parents
+            }
+
+            delete resource.connections[sender.id]
+        }
+
+        node.fissure(key, sender, fissure)
     }
     
     node.delete = () => {
         // work here: idea: use "undefined" to represent deletion
     }
 
-    node.connect = (id, methods) => {
+    node.connect = (connection) => {
         console.log('Time to connect!', arguments)
-        node.resources
-        // node.connections.add({
-        //     id:
-        //     citizen_id:
-        //     ..methods
-        // })
-
+        connection.id = connection.id || random_id()
+        node.connections[connection.id] = connection
     }
+    node.create_joiner = (key) => {
+        var resource = resource_at(key),
+            version = sjcl.codec.hex.fromBits(
+                sjcl.hash.sha256.hash(
+                    Object.keys(resource.current_version).sort().join(':')))
+        var joiner_num = Math.random()
+        node.set(key, [], {version: version, parents: Object.assign({}, resource.current_version)}, joiner_num)
+    }        
     return node
 }

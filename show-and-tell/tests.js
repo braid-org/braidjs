@@ -311,7 +311,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 var p = peers_array[i]
                 
                 notes = ['creating joiner']
-                p.resources['my_key'].create_joiner()
+                p.create_joiner('my_key')
                 
                 if (debug_frames) debug_frames.push({
                     tt: tt,
