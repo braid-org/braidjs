@@ -61,37 +61,14 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     var peers = {}
     for (var i = 0; i < n_peers; i++) {
         ;(() => {
+            // Make a peer node
             var peer = require('../node.js')()
-            ;[['get', 2], ['set', 2], ['multiset', 5], ['ack', 3], ['disconnected', 4]].forEach(x => {
-                var [method, t_index] = x
-                peer['on_' + method] = function () {
-                    var args = [...arguments].map(x => (x != null) ? JSON.parse(JSON.stringify(x)) : null)
-                    var t = args[t_index]
-                    if ((method != 'get') && !peer.resources.my_key.connections[t.conn.id]) throw 'you cannot talk to them!'
-                    notes.push('SEND: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
-                    if (show_debug) console.log(notes)
-                    peers[t.conn.pid].incoming.push([peer.pid, () => {
-                        notes.push('RECV: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
-                        if (show_debug) console.log(notes)
-                        var to_pid = t.conn.pid
-                        t.conn = {id: t.conn.id, pid: peer.pid}
-                        peers[to_pid][method](...args)
-                    }])
-                }
-            })
+
+            peer.pid = 'P' + (i + 1) // Give it an ID
+            peer.incoming = []       // Give it an incoming message queue
+            peers[peer.pid] = peer   // Add it to the list of peers
             
-            // work here
-            peer.pid = 'P' + (i + 1)
-            
-            peer.incoming = []
-            peers[peer.pid] = peer
-            
-            peer.connect = (pid, alpha) => {
-                if (alpha) {
-                    peer.on_get('my_key', true, {conn: {id: random_id(), pid}})
-                }
-            }
-            
+            // Give it an alphabet
             if (i == 0) {
                 peer.letters = 'abcdefghijklmnopqrstuvwxyz'
                 for (var ii = 0; ii < 100; ii++) {
@@ -111,11 +88,42 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 }
                 peer.letters_i = 0
             }
+
+            // Give it a "network" to the other peers
+            ;[['get', 2], ['set', 2], ['multiset', 5], ['ack', 3], ['disconnected', 4]].forEach(x => {
+                var [method, t_index] = x
+                peer['on_' + method] = function () {
+                    // Now we send a message over 
+                    var args = [...arguments].map(
+                        x => (x == null) ? null : JSON.parse(JSON.stringify(x)))
+                    var t = args[t_index]
+
+                    if ((method != 'get')
+                        && !peer.resources.my_key.connections[t.conn.id])
+                        throw 'you cannot talk to them!'
+
+                    notes.push('SEND: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
+                    if (show_debug) console.log(notes)
+                    peers[t.conn.pid].incoming.push([peer.pid, () => {
+                        notes.push('RECV: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
+                        if (show_debug) console.log(notes)
+                        var to_pid = t.conn.pid
+                        t.conn = {id: t.conn.id, pid: peer.pid}
+                        peers[to_pid][method](...args)
+                    }])
+                }
+            })
+
+            // Add a connect() method, which kicks the whole thing off
+            peer.connect = (pid, alpha) => {
+                if (alpha)
+                    peer.on_get('my_key', true, {conn: {id: random_id(), pid}})
+            }
         })()
     }
     var peers_array = Object.values(peers)
     
-
+    // Connect all the peers together
     for (var p1 = 0; p1 < n_peers; p1++) {
         for (var p2 = p1 + 1; p2 < n_peers; p2++) {
             notes = ['connecting ' + p1 + ':' + peers_array[p1].pid + ' and ' + p2 + ':' + peers_array[p2].pid]
@@ -444,7 +452,6 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             }
         }
         
-        // work here
         var version = random_id()
         resource.next_version_id = (resource.next_version_id || 0) + 1
         var version = letters[0] + resource.next_version_id

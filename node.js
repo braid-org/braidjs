@@ -152,7 +152,9 @@ module.exports = function create_node() {
         // of any new edits made by them.. we strive to enforce this fact with
         // the pruning algorithm)
 
-        var versions = (Object.keys(r.time_dag).length > 0) ? r.mergeable.generate_braid(x => false) : []
+        var versions = Object.keys(r.time_dag).length > 0
+            ? r.mergeable.generate_braid(x => false)
+            : []
 
         // G: oh yes, we also send them all of our fissures, so they can know to keep
         // those versions alive
