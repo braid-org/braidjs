@@ -12,9 +12,11 @@ module.exports = function create_node() {
         return node.resources[key]
     }
 
-    function tell_connections(method, args) {
-        for (var conn in node.connections)
-            conn[method] && conn[method].apply(null, args)
+    function tell_connections(key, method, args, except) {
+        var resource = resource_at(key)
+        for (var conn in resource.connections || [])
+            if (!except || conn.name !== except.name)
+                conn[method] && conn[method].apply(null, args)
     }
 
     function connected_citizens(resource) {
@@ -76,7 +78,8 @@ module.exports = function create_node() {
         // of course, in some such instances, acks_in_process may have been removed
         // entirely for a version, so we guard against that here too..
 
-        if (resource.acks_in_process[version] && resource.acks_in_process[version].count == 0) {
+        if (resource.acks_in_process[version]
+            && resource.acks_in_process[version].count == 0) {
 
             // G: sweet, the count has gone to zero, that means all the acks we were
             // waiting for have arrived, now there are a couple possibilities..
@@ -135,8 +138,11 @@ module.exports = function create_node() {
         // the initial get, they set "initial" to true, but we respond with a get
         // with initial not set to true
 
-        if (sender.pid && initial)
+        if (sender.pid && initial) {
+            // console.log(sender)
+            // sender.get(key, false, {conn: sender})
             node.on_get(key, false, {conn: sender})//sender.get(false)
+        }
 
         // G: ok, now if we're going to be sending this person updates,
         // we should start by catching them up to our current state,
@@ -236,9 +242,16 @@ module.exports = function create_node() {
 
             Object.values(resource.connections).forEach(receiver => {
                 if (!sender || (receiver.id != sender.id)) {
+                    // receiver.set(key, patches, {version: version, parents: parents},
+                    //              joiner_num)
                     node.on_set(key, patches, {version: version, parents: parents, conn: receiver}, joiner_num)
                 }
             })
+
+            // tell_connections(key, 'set',
+            //                  [key, patches, {version, parents}, joiner_num],
+            //                  sender)
+            
         } else if (resource.acks_in_process[version]
                    // Greg: In what situation is acks_in_process[version] false?
 
@@ -274,7 +287,6 @@ module.exports = function create_node() {
         var resource = resource_at(key),
             sender = t.conn,
             fissures = fissures.map(fiss => {
-                if (!fiss.name) console.log('fiss', fiss)
                 var [a, b, conn] = fiss.name.split(/:/)
                 return {a, b, conn, versions: fiss.versions, parents: fiss.parents}
             })
@@ -771,9 +783,8 @@ module.exports = function create_node() {
         }
     }
 
-    node.connect = (connection) => {
-        console.log('Time to connect!', arguments)
-        connection.id = connection.id || random_id()
+    node.connect2 = (connection) => {
+        connection.id = random_id()
         node.connections[connection.id] = connection
     }
     node.create_joiner = (key) => {

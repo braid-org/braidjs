@@ -89,6 +89,27 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 peer.letters_i = 0
             }
 
+            function direct_connect (i, j) {
+                var receiver = peers[j]
+                var conn = peer.connect2({
+                    name: `peer ${i}->${j}`,
+                    get: (key, initial, t)     => receiver.get(key, initial, t),
+                    set: (key, patches, t, j)  => {
+                        // console.log(`Setting ${i}->${j}`, key, patches)
+                        receiver.set(key, patches, t, j)
+                    },
+                    forget: (key, t)           => receiver.forget(key, t),
+                    ack: (key, seen, valid, t) => receiver.ack(key, seen, valid, t),
+                    fissure: (name, versions)  => receiver.fissure(name, versions),
+                    multiset: (key, versions, fissures,
+                               unack_boundary, min_leaves, t) =>
+                        receiver.multiset(key, versions, fissures,
+                                           unack_boundary, min_leaves, t)
+                })
+            }
+            for (var j = 0; j < n_peers; j++)
+                direct_connect(i, j)
+
             // Give it a "network" to the other peers
             ;[['get', 2], ['set', 2], ['multiset', 5], ['ack', 3], ['disconnected', 4]].forEach(x => {
                 var [method, t_index] = x
@@ -102,11 +123,22 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                         && !peer.resources.my_key.connections[t.conn.id])
                         throw 'you cannot talk to them!'
 
-                    notes.push('SEND: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
+                    // Log SENDING network message to console
+                    notes.push('SEND: ' + method + ' from:' + peer.pid
+                               + ' to:' + t.conn.pid
+                               + args.map(x => ' ' + JSON.stringify(x)))
                     if (show_debug) console.log(notes)
+
+                    // Put the message on receiver's incoming queue
                     peers[t.conn.pid].incoming.push([peer.pid, () => {
-                        notes.push('RECV: ' + method + ' from:' + peer.pid + ' to:' + t.conn.pid + args.map(x => ' ' + JSON.stringify(x)))
+
+                        // Log to console
+                        notes.push('RECV: ' + method + ' from:' + peer.pid
+                                   + ' to:' + t.conn.pid
+                                   + args.map(x => ' ' + JSON.stringify(x)))
                         if (show_debug) console.log(notes)
+
+                        // INVOKE message on the peer!
                         var to_pid = t.conn.pid
                         t.conn = {id: t.conn.id, pid: peer.pid}
                         peers[to_pid][method](...args)
@@ -115,9 +147,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             })
 
             // Add a connect() method, which kicks the whole thing off
-            peer.connect = (pid, alpha) => {
-                if (alpha)
-                    peer.on_get('my_key', true, {conn: {id: random_id(), pid}})
+            peer.connect = (pid) => {
+                peer.on_get('my_key', true, {conn: {id: random_id(), pid}})
             }
         })()
     }
@@ -128,9 +159,11 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         for (var p2 = p1 + 1; p2 < n_peers; p2++) {
             notes = ['connecting ' + p1 + ':' + peers_array[p1].pid + ' and ' + p2 + ':' + peers_array[p2].pid]
             
-            var alpha = Math.random() < 0.5
-            peers_array[p1].connect(peers_array[p2].pid, alpha)
-            peers_array[p2].connect(peers_array[p1].pid, !alpha)
+            // Choose one to connect to the other
+            if (Math.random() < 0.5)
+                peers_array[p1].connect(peers_array[p2].pid)
+            else
+                peers_array[p2].connect(peers_array[p1].pid)
             
             if (debug_frames) debug_frames.push({
                 t: -1,
