@@ -110,7 +110,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             for (var j = 0; j < n_peers; j++)
                 direct_connect(i, j)
 
-            // Give it a "network" to the other peers
+            // Define bindings to other peers for all braid methods
             ;[['get', 2], ['set', 2], ['multiset', 5], ['ack', 3], ['disconnected', 4]].forEach(x => {
                 var [method, t_index] = x
                 peer['on_' + method] = function () {
@@ -157,7 +157,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     // Connect all the peers together
     for (var p1 = 0; p1 < n_peers; p1++) {
         for (var p2 = p1 + 1; p2 < n_peers; p2++) {
-            notes = ['connecting ' + p1 + ':' + peers_array[p1].pid + ' and ' + p2 + ':' + peers_array[p2].pid]
+            notes = ['connecting ' + p1 + ':' + peers_array[p1].pid
+                     + ' and ' + p2 + ':' + peers_array[p2].pid]
             
             // Choose one to connect to the other
             if (Math.random() < 0.5)
@@ -189,6 +190,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     
     try {
     
+    // Run a trial
     for (var t = 0; t < trial_length; t++) {
         if (show_debug) console.log('t == ' + t)
         
@@ -197,7 +199,9 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         
         notes = []
         
+        // Randomly choose whether to do an action vs. process the network
         if (rand() < 0.1) {
+            // Do an action
             if (rand() < 0.9) {
                 // Edit text
                 if (peer.resources['my_key'] && Object.keys(peer.resources['my_key'].time_dag).length) {
@@ -217,7 +221,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
 
                 var disconnect = false
                 // See if they are connected to us
-                Object.values(peer.resources.my_key ? peer.resources.my_key.connections : []).forEach(s => {
+                Object.values(peer.resources.my_key ? peer.resources.my_key.connections : {}).forEach(s => {
                     if (s.pid == other_peer.pid) {
                         disconnect = true
                         // Disconnect, if so
@@ -226,7 +230,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 })
 
                 // Do the same for their connection to us
-                Object.values(other_peer.resources.my_key ? other_peer.resources.my_key.connections : []).forEach(s => {
+                Object.values(other_peer.resources.my_key ? other_peer.resources.my_key.connections : {} ).forEach(s => {
                     if (s.pid == peer.pid) {
                         disconnect = true
                         other_peer.disconnected('my_key', null, null, null, {conn: s})
@@ -244,9 +248,10 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 // Otherwise, let's connect these peers together
                 else {
                     notes.push(' connect ' + peer.pid + ' and ' + other_peer.pid)
-                    var alpha = Math.random() < 0.5
-                    peer.connect(other_peer.pid, alpha)
-                    other_peer.connect(peer.pid, !alpha)
+                    if (Math.random() < 0.5)
+                        peer.connect(other_peer.pid)
+                    else
+                        other_peer.connect(peer.pid)
                 }
             }
         } else {
@@ -271,7 +276,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         
         if (show_debug)
             console.log('peer: ' + peer.pid + ' -> ' + JSON.stringify(peer.resources.my_key && peer.resources['my_key'].mergeable.read()))
-            
+
         if (debug_frames) debug_frames.push({
             t: t,
             peer_notes: {[peer.pid]: notes},
@@ -279,26 +284,36 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         })
     }
 
+    // After the trial, connect all the peers together
     for (var p1 = 0; p1 < n_peers; p1++) {
         var p1_p = peers_array[p1]
         for (var p2 = p1 + 1; p2 < n_peers; p2++) {
             var p2_p = peers_array[p2]
-            if (!Object.values(p1_p.resources['my_key']
+
+            if (// If p1 is not connected to p2
+                !Object.values(p1_p.resources['my_key']
                                ? p1_p.resources['my_key'].connections
-                               : []
+                               : {}
                               ).some(x => x.pid == p2_p.pid)
+                // And has no messages incoming from p2
                 && !p1_p.incoming.some(x => x[0] == p2_p.pid)
+                // And p2 is not connected to p1
                 && !Object.values(p2_p.resources['my_key']
                                   ? p2_p.resources['my_key'].connections
-                                  : []
+                                  : {}
                                  ).some(x => x.pid == p1_p.pid)
+                // And has no incoming messages from p1
                 && !p2_p.incoming.some(x => x[0] == p1_p.pid)) {
 
-                notes = ['connecting ' + p1 + ':' + p1_p.pid + ' and ' + p2 + ':' + p2_p.pid]
+                // Then let's connect them
+                notes = ['connecting ' + p1 + ':' + p1_p.pid
+                         + ' and ' + p2 + ':' + p2_p.pid]
                 
-                var alpha = Math.random() < 0.5
-                peers_array[p1].connect(p2_p.pid, alpha)
-                peers_array[p2].connect(p1_p.pid, !alpha)
+                // Choose a random one to connect
+                if (Math.random() < 0.5)
+                    peers_array[p1].connect(p2_p.pid)
+                else
+                    peers_array[p2].connect(p1_p.pid)
                 
                 if (debug_frames) debug_frames.push({
                     t: -1,
@@ -314,6 +329,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     
     var tt = 0
     for (var t = 0; t < 50; t++) {
+
+        // Now let all the remaining incoming messages get processed
         Object.values(peers).forEach(p => {
             while (p.incoming.length > 0) {
                 tt++
@@ -331,13 +348,14 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             }
         })
         
+        // And what does this do?  Check to make sure that everything looks good?
         if (Object.values(peers).every(x => x.incoming.length == 0)) {
             tt++
             var too_many_fissures = false    
             Object.values(peers).forEach((x, i) => {
-                if (x.resources['my_key'] && (Object.keys(x.resources['my_key'].fissures).length > 0)) {
+                if (x.resources['my_key']
+                    && (Object.keys(x.resources['my_key'].fissures).length > 0))
                     too_many_fissures = true
-                }
             })
             
             var too_many_versions = false
