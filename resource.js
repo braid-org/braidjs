@@ -19,16 +19,19 @@ module.exports = function create_resource(pid) {
     // The version history
     resource.time_dag = {}
     resource.current_version = {}
-    resource.ancestors = function ancestors(versions) {
+    resource.ancestors = (versions) => {
         var result = {}
         function recurse (version) {
             if (result[version]) return
             result[version] = true
+            if (!resource.time_dag[version])
+                throw 'The version '+version+' no existo'
             Object.keys(resource.time_dag[version]).forEach(recurse)
         }
         Object.keys(versions).forEach(recurse)
         return result
     }
+    resource.citizens = () => Object.values(resource.connections).filter(c => c.pid)
 
     // A data structure that can merge simultaneous operations
     resource.mergeable = require('./merge-algorithms/sync9.js').create(resource)

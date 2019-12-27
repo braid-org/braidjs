@@ -1,26 +1,14 @@
-
 module.exports = function create_node() {
     var node = {}
     node.pid = random_id()
     node.resources = {}
     node.connections = {}
-
+    var dict = () => Object.create({})
     function resource_at(key) {
         if (!node.resources[key])
             node.resources[key] = require('./resource.js')(node.pid)//(conn_funcs)
 
         return node.resources[key]
-    }
-
-    function tell_connections(key, method, args, except) {
-        var resource = resource_at(key)
-        for (var conn in resource.connections || [])
-            if (!except || conn.name !== except.name)
-                conn[method] && conn[method].apply(null, args)
-    }
-
-    function connected_citizens(resource) {
-        return Object.values(resource.connections).filter(c => c.pid)
     }
 
     function add_full_ack_leaf(resource, version) {
@@ -68,9 +56,16 @@ module.exports = function create_node() {
     }
     
     function check_ack_count(key, resource, version) {
-        // Todo: This only takes a key so that it can send node.on_ack(key,
-        // ...) but if we can get rid of the need for a key there, we can get
-        // rid of the need for a key here, and stop sending a key to this.
+        // Todo: This only takes a key so that it can send
+        // node.send_out_ack(key, ...) but if we can get rid of the need for a
+        // key there, we can get rid of the need for a key here, and stop
+        // sending a key to this.
+
+        assert(!resource.acks_in_process[version]
+               || resource.acks_in_process[version].count >= 0,
+               'Acks have gone below zero!',
+               {key, version},
+               resource.acks_in_process[version])
 
         // G: this function gets called from a couple of places, basically whenver
         // someone suspects that the "count" within "acks_in_process" may have changed,
@@ -84,7 +79,7 @@ module.exports = function create_node() {
             // G: sweet, the count has gone to zero, that means all the acks we were
             // waiting for have arrived, now there are a couple possibilities..
 
-            if (resource.acks_in_process[version].origin)
+            if (resource.acks_in_process[version].origin) {
 
                 // G: in this case, we have an "origin", which means we didn't create
                 // this version ourselves, and "origin" tells us who we first heard
@@ -93,10 +88,13 @@ module.exports = function create_node() {
                 // to only send an ack after we have received acks from everyone
                 // we forwarded the information to)
 
-                node.on_ack(key, null, 'local', {version,
-                                                 conn: resource.acks_in_process[version].origin},
-                            resource.joiners[version])
-            else {
+                // var pipe = resource.acks_in_process[version].origin.pipe
+                // pipe.send({method:'ack', key, valid:null, seen:'local',
+                //            version, joiner_num: resource.joiners[version]})
+                node.send_out_ack(key, null, 'local',
+                                  {version, conn: resource.acks_in_process[version].origin},
+                                  resource.joiners[version])
+            } else {
 
                 // G: in this case, we have no "origin", which means we created
                 // this version ourselves, and now the fact that all our peers
@@ -115,8 +113,8 @@ module.exports = function create_node() {
                 // we send a "global" ack to all our peers (and they'll forward it
                 // to their peers)
 
-                connected_citizens(resource).forEach(
-                    c => node.on_ack(key, null, 'global', {version, conn: c})
+                resource.citizens().forEach(
+                    c => node.send_out_ack(key, null, 'global', {version, conn: c})
                 )
             }
         }
@@ -124,12 +122,13 @@ module.exports = function create_node() {
 
     node.get = (key, initial, t) => {
         var r = resource_at(key),
-            sender = t.conn
+            origin = t.conn
 
         // G: "get" is a bit like "connect" or "join", and implies a new connection,
         // so let's set that up..
 
-        r.connections[sender.id] = sender
+        r.connections[origin.id] = origin
+        node.connections[origin.id] = origin
 
         // G: now if the person connecting with us wants to be a citizen, they'll
         // set "pid", and we'll want to send them a "get" as well so that we
@@ -138,12 +137,9 @@ module.exports = function create_node() {
         // the initial get, they set "initial" to true, but we respond with a get
         // with initial not set to true
 
-        if (sender.pid && initial) {
-            // console.log(sender)
-            // sender.get(key, false, {conn: sender})
-            node.on_get(key, false, {conn: sender})//sender.get(false)
+        if (origin.pid && initial) {
+            node.send_out_get(key, false, {conn: origin})//origin.get(false)
         }
-
         // G: ok, now if we're going to be sending this person updates,
         // we should start by catching them up to our current state,
         // which we'll do by sending a "multiset". "generate_braid" calculates
@@ -169,16 +165,18 @@ module.exports = function create_node() {
 
         // G: ok, here we actually send out the multiset
 
-        node.on_multiset(key, versions, fissures.map(x => ({
+        node.send_out_multiset(key, versions, fissures.map(x => ({
             name: x.a + ':' + x.b + ':' + x.conn,
             versions: x.versions,
             parents: x.parents
-        })), false, false, {conn: sender})
+        })), false, false, {conn: origin})
     }
     
     node.set = (key, patches, t, joiner_num) => {
+        // console.log('set:', key, 't:', t)
+
         var resource = resource_at(key),
-            sender = t.conn,
+            origin = t.conn,
             version = t.version,
             parents = t.parents
 
@@ -187,11 +185,11 @@ module.exports = function create_node() {
         // we only add it under certain conditions, namely one of the following
         // must be true:
         //
-        // !sender : in this case there is no sender, meaning the version was
+        // !origin : in this case there is no origin, meaning the version was
         // created locally, so we definitely want to add it.
         //
         // !resource.time_dag[version] : in this case the version must have come
-        // from someone else (or !sender would be true), but we don't have
+        // from someone else (or !origin would be true), but we don't have
         // the version ourselves (otherwise it would be inside our time_dag),
         // so we want to add this new version we haven't seen before.
         //
@@ -206,9 +204,11 @@ module.exports = function create_node() {
         // distinguish the otherwise identical looking joiners for the purposes
         // of electing a particular joiner to handle the full acknowledgment.
 
-        if (!sender
-            || !resource.time_dag[version]
-            || (joiner_num > resource.joiners[version])) {
+        if (!origin                                         // Was created locally
+            || !resource.time_dag[version]                  // We don't have it yet
+            || (joiner_num > resource.joiners[version])) {  // It's a dominant joiner
+
+            console.log('branch a happened')
 
             // G: so we're going to go ahead and add this version to our
             // datastructure, step 1 is to call "add_version" on the underlying
@@ -225,9 +225,10 @@ module.exports = function create_node() {
             // the time is right)..
 
             resource.acks_in_process[version] = {
-                origin: sender,
-                count: connected_citizens(resource).length - (sender ? 1 : 0)
+                origin: origin,
+                count: resource.citizens().length - (origin ? 1 : 0)
             }
+            // console.log('Initialized acks to', resource.acks_in_process[version])
             
             // G: well, I said forwarding the version would be next, but
             // here is this line of code to remember the joiner_num
@@ -240,17 +241,13 @@ module.exports = function create_node() {
             // (unless we received this "set" from one of our peers,
             // in which case we don't want to send it back to them)
 
+            if (version == 'e5')
+                console.log('connections to send to are', resource.connections,
+                            '\n', Object.values(resource.connections))
             Object.values(resource.connections).forEach(receiver => {
-                if (!sender || (receiver.id != sender.id)) {
-                    // receiver.set(key, patches, {version: version, parents: parents},
-                    //              joiner_num)
-                    node.on_set(key, patches, {version: version, parents: parents, conn: receiver}, joiner_num)
-                }
+                if (!origin || (receiver.id != origin.id))
+                    node.send_out_set(key, patches, {version, parents, conn: receiver}, joiner_num)
             })
-
-            // tell_connections(key, 'set',
-            //                  [key, patches, {version, parents}, joiner_num],
-            //                  sender)
             
         } else if (resource.acks_in_process[version]
                    // Greg: In what situation is acks_in_process[version] false?
@@ -262,7 +259,7 @@ module.exports = function create_node() {
                    // ignore the ack process for that version, and rely
                    // on a descendant version getting globally acknowledged.
 
-                   && (joiner_num == resource.joiners[version]))
+                   && joiner_num == resource.joiners[version])
 
             // G: now if we're not going to add the version, most commonly because
             // we already posses the version, there is another situation that
@@ -273,9 +270,13 @@ module.exports = function create_node() {
             // anyway, if it happens, we can treat it like an ACK for the version,
             // which is why we decrement "count" for acks_in_process for this version;
             // a similar line of code exists inside "node.ack"
-
+        {
             resource.acks_in_process[version].count--
-
+            console.log('branch B happened',
+                        joiner_num,
+                        resource.joiners[version],
+                        resource.acks_in_process[version].count)
+        }
         // G: since we may have messed with the ack count, we check it
         // to see if it has gone to 0, and if it has, take the appropriate action
         // (which is probably to send a global ack)
@@ -284,13 +285,23 @@ module.exports = function create_node() {
     }
     
     node.multiset = (key, versions, fissures, unack_boundary, min_leaves, t) => {
+        // console.log('multiset:', key, 'versions:', versions.length,
+        //             'unacking:', Object.keys(unack_boundary))
+
         var resource = resource_at(key),
-            sender = t.conn,
+            origin = t.conn,
             fissures = fissures.map(fiss => {
                 var [a, b, conn] = fiss.name.split(/:/)
                 return {a, b, conn, versions: fiss.versions, parents: fiss.parents}
             })
 
+        for (version in unack_boundary) {
+            // console.log('Unack', version, version in resource.time_dag)
+            if (!(version in resource.time_dag))
+                throw `This version ${version} no exist yet!`
+            resource.ancestors(unack_boundary)
+        }
+        
         // `versions` is actually array of set messages. Each one has a version.
         var new_versions = []
         
@@ -444,9 +455,8 @@ module.exports = function create_node() {
         // and then once it is established, we hardcode the result into
         // the multiset messages that we send to our peers
 
-        if (!unack_boundary) {
+        if (!unack_boundary)
             unack_boundary = Object.assign({}, resource.current_version)
-        }
 
         // G: to understand this next bit of code,
         // first know that these "boundary" variables are really just
@@ -464,7 +474,9 @@ module.exports = function create_node() {
         // resource.unack_boundary, where we delete some stuff, and add
         // some stuff, so that it represents the new boundary)
 
+        // console.log('processing1:', resource.unack_boundary)
         var our_conn_versions = resource.ancestors(resource.unack_boundary)
+        // console.log('processing2:', unack_boundary)
         var new_conn_versions = resource.ancestors(unack_boundary)
         Object.keys(resource.unack_boundary).forEach(x => {
             if (new_conn_versions[x] && !unack_boundary[x]) {
@@ -566,8 +578,8 @@ module.exports = function create_node() {
         
         if (new_versions.length > 0 || new_fissures.length > 0) {
             Object.values(resource.connections).forEach(conn => {
-                if (conn.id != sender.id)
-                    node.on_multiset(key, new_versions, new_fissures.map(x => ({
+                if (conn.id != origin.id)
+                    node.send_out_multiset(key, new_versions, new_fissures.map(x => ({
                         name: x.a + ':' + x.b + ':' + x.conn,
                         versions: x.versions,
                         parents: x.parents
@@ -609,15 +621,15 @@ module.exports = function create_node() {
             if (ancs[t.version]) return
             
             add_full_ack_leaf(resource, t.version)
-            connected_citizens(resource).forEach(c => {
+            resource.citizens().forEach(c => {
                 if (c.id != t.conn.id)
-                    node.on_ack(key, null, 'global',
-                                {version: t.version, conn: t.conn})
+                    node.send_out_ack(key, null, 'global', {version: t.version,
+                                                            conn: t.conn})
             })
         }
     }
     
-    node.fissure = (key, sender, fissure) => {
+    node.fissure = (key, origin, fissure) => {
         var resource = resource_at(key)
         var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
         if (!resource.fissures[fkey]) {
@@ -625,9 +637,11 @@ module.exports = function create_node() {
             
             resource.acks_in_process = {}
             
-            connected_citizens(resource).forEach(c => {
-                if (!sender || (c.id != sender.id))
-                    node.on_disconnected(key, fissure.a + ':' + fissure.b + ':' + fissure.conn, fissure.versions, fissure.parents, {conn: c})
+            resource.citizens().forEach(c => {
+                if (!origin || (c.id != origin.id))
+                    node.send_out_fissure(key,
+                                          fissure.a + ':' + fissure.b + ':' + fissure.conn,
+                                          fissure.versions, fissure.parents, {conn: c})
             })
             
             if (fissure.b == resource.pid) {
@@ -643,9 +657,11 @@ module.exports = function create_node() {
     }
 
     node.disconnected = (key, name, versions, parents, t) => {
-        // To do: make this work for read-only connections
+        // To do:
+        //  - make this work for read-only connections
+        //  - make this work for multiple keys (a disconnection should
+        //    affect all of its keys)
         var resource = resource_at(key),
-            sender = t.conn,
             fissure
 
         // Generate the fissure
@@ -659,8 +675,11 @@ module.exports = function create_node() {
             }
         } else {
             // Create fissure from scratch
-            console.assert(resource.connections[sender.id])
-            console.assert(sender.pid)
+
+            assert(resource.connections[t.conn.id],
+                   node.pid+' Need deze arguments', {t: t, connections: resource.connections})
+            
+            assert(!t.conn.pid, 'Need doze arguments')
 
             var versions = {}
             var ack_versions = resource.ancestors(resource.acked_boundary)
@@ -674,16 +693,18 @@ module.exports = function create_node() {
             
             fissure = {
                 a: resource.pid,
-                b: sender.pid,
-                conn: sender.id,
+                b: t.conn.pid,
+                conn: t.conn.id,
                 versions,
                 parents
             }
 
-            delete resource.connections[sender.id]
+            delete resource.connections[t.conn.id]
+            delete node.connections[t.conn.id]
+            // Maybe node.connections should be a list of keys that have that connection
         }
 
-        node.fissure(key, sender, fissure)
+        node.fissure(key, t.conn, fissure)
     }
     
     node.delete = () => {
@@ -783,10 +804,107 @@ module.exports = function create_node() {
         }
     }
 
-    node.connect2 = (connection) => {
-        connection.id = random_id()
-        node.connections[connection.id] = connection
+    // A pipe is a network connection that can get disconnected and reconnected.
+    //
+    // A pipe can send and receive.  The user supplies a `send_function` that:
+    //
+    //   • will be called from pipe.send(), and
+    //   • will return a result to pipe.recv().
+    //
+    // When a pipe disconnects, it will automatically send out fissures.  When it
+    // re-connects, it will automatically re-establish connections.
+    //
+    node.create_pipe = (send_function) => {
+        var connection,
+            subscribed_keys = dict()  // Maps key -> current_known_version
+
+        // The Pipe Object!
+        var pipe = {
+            id: random_id(),
+            is_connected: false,
+            send(args) {
+                console.log(node.pid + ' SEND:', args.method, args.version||'',
+                            'to', pipe.other_peer)
+
+                // Associate the connection with this pipe (until disconnect)
+                connect_pipe(pipe, args.connection_id, args.connection_pid)
+
+                // Remember new or forgotten keys
+                if (args.method === 'get')
+                    subscribed_keys[args.key] = true  // To do: track versioning.
+                if (args.method === 'forget')         // Then we can reconnect using
+                    delete subscribed_keys[args.key]  // get(parents) from that version.
+
+                // And now send the message
+                send_function(args)
+            },
+            recv(args) {
+                console.log(node.pid + ' RECV:', args.method, args.version||'')
+
+                // Associate the connection with this pipe (until disconnect)
+                connect_pipe(pipe, args.connection_id, args.connection_pid)
+
+                // And now send the message
+                var t = {version: args.version,
+                         parents: args.parents,
+                         conn: node.connections[args.connection_id]}
+                // console.log('recv:', args, t)
+                switch (args.method) {
+                case 'get':      node.get(args.key, args.initial, t)                   ;break
+                case 'set':      node.set(args.key, args.patches, t, args.joiner_num)  ;break
+                case 'forget':   node.forget(args.key, t)                              ;break
+                case 'ack':      node.ack(args.key, args.seen, args.valid, t)          ;break
+                case 'fissure':  node.fissure(args.name, args.versions)                ;break
+                case 'multiset': node.multiset(args.key, args.versions, args.fissures,
+                                               args.unack_boundary, args.min_leaves, t);break
+                }
+            },
+            connected() {
+                this.is_connected = true
+
+                // Create a new connection ID
+                connection = random_id()
+
+                // Send gets for all the subscribed keys again
+                for (k in subscribed_keys)
+                    this.send({
+                        method: 'get',
+                        key: k,
+                        initial: true,
+                        connection_id: connection
+                    })
+            },
+            disconnected() {
+                this.is_connected = false
+
+                console.assert(connection)
+                console.assert(pipe.other_peer)
+
+                // Tell the node.  It'll make fissures.
+                for (k in subscribed_keys)
+                    if (resource_at(k).connections[connection])
+                        node.disconnected(k, null, null, null,
+                                          {conn: {id: connection,
+                                                  pid: pipe.other_peer}})
+                connection = null
+            }
+        }
+
+        function connect_pipe (pipe, conn_id, pid) {
+            if (conn_id) {
+                connection = conn_id
+                var c = node.connections[conn_id] = node.connections[conn_id] || {id: conn_id}
+                c.pipe = pipe
+                if (pid) c.pid = pid
+            }
+
+            // Update other_peer
+            if (pid) pipe.other_peer = pid
+        }
+
+        return pipe
     }
+
     node.create_joiner = (key) => {
         var resource = resource_at(key),
             version = sjcl.codec.hex.fromBits(
