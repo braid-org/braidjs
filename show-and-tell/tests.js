@@ -95,27 +95,6 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 }
                 peer.letters_i = 0
             }
-
-            peer.send_out_get = (key, initial, t) =>
-                t.conn.pipe.send({method:'get', key, initial,
-                                  version: t.version, parents: t.parents,
-                                  connection_id: t.conn.id, connection_pid: t.conn.pid})
-
-            peer.send_out_set = (key, patches, t, joiner_num) =>
-                t.conn.pipe.send({method:'set', key, patches, joiner_num,
-                                  version: t.version, parents: t.parents,
-                                  connection_id: t.conn.id, connection_pid: t.conn.pid})
-
-            peer.send_out_multiset = (key, versions, fissures, unack_boundary,
-                                      min_leaves, t) =>
-                t.conn.pipe.send({method:'multiset', key, versions, fissures,
-                                  unack_boundary, min_leaves,
-                                  connection_id: t.conn.id, connection_pid: t.conn.pid})
-            
-            peer.send_out_ack = (key, valid, seen, t, joiner_num) =>
-                t.conn.pipe.send({method:'ack', key, valid, seen, joiner_num,
-                                  version: t.version,
-                                  connection_id: t.conn.id, connection_pid: t.conn.pid})
         })()
     }
     var peers_array = Object.values(peers)
@@ -133,7 +112,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
 
                 sim_pipes[to.pid + '-' + from.pid].recv(args)
             }])
-        })
+        }, from.pid + '-' + to.pid)
     }
 
     console.log('Create pipes')
@@ -148,37 +127,45 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     console.log('Send get()s to establish connections')
 
     // Start sending get() messages over the pipes!
-    for (var p1 = 0; p1 < n_peers; p1++)
-        for (var p2 = p1 + 1; p2 < n_peers; p2++) {
-            var [from, to] = Math.random() > .5 ? [p1, p2] : [p2, p1]
-            sim_pipes[peers_array[from].pid + '-' + peers_array[to].pid].send({
-                method: 'get',
-                key: 'my_key',
-                initial: true,
-                connection_id: random_id(),
-                connection_pid: peers_array[from].pid
-            })
+    var enable_one_side_get_bug = true
+    if (enable_one_side_get_bug)
+        for (var p1 = 0; p1 < n_peers; p1++)
+            for (var p2 = p1 + 1; p2 < n_peers; p2++) {
+                var [from, to] = Math.random() > .5 ? [p1, p2] : [p2, p1]
+                var pipe = sim_pipes[peers_array[from].pid + '-' + peers_array[to].pid]
+                pipe.connected()
+                // pipe.subscribe('my_key')
+                peers_array[from].get({
+                    key: 'my_key',
+                    // origin: pipe,
+                    initial: true
+                })
 
-
-            // Log the debugging frames
-            notes = ['connecting ' + p1 + ':' + peers_array[p1].pid
-                     + ' and ' + p2 + ':' + peers_array[p2].pid]
-            if (debug_frames) debug_frames.push({
-                t: -1,
-                peer_notes: {
-                    [peers_array[p1].pid]: notes,
-                    [peers_array[p2].pid]: notes
-                },
-                peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
-            })
+                // Log the debugging frames
+                notes = ['connecting ' + p1 + ':' + peers_array[p1].pid
+                         + ' and ' + p2 + ':' + peers_array[p2].pid]
+                if (debug_frames) debug_frames.push({
+                    t: -1,
+                    peer_notes: {
+                        [peers_array[p1].pid]: notes,
+                        [peers_array[p2].pid]: notes
+                    },
+                    peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
+                })
+            }
+    else
+        for (var pipe_key in sim_pipes) {
+            sim_pipes[pipe_key].connected()
+            sim_pipes[pipe_key].origin.get({key: 'my_key', initial: true})
         }
+    
 
-    console.log('Initial edit')
+    console.log('Initial edit: P1 is adding "root"')
 
     if (true) {
         notes = ['initial edit']
         let p = peers_array[0]
-        p.set('my_key', [], {version: 'root', parents: {}})
+        p.set({key: 'my_key', version: 'root', parents: {}, patches: []})
         if (debug_frames) debug_frames.push({
             t: -1,
             peer_notes: {[p.pid]: notes},
@@ -210,7 +197,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                     }
                     var e = create_random_edit(peer.resources['my_key'], peer.letters[peer.letters_i++])
                     console.log(peer.pid + ' edit text', e.version)
-                    peer.set('my_key', e.changes, {version: e.version, parents: e.parents})
+                    peer.set({key: 'my_key',
+                              patches: e.changes, version: e.version, parents: e.parents})
                 }
             } else {
                 // Disconnect or reconnect
@@ -224,8 +212,9 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                     other_peer = peers[other_pid]
 
                 // Toggle the pipe!
-                if (random_pipe.is_connected !== other_pipe.is_connected) throw 'asdf'
-                if (random_pipe.is_connected) {
+                assert(!!random_pipe.connection === !!other_pipe.connection,
+                       random_pipe.connection, other_pipe.connection)
+                if (random_pipe.connection) {
                     random_pipe.disconnected()
                     other_pipe.disconnected()
                 } else {
@@ -234,7 +223,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 }
 
                 // If we had a disconnection, let's clear out the queues
-                if (!random_pipe.is_connected) {
+                if (!random_pipe.connection) {
                     notes.push(' disconnect ' + peer.pid + ' and ' + other_peer.pid)
                     peer.incoming = peer.incoming.filter(x => x[0] != other_peer.pid)
                     other_peer.incoming = other_peer.incoming.filter(x => x[0] != peer.pid)
@@ -243,7 +232,6 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         } else {
             // Receive incoming network message
 
-            // console.log(peer.pid + ' receive message')
             if (show_debug) console.log('process incoming')
             var did_something = false
             if (peer.incoming.length > 0) {
@@ -286,48 +274,6 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
         })
     }
-
-    // for (var p1 = 0; p1 < n_peers; p1++) {
-    //     var p1_p = peers_array[p1]
-    //     for (var p2 = p1 + 1; p2 < n_peers; p2++) {
-    //         var p2_p = peers_array[p2]
-
-    //         if (// If p1 is not connected to p2
-    //             !Object.values(p1_p.resources['my_key']
-    //                            ? p1_p.resources['my_key'].connections
-    //                            : {}
-    //                           ).some(x => x.pid == p2_p.pid)
-    //             // And has no messages incoming from p2
-    //             && !p1_p.incoming.some(x => x[0] == p2_p.pid)
-    //             // And p2 is not connected to p1
-    //             && !Object.values(p2_p.resources['my_key']
-    //                               ? p2_p.resources['my_key'].connections
-    //                               : {}
-    //                              ).some(x => x.pid == p1_p.pid)
-    //             // And has no incoming messages from p1
-    //             && !p2_p.incoming.some(x => x[0] == p1_p.pid)) {
-
-    //             // Then let's connect them
-    //             notes = ['connecting ' + p1 + ':' + p1_p.pid
-    //                      + ' and ' + p2 + ':' + p2_p.pid]
-                
-    //             // Choose a random one to connect
-    //             if (Math.random() < 0.5)
-    //                 peers_array[p1].connect2(p2_p.pid)
-    //             else
-    //                 peers_array[p2].connect2(p1_p.pid)
-                
-    //             if (debug_frames) debug_frames.push({
-    //                 t: -1,
-    //                 peer_notes: {
-    //                     [p1_p.pid]: notes,
-    //                     [p2_p.pid]: notes
-    //                 },
-    //                 peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
-    //             })
-    //         }
-    //     }
-    // }
     
     var tt = 0
     for (var t = 0; t < 50; t++) {
