@@ -100,25 +100,39 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     // New code for connecting peers
     var sim_pipes = {}
     function create_sim_pipe (from, to) {
-        var pipe = sim_pipes[from.pid + '-' + to.pid] = from.create_pipe(function (args) {
-            if (!this.connection) this.connected()
-            to.incoming.push([from.pid, () => {
-                // Log to console
-                notes.push('RECV: ' + args.method + ' from:' + from.pid
-                           + ' to:' + to.pid,
-                           + JSON.stringify(args))
-                if (show_debug) console.log(notes)
+        var pipe = sim_pipes[from.pid + '-' + to.pid] = from.create_pipe({
+            send (args) {
+                if (!this.connection) {
+                    console.log('sim-pipe.send: starting connection cause it was null')
+                    this.connected()
+                }
+                // console.log('>> ', this.id, args)
+                to.incoming.push([from.pid, () => {
+                    // Log to console
+                    notes.push('RECV: ' + args.method + ' from:' + from.pid
+                               + ' to:' + to.pid,
+                               + JSON.stringify(args))
+                    if (show_debug) console.log(notes)
 
-                sim_pipes[to.pid + '-' + from.pid].recv(args)
-            }])
-        }, from.pid + '-' + to.pid)
-        from.bind('*', {id: random_id(),
-                        send (args) {
-                            if (args.method === 'get')
-                                from.bind(args.key, pipe)
-                            if (args.method === 'forget')
-                                from.unbin(args.key, pipe)
-                        }})
+                    sim_pipes[to.pid + '-' + from.pid].recv(args)
+                }])
+            },
+
+            connect () { this.connected() },
+
+            id: from.pid + '-' + to.pid
+        })
+
+        from.bind('my_key', pipe)
+        // from.bind('*', {id: random_id(),
+        //                 send (args) {
+        //                     if (args.method === 'get')
+        //                         from.bind(args.key, pipe)
+        //                     if (args.method === 'forget')
+        //                         from.unbin(args.key, pipe)
+        //                     console.log(from.pid, 'Wrapper pipe firing! Now bindings are',
+        //                                 from.bindings(args.key).length)
+        //                 }})
     }
 
     console.log('Create pipes')
@@ -138,7 +152,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     // for (var pipe_key in sim_pipes)
     //     sim_pipes[pipe_key].connected()
 
-    console.log('Send get()s to establish connections')
+    console.log('\nSend get()s to establish connections')
 
     // Start sending get() messages over the pipes!
     var enable_one_side_get_bug = false
@@ -170,11 +184,11 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         peers_array.forEach(node => node.get({key: 'my_key',
                                               subscribe: true,
                                               origin: {id: random_id(),
-                                                       send: (args) => null
+                                                       send: (args) => null//console.log('-Global-', args.method)
                                                       }}))
 
 
-    console.log('Initial edit: P1 is adding "root"')
+    console.log('\nInitial edit: P1 is adding "root"')
 
     if (true) {
         notes = ['initial edit']
@@ -190,7 +204,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     try {
     
     // Run a trial
-    console.log('Run the trial')
+    console.log('\nRun the trial')
 
     for (var t = 0; t < trial_length; t++) {
         if (show_debug) console.log('t == ' + t)
@@ -227,7 +241,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                     other_peer = peers[other_pid]
 
                 // Toggle the pipe!
-                console.log('TOGGLE pipe', random_pipe.connection ? 'off':'on')
+                console.log(peer.pid + ' TOGGLE pipe', random_pipe.connection ? 'off':'on')
                 assert(!!random_pipe.connection === !!other_pipe.connection,
                        random_pipe.connection, other_pipe.connection)
                 if (random_pipe.connection) {
@@ -248,7 +262,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         } else {
             // Receive incoming network message
 
-            // console.log('RECEIVE message of', peer.incoming.length)
+            console.log(peer.pid + ' RECEIVE message from', peer.incoming.length, 'outstanding')
             var did_something = false
             if (peer.incoming.length > 0) {
                 did_something = true

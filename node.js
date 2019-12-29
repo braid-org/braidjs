@@ -120,24 +120,26 @@ module.exports = function create_node() {
         }
     }
 
-    node.get = ({key, version, parents, origin}) => {
+    node.get = ({key, version, parents, subscribe, origin}) => {
+        console.log('get:', node.pid, key)
         assert(key)
         var resource = resource_at(key)
 
         // console.log('get:', key, version, parents, origin)
         assert(origin, 'Mike: remember to invent a default origin pipe, please')
 
-        // If this is the first subscription, fire the .on_get handlers
-        if (gets_in.count(key) === 0) {
-            console.log(node.pid + ': Firing .on_get for', node.bindings(key).length, 'pipes!')
-            node.bindings(key).forEach(
-                pipe => pipe.send({method: 'get', key, version, parents, origin}))
-        }
-
         // Now record this subscription to the bus
         gets_in.add(key, origin.id)
         // ...and bind the origin pipe to future sets
         node.bind(key, origin)
+
+        // If this is the first subscription, fire the .on_get handlers
+        if (gets_in.count(key) === 1) {
+            console.log('node.get:', node.pid, 'firing .on_get for', node.bindings(key).length, 'pipes!')
+            // This one is getting called afterward
+            node.bindings(key).forEach(
+                pipe => pipe.send({method:'get', key, version, parents, subscribe, origin}))
+        }
 
         // // G: now if the person connecting with us wants to be a citizen, they'll
         // // set "pid", and we'll want to send them a "get" as well so that we
@@ -235,7 +237,7 @@ module.exports = function create_node() {
             }
 
             assert(resource.acks_in_process[version].count >= 0,
-                   'Acks have below zero! Because',
+                   node.pid, 'Acks have below zero! Proof:',
                    {citizens: node.citizens(key), origin, key, version,
                     acks_in_process: resource.acks_in_process[version]})
 
@@ -604,14 +606,14 @@ module.exports = function create_node() {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
-        console.log('Acking!!!!', key, seen, version)
+        console.log('node.ack: Acking!!!!', key, seen, version)
         assert(key && version && origin)
         var resource = resource_at(key)
 
         if (seen == 'local') {
             if (resource.acks_in_process[version]
                 && (joiner_num == resource.joiners[version])) {
-                console.log('Got a local ack! Decrement count to',
+                console.log('node.ack: Got a local ack! Decrement count to',
                             resource.acks_in_process[version].count - 1)
                 resource.acks_in_process[version].count--
                 check_ack_count(key, resource, version)
@@ -686,13 +688,12 @@ module.exports = function create_node() {
         } else {
             // Create fissure from scratch
 
-            assert(origin.id, 'Need deze arguments!')
-
             // assert(resource.subscriptions[origin.id],
             //        `This pipe ${origin.id} is not on the resource for ${node.pid}'s ${key}`,
             //        resource.subscriptions)
             
-            assert(!origin.peer, 'Need doze arguments')
+            assert(origin.id,   'Need id on the origin', origin)
+            assert(origin.peer, 'Need a peer on origin', origin)
 
             var versions = {}
             var ack_versions = resource.ancestors(resource.acked_boundary)
@@ -826,20 +827,34 @@ module.exports = function create_node() {
     // When a pipe disconnects, it will automatically send out fissures.  When it
     // re-connects, it will automatically re-establish connections.
     //
-    node.create_pipe = (send_function, id) => {
+    node.create_pipe = ({send, connect, id}) => {
+        console.assert(send && connect && id)
         var subscribed_keys = dict()
 
         // The Pipe Object!
         var pipe = {
 
-            // A pipe holds three variables:
+            // A pipe holds four variables:
             id: id || random_id(),
             connection: null,
+            connecting: false,
             peer: null,
+
 
             // It can Send and Receive messages
             send (args) {
-                console.log((id || node.pid) + ' SEND:', args.method, args.version||'')
+                // console.log(`pipe.send connection=${this.connection}, connecting=${this.connecting} ${args.method}`)
+                if (!this.connection && !this.connecting) {
+                    this.connecting = true
+                    // console.log(`pipe.send: ${id} Calling the custom connect func!`)
+                    connect.apply(this)
+                }
+                assert(this.connection, 'Not connected to send!')
+
+                delete args.origin
+
+                // if (args.method === 'get')
+                //     console.log('    ###########\npipe.send: ####### GET #######', id, args)
 
                 // Remember new or forgotten keys
                 if (args.method === 'get') {
@@ -849,18 +864,20 @@ module.exports = function create_node() {
                     subscribed_keys[args.key] = subscribed_keys[args.key] || {}
                     subscribed_keys[args.key].we_want_keep_alive = args.subscribe
 
+                    // console.log('pipe.send: binding')
                     node.bind(args.key, pipe)
                 }
                 if (args.method === 'forget') {
                     delete subscribed_keys[args.key]
                     node.unbind(args.key, pipe)
                 }
-
+                // console.log('pipe.send: calling the send function w/', args.method)
                 // And now send the message
-                send_function.call(pipe, args)
+                console.log('pipe.send:', (id || node.pid), args.method, args.version||'')
+                send.call(pipe, args)
             },
             recv (args) {
-                console.log((id || node.pid) + ' RECV:', args.method, args.version||'')
+                console.log('pipe.recv:', (id || node.pid), args.method, args.version||'')
 
                 // The hello method is only for pipes
                 if (args.method === 'hello') {
@@ -885,6 +902,15 @@ module.exports = function create_node() {
 
             // It can Connect and Disconnect
             connected () {
+                console.log('pipe.connect:', this.id, this.connection || '')
+
+                if (this.connection) {
+                    console.log('pipe.connect:', this.id, 'already exists! abort!')
+                    return
+                }
+
+                this.connecting = false
+
                 // Create a new connection ID
                 this.connection = random_id()
 
@@ -894,13 +920,15 @@ module.exports = function create_node() {
                            my_name_is: node.pid})
 
                 // Send gets for all the subscribed keys again
-                for (k in subscribed_keys)
+                for (k in subscribed_keys) {
+                    // This one is getting called earlier.
+                    console.log('pipe.connect: Re-fetching the subscribed key', k)
                     this.send({
+                        key: k,
                         subscribe: true,
                         method: 'get',
-                        key: k,
-                        initial: true
                     })
+                }
             },
             disconnected () {
                 console.assert(this.connection)
@@ -908,7 +936,7 @@ module.exports = function create_node() {
 
                 // Tell the node.  It'll make fissures.
                 for (k in subscribed_keys) {
-                    if (pipe.is_citizen(k))
+                    if (pipe.is_citizen(k) && pipe.peer)
                         node.disconnected({key:k, origin: this})
                     else
                         delete subscribed_keys[k]
@@ -919,6 +947,8 @@ module.exports = function create_node() {
             },
 
             is_citizen (key) {
+                assert(key)
+                // console.log('is_citizen:', subscribed_keys)
                 return     subscribed_keys[key]
                     && (   subscribed_keys[key].we_want_keep_alive
                         || subscribed_keys[key].they_want_keep_alive )
@@ -1009,9 +1039,14 @@ module.exports = function create_node() {
         return Object.values(result)
     }
 
-    node.citizens = (key) => node.bindings(key).filter(
-        pipe => pipe.is_citizen && pipe.is_citizen()
-    )
+    node.citizens = (key) => {
+        var result = node.bindings(key).filter(
+            pipe => pipe.is_citizen && pipe.is_citizen(key)
+        )
+        // console.log('node.citizens: we have', node.bindings(key).length,
+        //             'bindings and only', result.length, 'are citizens')
+        return result
+    }
 
     // ===============================================
     //
