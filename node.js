@@ -1,8 +1,9 @@
+random_id = () => Math.random().toString(36).substr(2)
+
 module.exports = function create_node() {
     var node = {}
     node.pid = random_id()
     node.resources = {}
-    var dict = () => Object.create({})
     function resource_at(key) {
         if (!node.resources[key])
             node.resources[key] = require('./resource.js')(node.pid)//(conn_funcs)
@@ -111,38 +112,44 @@ module.exports = function create_node() {
                 // we send a "global" ack to all our peers (and they'll forward it
                 // to their peers)
 
-                resource.citizens().forEach(
-                    pipe => pipe.send({method: 'ack', key, seen:'global', version})
-                )
+                node.citizens(key).forEach( pipe => {
+                    pipe.send({method: 'ack', key, seen:'global', version})
+                })
             }
         }
     }
 
-    node.get = ({key, version, parents, initial, origin}) => {
-        var r = resource_at(key)
+    node.get = ({key, version, parents, origin}) => {
+        assert(key)
+        var resource = resource_at(key)
 
-        // G: "get" is a bit like "connect" or "join", and implies a new connection,
-        // so let's set that up..
+        // console.log('get:', key, version, parents, origin)
+        assert(origin, 'Mike: remember to invent a default origin pipe, please')
 
-        if (origin) {
-            console.log('Adding pipe', origin.id, 'to node', node.pid, key, Object.keys(r.pipes))
-            r.pipes[origin.id] = origin
-        }
+        // If this is the first subscription, fire the .on_get handlers
+        if (gets_in.count(key) === 0)
+            node.bindings(key).forEach(
+                pipe => pipe.send({method: 'get', key, version, parents, origin}))
 
-        // G: now if the person connecting with us wants to be a citizen, they'll
-        // set "pid", and we'll want to send them a "get" as well so that we
-        // can learn about their updates -- of course, when they get that get,
-        // we don't want an echo war of gets begetting gets, so when someone sends
-        // the initial get, they set "initial" to true, but we respond with a get
-        // with initial not set to true
+        // Now record this subscription to the bus
+        gets_in.add(key, origin.id)
+        // ...and bind the origin pipe to future sets
+        node.bind(key, origin)
 
-        if (origin.peer && initial)
-            origin.send({method: 'get', key, initial: false})
+        // // G: now if the person connecting with us wants to be a citizen, they'll
+        // // set "pid", and we'll want to send them a "get" as well so that we
+        // // can learn about their updates -- of course, when they get that get,
+        // // we don't want an echo war of gets begetting gets, so when someone sends
+        // // the initial get, they set "initial" to true, but we respond with a get
+        // // with initial not set to true
+
+        // if (origin.peer && initial)
+        //     origin.send({method: 'get', key, initial: false})
 
         // G: ok, now if we're going to be sending this person updates,
         // we should start by catching them up to our current state,
-        // which we'll do by sending a "multiset". "generate_braid" calculates
-        // the versions comprising this multiset (we need to calculate them because
+        // which we'll do by sending a "welcome". "generate_braid" calculates
+        // the versions comprising this welcome (we need to calculate them because
         // we store the versions inside a space dag, and we need to pull them out..
         // note that it wouldn't work to just keep the versions around on the side,
         // because we also prune the space dag, meaning that the versions generated
@@ -153,23 +160,24 @@ module.exports = function create_node() {
         // of any new edits made by them.. we strive to enforce this fact with
         // the pruning algorithm)
 
-        var versions = Object.keys(r.time_dag).length > 0
-            ? r.mergeable.generate_braid(x => false)
+        var versions = Object.keys(resource.time_dag).length > 0
+            ? resource.mergeable.generate_braid(x => false)
             : []
 
         // G: oh yes, we also send them all of our fissures, so they can know to keep
         // those versions alive
 
-        var fissures = Object.values(r.fissures)
+        var fissures = Object.values(resource.fissures)
 
-        // G: ok, here we actually send out the multiset
+        // G: ok, here we actually send out the welcome
 
-        origin.send({method: 'multiset',
+        origin.send({method: 'welcome',
                      key, versions, unack_boundary: false, min_leaves: false,
                      fissures})
     }
     
     node.set = ({key, patches, version, parents, origin, joiner_num}) => {
+        assert(key && patches)
         var resource = resource_at(key)
 
         // G: cool, someone is giving us a new version to add to our datastructure.
@@ -206,8 +214,8 @@ module.exports = function create_node() {
             // datastructure, step 1 is to call "add_version" on the underlying
             // mergeable..
 
-            console.log('Adding version', {version, parents, patches},
-                        'to', Object.keys(resource.time_dag))
+            // console.log('Adding version', {version, parents, patches},
+            //             'to', Object.keys(resource.time_dag))
             resource.mergeable.add_version(version, parents, patches)
 
             // G: next, we want to remember some information for the purposes
@@ -220,20 +228,20 @@ module.exports = function create_node() {
 
             resource.acks_in_process[version] = {
                 origin: origin,
-                count: resource.citizens().length - (origin ? 1 : 0)
+                count: node.citizens(key).length - (origin ? 1 : 0)
             }
 
             assert(resource.acks_in_process[version].count >= 0,
                    'Acks have below zero! Because',
-                   {citizens: resource.citizens(), origin, key, version,
+                   {citizens: node.citizens(key), origin, key, version,
                     acks_in_process: resource.acks_in_process[version]})
 
             // console.log('Initialized acks to', resource.acks_in_process[version])
             
-            // G: well, I said forwarding the version would be next, but
-            // here is this line of code to remember the joiner_num
-            // of this version, in case it is a joiner (we store the
-            // joiner_num for each version in a auxiliary hashmap called joiners)..
+            // G: well, I said forwarding the version would be next, but here
+            // is this line of code to remember the joiner_num of this
+            // version, in case it is a joiner (we store the joiner_num for
+            // each version in a auxiliary hashmap called joiners)..
 
             if (joiner_num) resource.joiners[version] = joiner_num
 
@@ -241,10 +249,10 @@ module.exports = function create_node() {
             // (unless we received this "set" from one of our peers,
             // in which case we don't want to send it back to them)
 
-            Object.values(resource.pipes).forEach(receiver => {
-                if (!origin || (receiver.id != origin.id))
-                    receiver.send({method: 'set',
-                                   key, patches, version, parents, joiner_num})
+            node.bindings(key).forEach(pipe => {
+                if (!origin || (pipe.id != origin.id))
+                    pipe.send({method: 'set',
+                               key, patches, version, parents, joiner_num})
             })
             
         } else if (resource.acks_in_process[version]
@@ -286,8 +294,9 @@ module.exports = function create_node() {
         check_ack_count(key, resource, version)
     }
     
-    node.multiset = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
-        // console.log('multiset:', key, 'versions:', versions.length,
+    node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
+        assert(key && versions && fissures && unack_boundary && min_leaves)
+        // console.log('welcome:', key, 'versions:', versions.length,
         //             'unacking:', Object.keys(unack_boundary))
         var resource = resource_at(key)
 
@@ -414,7 +423,7 @@ module.exports = function create_node() {
         // behavior that even if a global acknowledgment is received for them,
         // it should be ignored.
         //
-        // why should we ignore them? well, this multiset message we've received
+        // why should we ignore them? well, this welcome message we've received
         // is kindof like an anti-fissure -- it is a new citizen in the network,
         // and the whole idea of a "global ack" is that all citizens connected
         // directly or transitively to ourselves have seen this version,
@@ -433,20 +442,20 @@ module.exports = function create_node() {
         // and also by the incoming citizen, then we keep that version as
         // globally acknowledged)
 
-        // G: this next if statement deals with two cases of the multiset message.
-        // in one case, the multiset is sent as a response to a get,
+        // G: this next if statement deals with two cases of the welcome message.
+        // in one case, the welcome is sent as a response to a get,
         // in which case unack_boundary is null (and you can see that we just
         // set it to be absolutely all of the versions we currently know about,
         // both in our own version set, and the incoming version set, since
         // we already added the incoming versions to our set). If it isn't null,
         // then we don't need to give it a value here (and this message must be
-        // a case of propoagating a multiset around the network)
+        // a case of propoagating a welcome around the network)
         //
         // So conceptually, we establish the unack_boundary on the initial
-        // multiset (and we can't know it before then, because the person
-        // sending us this multiset doesn't know which versions we have),
+        // welcome (and we can't know it before then, because the person
+        // sending us this welcome doesn't know which versions we have),
         // and then once it is established, we hardcode the result into
-        // the multiset messages that we send to our peers
+        // the welcome messages that we send to our peers
 
         if (!unack_boundary)
             unack_boundary = Object.assign({}, resource.current_version)
@@ -490,8 +499,8 @@ module.exports = function create_node() {
         // in this case, and used to be paired with "max_leaves", which
         // meant "union", and was used to represent the unack_boundary above)
         //
-        // As before, min_leaves will be null on the initial multiset,
-        // and we'll compute it, and then subsequent multisets will have this
+        // As before, min_leaves will be null on the initial welcome,
+        // and we'll compute it, and then subsequent welcomes will have this
         // result included..
         
         if (!min_leaves) {
@@ -570,9 +579,9 @@ module.exports = function create_node() {
         // since there's nothing new to hear about)
         
         if (new_versions.length > 0 || new_fissures.length > 0) {
-            Object.values(resource.pipes).forEach(pipe => {
+            node.bindings(key).forEach(pipe => {
                 if (pipe.id != origin.id)
-                    pipe.send({method: 'multiset',
+                    pipe.send({method: 'welcome',
                                key, versions: new_versions, unack_boundary, min_leaves,
                                fissures: new_fissures})
             })
@@ -580,20 +589,21 @@ module.exports = function create_node() {
 
         // G: now we finally add the fissures we decided we need to create
         // in gen_fissures.. we add them now, after the code above,
-        // so that these network messages appear after the multiset (since
-        // they may rely on information which is in the multiset for other
+        // so that these network messages appear after the welcome (since
+        // they may rely on information which is in the welcome for other
         // people to understand them)
 
         gen_fissures.forEach(f => node.fissure({key, fissure:f}))
     }
     
-    // forget({key, origin})
     node.forget = ({key, origin}) => {
-        origin.send({method: 'forget', key})
-        delete resource_at(key).pipes[origin.id]
+        assert(key)
+        // Todo: if this is the last subscription, send forget to all gets_out
+        // origin.send({method: 'forget', key})
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
+        assert(key && version && origin)
         var resource = resource_at(key)
 
         if (seen == 'local') {
@@ -614,7 +624,7 @@ module.exports = function create_node() {
             if (ancs[version]) return
             
             add_full_ack_leaf(resource, version)
-            resource.citizens().forEach(pipe => {
+            node.citizens(key).forEach(pipe => {
                 if (pipe.id != origin.id)
                     pipe.send({method: 'ack', key, version, seen: 'global'})
             })
@@ -622,6 +632,7 @@ module.exports = function create_node() {
     }
     
     node.fissure = ({key, fissure, origin}) => {
+        assert(key && fissure && origin)
         var resource = resource_at(key)
 
         var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
@@ -630,7 +641,7 @@ module.exports = function create_node() {
             
             resource.acks_in_process = {}
             
-            resource.citizens().forEach(pipe => {
+            node.citizens(key).forEach(pipe => {
                 if (!origin || (pipe.id != origin.id))
                     pipe.send({method: 'fissure',
                                key,
@@ -651,6 +662,7 @@ module.exports = function create_node() {
     }
 
     node.disconnected = ({key, name, versions, parents, origin}) => {
+        assert(key && origin)
         // To do:
         //  - make this work for read-only connections
         //  - make this work for multiple keys (a disconnection should
@@ -674,9 +686,9 @@ module.exports = function create_node() {
 
             assert(origin.id, 'Need deze arguments!')
 
-            assert(resource.pipes[origin.id],
-                   `This pipe ${origin.id} is not on the resource for ${node.pid}'s ${key}`,
-                   resource.pipes)
+            // assert(resource.subscriptions[origin.id],
+            //        `This pipe ${origin.id} is not on the resource for ${node.pid}'s ${key}`,
+            //        resource.subscriptions)
             
             assert(!origin.peer, 'Need doze arguments')
 
@@ -698,7 +710,8 @@ module.exports = function create_node() {
                 parents
             }
 
-            delete node.pipes[origin.id]
+            node.unbind(key, origin)
+            // delete resource.subscriptions[origin.id]
         }
 
         node.fissure({key, origin, fissure})
@@ -812,7 +825,7 @@ module.exports = function create_node() {
     // re-connects, it will automatically re-establish connections.
     //
     node.create_pipe = (send_function, id) => {
-        var subscribed_keys = dict()  // Maps key -> current_known_version
+        var subscribed_keys = dict()
 
         // The Pipe Object!
         var pipe = {
@@ -827,23 +840,35 @@ module.exports = function create_node() {
                 console.log((id || node.pid) + ' SEND:', args.method, args.version||'')
 
                 // Remember new or forgotten keys
-                if (args.method === 'get')
-                    subscribed_keys[args.key] = true  // To do: track versioning.
-                if (args.method === 'forget')         // Then we can reconnect using
-                    delete subscribed_keys[args.key]  // get(parents) from that version.
+                if (args.method === 'get') {
+                    subscribed_keys[args.key] = subscribed_keys[args.key] || {}
+                    subscribed_keys[args.key].we_want_keep_alive = args.subscribe
+
+                    node.bind(args.key, pipe)
+                }
+                if (args.method === 'forget') {
+                    delete subscribed_keys[args.key]
+                    node.unbind(args.key, pipe)
+                }
 
                 // And now send the message
-                send_function.call(this, args)
+                send_function.call(pipe, args)
             },
             recv (args) {
                 console.log((id || node.pid) + ' RECV:', args.method, args.version||'')
 
-                // The connect method is special
-                if (args.method == 'connect') {
+                // The hello method is only for pipes
+                if (args.method === 'hello') {
                     this.connection = (this.connection < args.connection
                                        ? this.connection : args.connection)
-                    this.peer = args.peer
+                    this.peer = args.my_name_is
                     return
+                }
+
+                // Remember new subscriptions from them
+                if (args.method === 'get') {
+                    subscribed_keys[args.key] = subscribed_keys[args.key] || {}
+                    subscribed_keys[args.key].they_want_keep_alive = args.subscribe
                 }
 
                 args.origin = this
@@ -856,9 +881,9 @@ module.exports = function create_node() {
                 this.connection = random_id()
 
                 // Initiate connection with peer
-                this.send({method: 'connect',
+                this.send({method: 'hello',
                            connection: this.connection,
-                           peer: node.pid})
+                           my_name_is: node.pid})
 
                 // Send gets for all the subscribed keys again
                 for (k in subscribed_keys)
@@ -873,11 +898,20 @@ module.exports = function create_node() {
                 console.assert(this.peer)
 
                 // Tell the node.  It'll make fissures.
-                for (k in subscribed_keys)
-                    node.disconnected({key:k, origin: this})
+                for (k in subscribed_keys) {
+                    if (pipe.is_citizen(k))
+                        node.disconnected({key:k, origin: this})
+                    else
+                        delete subscribed_keys[k]
+                }
 
                 this.connection = null
                 this.peer = null
+            },
+
+            is_citizen (key) {
+                return subscribed_keys[k].we_want_keep_alive
+                    || subscribed_keys[k].they_want_keep_alive
             }
         }
 
@@ -890,7 +924,110 @@ module.exports = function create_node() {
                 sjcl.hash.sha256.hash(
                     Object.keys(resource.current_version).sort().join(':')))
         var joiner_num = Math.random()
-        node.set(key, [], {version: version, parents: Object.assign({}, resource.current_version)}, joiner_num)
+        node.set({key, patches: [], version,
+                  parents: Object.assign(dict(), resource.current_version),
+                  joiner_num})
     }        
+
+    // var bindings = dict()
+    // node.on = (f) => bindings[f.id] = f
+
+    var pending_gets = dict()
+    var gets_in = new one_to_many()   // Maps `key' to `pub_funcs' subscribed to our key
+    // var gets_out = dict()          // Maps `key' to `func' iff we get()ed `key'
+
+
+    // ===============================================
+    //
+    //   Bindings:
+    //
+    //         Attaching pipes to events
+    //
+    
+    // The funks attached to each key, maps e.g. 'get /point/3' to '/30'
+    var handlers = one_to_many()
+    var wildcard_handlers = []  // An array of {prefix, funk}
+
+    // A set of timers, for keys to send forgets on
+    var to_be_forgotten = {}
+    node.bind = (key, pipe, allow_wildcards) => {
+        if (allow_wildcards && key[key.length-1] === '*')
+            wildcard_handlers.push({prefix: key, pipe: pipe})
+        else
+            handlers.add(key, pipe.id, pipe)
+
+        // Now check if the method is a get and there's a gotton
+        // key in this space, and if so call the handler.
+    }
+    node.unbind = (key, pipe, allow_wildcards) => {
+        if (allow_wildcards && key[key.length-1] === '*')
+            // Delete wildcard connection
+            for (var i=0; i<wildcard_handlers.length; i++) {
+                var handler = wildcard_handlers[i]
+                if (handler.prefix === key && handler.pipe.id === pipe.id) {
+                    wildcard_handlers.splice(i,1)  // Splice this element out of the array
+                    i--                            // And decrement the counter while we're looping
+                }
+            }
+        else
+            // Delete direct connection
+            handlers.delete(key, pipe.id)
+    }
+
+    node.bindings = (key) => {
+        assert(typeof key === 'string',
+               'Error: "' + key + '" is not a string')
+
+        var result = dict()
+
+        // First get the exact key matches
+        var pipes = handlers.get(key)
+        for (var i=0; i < pipes.length; i++)
+            result[pipes[i].id] = pipes[i]
+
+        // Now iterate through prefixes
+        for (var i=0; i < wildcard_handlers.length; i++) {
+            var handler = wildcard_handlers[i]
+            var prefix = handler.prefix.slice(0, -1)       // Cut off the *
+
+            if (prefix === key.substr(0,prefix.length))
+                // If the prefix matches, add it to the list!
+                result[handler.pipe.id] = handler.pipe
+        }
+        return Object.values(result)
+    }
+
+    node.citizens = (key) => node.bindings(key).filter(
+        pipe => pipe.is_citizen && pipe.is_citizen()
+    )
+
+    // ===============================================
+    //
+    //   Utilities
+    //
+
+    function one_to_many () {
+        var data   = dict()
+        var counts = dict()
+        return {
+            get (k) { return Object.values(data[k] || dict()) },
+            add (k1, k2, value) {
+                if (  data[k1] === undefined)   data[k1] = dict()
+                if (counts[k1] === undefined) counts[k1] = 0
+                if (!data[k1][k2]) counts[k1]++
+                data[k1][k2] = value
+            },
+            delete (k, k2) { delete data[k][k2]; counts[k]-- },
+            delete_all (k) { delete data[k]; delete counts[k] },
+            has (k, k2)    { return data[k] && data[k][k2] },
+            count (k)      { return counts[k] || 0}
+        }
+    }
+
+    // This is an alternative to {}.  It creates a clean hash table without
+    // any pre-existing keys, like .constructor or .prototype that are built
+    // into Javascript Objects..
+    function dict () { return Object.create({}) }
+
     return node
 }

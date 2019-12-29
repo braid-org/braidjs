@@ -1,8 +1,6 @@
 require('../greg/random001.js')
 require('../greg/sjcl.min.js')
 
-random_id = () => Math.random().toString(36).substr(2)
-
 assert = function () {
     if (!arguments[0]) {
         console.trace.apply(console, ['Assertion failed', ...[...arguments].slice(1)])
@@ -99,10 +97,11 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     }
     var peers_array = Object.values(peers)
     
-    // My new code for connecting peers
+    // New code for connecting peers
     var sim_pipes = {}
     function create_sim_pipe (from, to) {
-        sim_pipes[from.pid + '-' + to.pid] = from.create_pipe((args) => {
+        return sim_pipes[from.pid + '-' + to.pid] = from.create_pipe(function (args) {
+            if (!this.connection) this.connected()
             to.incoming.push([from.pid, () => {
                 // Log to console
                 notes.push('RECV: ' + args.method + ' from:' + from.pid
@@ -120,25 +119,32 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     // Create pipes for all the peers
     for (var p1 = 0; p1 < n_peers; p1++)
         for (var p2 = p1 + 1; p2 < n_peers; p2++) {
-            create_sim_pipe(peers_array[p1], peers_array[p2])
-            create_sim_pipe(peers_array[p2], peers_array[p1])
+            let peer1 = peers_array[p1],
+                peer2 = peers_array[p2]
+            // Pipe for A -> B
+            peer1.bind('*', create_sim_pipe(peer1, peer2))
+            // Pipe for B -> A
+            peer2.bind('*', create_sim_pipe(peer2, peer1))
         }
+
+    // console.log('Connect the pipes')
+    // for (var pipe_key in sim_pipes)
+    //     sim_pipes[pipe_key].connected()
 
     console.log('Send get()s to establish connections')
 
     // Start sending get() messages over the pipes!
-    var enable_one_side_get_bug = true
+    var enable_one_side_get_bug = false
     if (enable_one_side_get_bug)
         for (var p1 = 0; p1 < n_peers; p1++)
             for (var p2 = p1 + 1; p2 < n_peers; p2++) {
                 var [from, to] = Math.random() > .5 ? [p1, p2] : [p2, p1]
                 var pipe = sim_pipes[peers_array[from].pid + '-' + peers_array[to].pid]
-                pipe.connected()
+                // pipe.connected()
                 // pipe.subscribe('my_key')
                 peers_array[from].get({
                     key: 'my_key',
                     // origin: pipe,
-                    initial: true
                 })
 
                 // Log the debugging frames
@@ -154,10 +160,14 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 })
             }
     else
-        for (var pipe_key in sim_pipes) {
-            sim_pipes[pipe_key].connected()
-            sim_pipes[pipe_key].origin.get({key: 'my_key', initial: true})
-        }
+        peers_array.forEach(p => p.get({key: 'my_key',
+                                        origin: {id: random_id(),
+                                                 send: (args) => null
+                                                 // console.log('Global pipe!', args)
+                                                }}))
+        // for (var pipe_key in sim_pipes) {
+        //     sim_pipes[pipe_key].origin.get({key: 'my_key'})
+        // }
     
 
     console.log('Initial edit: P1 is adding "root"')

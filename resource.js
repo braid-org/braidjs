@@ -30,13 +30,15 @@ module.exports = function create_resource() {
         Object.keys(versions).forEach(recurse)
         return result
     }
-    resource.citizens = () => Object.values(resource.pipes).filter(p => p.peer)
-
     // A data structure that can merge simultaneous operations
     resource.mergeable = require('./merge-algorithms/sync9.js').create(resource)
 
-    // The peers we are connected to
-    resource.pipes = {}
+    // The pipes that wanna hear about this resource
+    // resource.subscriptions = {}
+
+    // The pipes that throw a fissure when broken (prolly not needed anymore)
+    // resource.citizens = () => Object.values(resource.subscriptions)
+    // resource.citizens = () => Object.values(resource.pipes).filter(p => p.peer)
 
     // Disconnections that have occurred in the network without a forget()
     resource.fissures = {}
