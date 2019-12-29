@@ -85,7 +85,8 @@ module.exports = function create_node() {
                 // to only send an ack after we have received acks from everyone
                 // we forwarded the information to)
 
-                // var pipe = resource.acks_in_process[version].origin.pipe
+                console.log('#### we would ack here')
+
                 // pipe.send({method:'ack', key, valid:null, seen:'local',
                 //            version, joiner_num: resource.joiners[version]})
                 resource.acks_in_process[version].origin.send({
@@ -127,9 +128,11 @@ module.exports = function create_node() {
         assert(origin, 'Mike: remember to invent a default origin pipe, please')
 
         // If this is the first subscription, fire the .on_get handlers
-        if (gets_in.count(key) === 0)
+        if (gets_in.count(key) === 0) {
+            console.log(node.pid + ': Firing .on_get for', node.bindings(key).length, 'pipes!')
             node.bindings(key).forEach(
                 pipe => pipe.send({method: 'get', key, version, parents, origin}))
+        }
 
         // Now record this subscription to the bus
         gets_in.add(key, origin.id)
@@ -208,7 +211,7 @@ module.exports = function create_node() {
             || !resource.time_dag[version]                  // We don't have it yet
             || (joiner_num > resource.joiners[version])) {  // It's a dominant joiner
 
-            console.log('Branch •A• happened')
+            // console.log('Branch •A• happened')
 
             // G: so we're going to go ahead and add this version to our
             // datastructure, step 1 is to call "add_version" on the underlying
@@ -249,6 +252,7 @@ module.exports = function create_node() {
             // (unless we received this "set" from one of our peers,
             // in which case we don't want to send it back to them)
 
+            // console.log('Now gonna send a set on', node.bindings(key))
             node.bindings(key).forEach(pipe => {
                 if (!origin || (pipe.id != origin.id))
                     pipe.send({method: 'set',
@@ -276,17 +280,14 @@ module.exports = function create_node() {
             // anyway, if it happens, we can treat it like an ACK for the version,
             // which is why we decrement "count" for acks_in_process for this version;
             // a similar line of code exists inside "node.ack"
-        {
-            console.log('Branch •B• happened',
-                        joiner_num,
-                        resource.joiners[version],
-                        resource.acks_in_process[version].count)
+
+            // console.log('Branch •B• happened',
+            //             joiner_num,
+            //             resource.joiners[version],
+            //             resource.acks_in_process[version].count)
+
             resource.acks_in_process[version].count--
-            assert(resource.acks_in_process[version].count >= 0,
-                   'Acks have gone below zero!',
-                   {key, version,
-                    acks_in_process: resource.acks_in_process[version]})
-        }
+
         // G: since we may have messed with the ack count, we check it
         // to see if it has gone to 0, and if it has, take the appropriate action
         // (which is probably to send a global ack)
@@ -603,6 +604,7 @@ module.exports = function create_node() {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
+        console.log('Acking!!!!', key, seen, version)
         assert(key && version && origin)
         var resource = resource_at(key)
 
@@ -841,6 +843,9 @@ module.exports = function create_node() {
 
                 // Remember new or forgotten keys
                 if (args.method === 'get') {
+                    assert(!(subscribed_keys[args.key]
+                             && subscribed_keys[args.key].we_want_keep_alive),
+                           'Duplicate get:', args)
                     subscribed_keys[args.key] = subscribed_keys[args.key] || {}
                     subscribed_keys[args.key].we_want_keep_alive = args.subscribe
 
@@ -867,6 +872,9 @@ module.exports = function create_node() {
 
                 // Remember new subscriptions from them
                 if (args.method === 'get') {
+                    assert(!(subscribed_keys[args.key]
+                             && subscribed_keys[args.key].they_want_keep_alive),
+                           'Duplicate get:', args)
                     subscribed_keys[args.key] = subscribed_keys[args.key] || {}
                     subscribed_keys[args.key].they_want_keep_alive = args.subscribe
                 }
@@ -888,6 +896,7 @@ module.exports = function create_node() {
                 // Send gets for all the subscribed keys again
                 for (k in subscribed_keys)
                     this.send({
+                        subscribe: true,
                         method: 'get',
                         key: k,
                         initial: true
@@ -910,8 +919,9 @@ module.exports = function create_node() {
             },
 
             is_citizen (key) {
-                return subscribed_keys[k].we_want_keep_alive
-                    || subscribed_keys[k].they_want_keep_alive
+                return     subscribed_keys[key]
+                    && (   subscribed_keys[key].we_want_keep_alive
+                        || subscribed_keys[key].they_want_keep_alive )
             }
         }
 
@@ -951,6 +961,7 @@ module.exports = function create_node() {
     // A set of timers, for keys to send forgets on
     var to_be_forgotten = {}
     node.bind = (key, pipe, allow_wildcards) => {
+        allow_wildcards = true // temporarily
         if (allow_wildcards && key[key.length-1] === '*')
             wildcard_handlers.push({prefix: key, pipe: pipe})
         else
@@ -960,6 +971,7 @@ module.exports = function create_node() {
         // key in this space, and if so call the handler.
     }
     node.unbind = (key, pipe, allow_wildcards) => {
+        allow_wildcards = true // temporarily
         if (allow_wildcards && key[key.length-1] === '*')
             // Delete wildcard connection
             for (var i=0; i<wildcard_handlers.length; i++) {

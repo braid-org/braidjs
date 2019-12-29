@@ -3,7 +3,7 @@ require('../greg/sjcl.min.js')
 
 assert = function () {
     if (!arguments[0]) {
-        console.trace.apply(console, ['Assertion failed', ...[...arguments].slice(1)])
+        console.trace.apply(console, ['-Assert-', ...[...arguments].slice(1)])
         process.exit()
     }
 }
@@ -100,7 +100,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     // New code for connecting peers
     var sim_pipes = {}
     function create_sim_pipe (from, to) {
-        return sim_pipes[from.pid + '-' + to.pid] = from.create_pipe(function (args) {
+        var pipe = sim_pipes[from.pid + '-' + to.pid] = from.create_pipe(function (args) {
             if (!this.connection) this.connected()
             to.incoming.push([from.pid, () => {
                 // Log to console
@@ -112,6 +112,13 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 sim_pipes[to.pid + '-' + from.pid].recv(args)
             }])
         }, from.pid + '-' + to.pid)
+        from.bind('*', {id: random_id(),
+                        send (args) {
+                            if (args.method === 'get')
+                                from.bind(args.key, pipe)
+                            if (args.method === 'forget')
+                                from.unbin(args.key, pipe)
+                        }})
     }
 
     console.log('Create pipes')
@@ -122,9 +129,9 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             let peer1 = peers_array[p1],
                 peer2 = peers_array[p2]
             // Pipe for A -> B
-            peer1.bind('*', create_sim_pipe(peer1, peer2))
+            create_sim_pipe(peer1, peer2)
             // Pipe for B -> A
-            peer2.bind('*', create_sim_pipe(peer2, peer1))
+            create_sim_pipe(peer2, peer1)
         }
 
     // console.log('Connect the pipes')
@@ -160,15 +167,12 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 })
             }
     else
-        peers_array.forEach(p => p.get({key: 'my_key',
-                                        origin: {id: random_id(),
-                                                 send: (args) => null
-                                                 // console.log('Global pipe!', args)
-                                                }}))
-        // for (var pipe_key in sim_pipes) {
-        //     sim_pipes[pipe_key].origin.get({key: 'my_key'})
-        // }
-    
+        peers_array.forEach(node => node.get({key: 'my_key',
+                                              subscribe: true,
+                                              origin: {id: random_id(),
+                                                       send: (args) => null
+                                                      }}))
+
 
     console.log('Initial edit: P1 is adding "root"')
 
@@ -194,6 +198,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         var i = Math.floor(rand() * n_peers)
         var peer = peers_array[i]
         
+        // console.log('Chose peer', i, 'of', n_peers)
+
         notes = []
         
         // Randomly choose whether to do an action vs. process the network
@@ -201,19 +207,18 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             // Do an action
             if (rand() < 0.9) {
                 // Edit text
-                if (peer.resources['my_key'] && Object.keys(peer.resources['my_key'].time_dag).length) {
-                    if (peer.letters_i >= peer.letters.length) {
-                        peer.letters_i = 0
-                    }
-                    var e = create_random_edit(peer.resources['my_key'], peer.letters[peer.letters_i++])
-                    console.log(peer.pid + ' edit text', e.version)
-                    peer.set({key: 'my_key',
-                              patches: e.changes, version: e.version, parents: e.parents})
-                }
+
+                if (peer.letters_i >= peer.letters.length)
+                    peer.letters_i = 0
+
+                var e = create_random_edit(peer.resources['my_key'], peer.letters[peer.letters_i++])
+                console.log(peer.pid + ' EDIT text', e.version)
+
+                peer.set({key: 'my_key',
+                          patches: e.changes, version: e.version, parents: e.parents})
             } else {
                 // Disconnect or reconnect
                 
-                console.log('toggle pipe')
                 var sim_pipe_keys = Object.keys(sim_pipes),
                     random_index = Math.floor(rand() * sim_pipe_keys.length),
                     random_pipe = sim_pipes[sim_pipe_keys[random_index]],
@@ -222,6 +227,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                     other_peer = peers[other_pid]
 
                 // Toggle the pipe!
+                console.log('TOGGLE pipe', random_pipe.connection ? 'off':'on')
                 assert(!!random_pipe.connection === !!other_pipe.connection,
                        random_pipe.connection, other_pipe.connection)
                 if (random_pipe.connection) {
@@ -242,7 +248,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         } else {
             // Receive incoming network message
 
-            if (show_debug) console.log('process incoming')
+            // console.log('RECEIVE message of', peer.incoming.length)
             var did_something = false
             if (peer.incoming.length > 0) {
                 did_something = true
