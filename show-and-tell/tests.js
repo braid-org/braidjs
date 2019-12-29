@@ -107,12 +107,18 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                     this.connected()
                 }
                 // console.log('>> ', this.id, args)
+                assert(from.pid !== to.pid)
                 to.incoming.push([from.pid, () => {
                     // Log to console
                     notes.push('RECV: ' + args.method + ' from:' + from.pid
                                + ' to:' + to.pid,
                                + JSON.stringify(args))
                     if (show_debug) console.log(notes)
+
+                    if (args.version === 'B2' && to.pid === 'P3')
+                        for (var k in sim_pipes)
+                            console.log('Pipe:', sim_pipes[k].id,
+                                        {is_citizen: sim_pipes[k].is_citizen('my_key')})
 
                     sim_pipes[to.pid + '-' + from.pid].recv(args)
                 }])
@@ -241,28 +247,30 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                     other_peer = peers[other_pid]
 
                 // Toggle the pipe!
-                console.log(peer.pid + ' TOGGLE pipe', random_pipe.connection ? 'off':'on')
+                console.log(random_pipe.id.replace('-','•'), pid, other_pid, 'TOGGLE pipe', random_pipe.connection ? 'off':'on')
                 assert(!!random_pipe.connection === !!other_pipe.connection,
                        random_pipe.connection, other_pipe.connection)
                 if (random_pipe.connection) {
                     random_pipe.disconnected()
                     other_pipe.disconnected()
+
+                    // console.log('TOGGLE: filtering', pid, 'incoming from',
+                    //             peers[pid].incoming, 'to',
+                    //             peers[pid].incoming.filter(x => x[0] !== other_pid))
+                    // console.log('TOGGLE: filtering', other_pid, 'incoming from',
+                    //             other_peer.incoming, 'to',
+                    //             other_peer.incoming.filter(x => x[0] !== pid))
+                    peers[pid].incoming = peers[pid].incoming.filter(x => x[0] !== other_pid)
+                    other_peer.incoming = other_peer.incoming.filter(x => x[0] !== pid)
                 } else {
                     random_pipe.connected()
                     other_pipe.connected()
-                }
-
-                // If we had a disconnection, let's clear out the queues
-                if (!random_pipe.connection) {
-                    notes.push(' disconnect ' + peer.pid + ' and ' + other_peer.pid)
-                    peer.incoming = peer.incoming.filter(x => x[0] != other_peer.pid)
-                    other_peer.incoming = other_peer.incoming.filter(x => x[0] != peer.pid)
                 }
             }
         } else {
             // Receive incoming network message
 
-            console.log(peer.pid + ' RECEIVE message from', peer.incoming.length, 'outstanding')
+            console.log(peer.pid + ' RECEIVE message', `(of ${peer.incoming.length})`)
             var did_something = false
             if (peer.incoming.length > 0) {
                 did_something = true

@@ -70,6 +70,10 @@ module.exports = function create_node() {
         // of course, in some such instances, acks_in_process may have been removed
         // entirely for a version, so we guard against that here too..
 
+        if (version === 'B2')
+            console.log('check_ack_count', {acks: resource.acks_in_process[version],
+                                            key, version})
+
         if (resource.acks_in_process[version]
             && resource.acks_in_process[version].count == 0) {
 
@@ -85,7 +89,7 @@ module.exports = function create_node() {
                 // to only send an ack after we have received acks from everyone
                 // we forwarded the information to)
 
-                console.log('#### we would ack here')
+                // console.log('#### we would ack here')
 
                 // pipe.send({method:'ack', key, valid:null, seen:'local',
                 //            version, joiner_num: resource.joiners[version]})
@@ -236,6 +240,10 @@ module.exports = function create_node() {
                 count: node.citizens(key).length - (origin ? 1 : 0)
             }
 
+            // console.log('node.set: we will want',
+            //             node.citizens(key).length - (origin ? 1 : 0),
+            //             'acks, because we have citizens', node.citizens(key))
+
             assert(resource.acks_in_process[version].count >= 0,
                    node.pid, 'Acks have below zero! Proof:',
                    {citizens: node.citizens(key), origin, key, version,
@@ -298,12 +306,14 @@ module.exports = function create_node() {
     }
     
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
-        assert(key && versions && fissures && unack_boundary && min_leaves)
+        assert(key && versions && fissures,
+               'Missing some variables:',
+               {key, versions, fissures})
         // console.log('welcome:', key, 'versions:', versions.length,
         //             'unacking:', Object.keys(unack_boundary))
         var resource = resource_at(key)
 
-        for (version in unack_boundary)
+        for (version in unack_boundary || {})
             assert(version in resource.time_dag,
                    `This version ${version} no exist yet!`)
         
@@ -581,6 +591,7 @@ module.exports = function create_node() {
         // tell our peers about it (if we didn't, then we don't need to tell anyone,
         // since there's nothing new to hear about)
         
+        assert(unack_boundary && min_leaves && fissures && new_versions)
         if (new_versions.length > 0 || new_fissures.length > 0) {
             node.bindings(key).forEach(pipe => {
                 if (pipe.id != origin.id)
@@ -636,7 +647,9 @@ module.exports = function create_node() {
     }
     
     node.fissure = ({key, fissure, origin}) => {
-        assert(key && fissure && origin)
+        assert(key && fissure,
+               'Missing some variables',
+               {key, fissure})
         var resource = resource_at(key)
 
         var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
@@ -645,6 +658,7 @@ module.exports = function create_node() {
             
             resource.acks_in_process = {}
             
+            // First forward this fissure along
             node.citizens(key).forEach(pipe => {
                 if (!origin || (pipe.id != origin.id))
                     pipe.send({method: 'fissure',
@@ -652,6 +666,8 @@ module.exports = function create_node() {
                                fissure})
             })
             
+            // And if this fissure matches us, then send the anti-fissure for
+            // it
             if (fissure.b == node.pid)
                 node.fissure({key,
                               fissure: {
@@ -659,7 +675,7 @@ module.exports = function create_node() {
                                   b:        fissure.a,
                                   conn:     fissure.conn,
                                   versions: fissure.versions,
-                                  parents:  {}
+                                  parents:  {},
                               }
                              })
         }
@@ -828,7 +844,7 @@ module.exports = function create_node() {
     // re-connects, it will automatically re-establish connections.
     //
     node.create_pipe = ({send, connect, id}) => {
-        console.assert(send && connect && id)
+        assert(send && connect && id)
         var subscribed_keys = dict()
 
         // The Pipe Object!
@@ -839,7 +855,6 @@ module.exports = function create_node() {
             connection: null,
             connecting: false,
             peer: null,
-
 
             // It can Send and Receive messages
             send (args) {
@@ -931,15 +946,18 @@ module.exports = function create_node() {
                 }
             },
             disconnected () {
-                console.assert(this.connection)
-                console.assert(this.peer)
+                assert(this.connection)
 
                 // Tell the node.  It'll make fissures.
                 for (k in subscribed_keys) {
-                    if (pipe.is_citizen(k) && pipe.peer)
+                    if (pipe.is_citizen(k) && pipe.peer) {
+                        // console.log('disconnected:', this.id, 'citizen')
                         node.disconnected({key:k, origin: this})
-                    else
+                    } else {
+                        // console.log('disconnected:', this.id, 'non-citi',
+                        //             {citi: pipe.is_citizen(k), peer: pipe.peer})
                         delete subscribed_keys[k]
+                    }
                 }
 
                 this.connection = null
