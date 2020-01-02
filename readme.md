@@ -19,19 +19,50 @@ Current work is happening in the
 ## What's in this repository?
 
 ```
-braid-peer.js      # Implements the abstract Braid protocol on a `peer` object in Javascript
-                   #   - Demonstrates subscriptions, acknowledgements, and coordinated p2p pruning of history
-http-client.js     # Implements the Braid HTTP protocol in web browsers
-http-server.js     # Implements the Braid HTTP protocol in nodejs servers
-state-control.js   # Implements support for validation, access control, programmatic state on a peer
-reactivity.js      # Implements a reactive version of the abstract Braid protocol
-proxy.js           # Implements a reactive ES6 Proxy of the abstract Braid protocol
-merge-algorithms/  # Implementations for OT and CRDT merge-types
+resource.js        # A `subscribable HTTP resource`: a URI with subscriptions
+http-client.js     # Braid-HTTP networking for web browsers
+http-server.js     # Braid-HTTP networking for nodejs servers
+state-control.js   # Validation, access control, programmatic state on a peer
+reactivity.js      # Reactive version of the abstract Braid protocol
+proxy.js           # Reactive ES6 Proxy of the abstract Braid protocol
+merge-algorithms/  # A variety of OT and CRDT merge-types
   sync9.js
 show-and-tell/
   tests.js         # Unit tests
   vis-sim.html     # Visual demonstration of a simulated peer-to-peer network
 ```
+
+Note that many of these files are still stubs, but have partial
+implementations in the
+[invisible-college/braidjs](https://github.com/invisible-college/braidjs)
+repository.
+
+## Implementation status
+
+The high-level strategy:
+
+1. Refactor the [statebus](https://stateb.us) implementation (see invisible-college/braidjs)
+2. Refactor the [sync9](https://braid.news/sync9) implementation
+3. To meet, in a unified model of synchronization in browser APIs
+
+The statebus code is being refactored at
+https://github.com/invisible-college/braidjs, according to this
+[roadmap](https://braid.news/roadmap):
+
+- [x] Rename `fetch` & `save` -> `get` & `set`
+- [x] Rename `statebus` -> `braidjs`
+- [x] Change JSON encoding
+- [x] Remove recursion in `set`
+- [ ] Incorporate the [Sync9](https://braid.news/sync9/performance) pruning peer-to-peer CRDT
+  - [ ] Disk persistence
+- [ ] New [API](https://braid.news/roadmap/new-api)
+  - [ ] Add [cache eviction policy](https://en.wikipedia.org/wiki/Cache_replacement_policies#Most_recently_used_(MRU))
+- [ ] New [network protocol](https://braid.news/protocol)
+- [ ] New ES6 Proxy implementation
+- [ ] Rename `key` -> `link`
+
+Mike is currently refactoring Sync9 in the `refactor-sync9` branch of this
+repository.  He expects to complete this step before January.
 
 ## Contributing
 
