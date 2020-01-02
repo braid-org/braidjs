@@ -28,6 +28,8 @@ function create (resource) {
 
 
 function generate_braid(resource, is_anc) {
+    if (Object.keys(resource.time_dag).length === 0) return []
+
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
     

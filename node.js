@@ -70,10 +70,6 @@ module.exports = function create_node() {
         // of course, in some such instances, acks_in_process may have been removed
         // entirely for a version, so we guard against that here too..
 
-        if (version === 'B2')
-            console.log('check_ack_count', {acks: resource.acks_in_process[version],
-                                            key, version})
-
         if (resource.acks_in_process[version]
             && resource.acks_in_process[version].count == 0) {
 
@@ -89,14 +85,10 @@ module.exports = function create_node() {
                 // to only send an ack after we have received acks from everyone
                 // we forwarded the information to)
 
-                // console.log('#### we would ack here')
-
-                // pipe.send({method:'ack', key, valid:null, seen:'local',
-                //            version, joiner_num: resource.joiners[version]})
                 resource.acks_in_process[version].origin.send({
-                    method: 'ack',
-                    key, seen:'local', version,
-                    joiners: resource.joiners[version]})
+                    method: 'ack', key, seen:'local', version,
+                    joiners: resource.joiners[version]
+                })
 
             } else {
 
@@ -117,7 +109,7 @@ module.exports = function create_node() {
                 // we send a "global" ack to all our peers (and they'll forward it
                 // to their peers)
 
-                node.citizens(key).forEach( pipe => {
+                node.we_welcomed(key).forEach( pipe => {
                     pipe.send({method: 'ack', key, seen:'global', version})
                 })
             }
@@ -152,7 +144,7 @@ module.exports = function create_node() {
         // // the initial get, they set "initial" to true, but we respond with a get
         // // with initial not set to true
 
-        // if (origin.peer && initial)
+        // if (origin.them && initial)
         //     origin.send({method: 'get', key, initial: false})
 
         // G: ok, now if we're going to be sending this person updates,
@@ -169,9 +161,7 @@ module.exports = function create_node() {
         // of any new edits made by them.. we strive to enforce this fact with
         // the pruning algorithm)
 
-        var versions = Object.keys(resource.time_dag).length > 0
-            ? resource.mergeable.generate_braid(x => false)
-            : []
+        var versions = resource.mergeable.generate_braid(x => false)
 
         // G: oh yes, we also send them all of our fissures, so they can know to keep
         // those versions alive
@@ -180,9 +170,7 @@ module.exports = function create_node() {
 
         // G: ok, here we actually send out the welcome
 
-        origin.send({method: 'welcome',
-                     key, versions, unack_boundary: false, min_leaves: false,
-                     fissures})
+        origin.send({method: 'welcome', key, versions, fissures})
     }
     
     node.set = ({key, patches, version, parents, origin, joiner_num}) => {
@@ -237,8 +225,11 @@ module.exports = function create_node() {
 
             resource.acks_in_process[version] = {
                 origin: origin,
-                count: node.citizens(key).length - (origin ? 1 : 0)
+                count: node.active_remotes(key).length - (origin ? 1 : 0)
             }
+
+            console.log('node.set:', node.pid, 'Initializing ACKs for', version, 'to',
+                        `${node.remotes(key).length}-${(origin ? 1 : 0)}=${resource.acks_in_process[version].count}`)
 
             // console.log('node.set: we will want',
             //             node.citizens(key).length - (origin ? 1 : 0),
@@ -246,7 +237,7 @@ module.exports = function create_node() {
 
             assert(resource.acks_in_process[version].count >= 0,
                    node.pid, 'Acks have below zero! Proof:',
-                   {citizens: node.citizens(key), origin, key, version,
+                   {origin, key, version,
                     acks_in_process: resource.acks_in_process[version]})
 
             // console.log('Initialized acks to', resource.acks_in_process[version])
@@ -639,7 +630,7 @@ module.exports = function create_node() {
             if (ancs[version]) return
             
             add_full_ack_leaf(resource, version)
-            node.citizens(key).forEach(pipe => {
+            node.bindings(key).forEach(pipe => {
                 if (pipe.id != origin.id)
                     pipe.send({method: 'ack', key, version, seen: 'global'})
             })
@@ -659,7 +650,7 @@ module.exports = function create_node() {
             resource.acks_in_process = {}
             
             // First forward this fissure along
-            node.citizens(key).forEach(pipe => {
+            node.bindings(key).forEach(pipe => {
                 if (!origin || (pipe.id != origin.id))
                     pipe.send({method: 'fissure',
                                key,
@@ -709,7 +700,7 @@ module.exports = function create_node() {
             //        resource.subscriptions)
             
             assert(origin.id,   'Need id on the origin', origin)
-            assert(origin.peer, 'Need a peer on origin', origin)
+            assert(origin.them, 'Need a peer on origin', origin)
 
             var versions = {}
             var ack_versions = resource.ancestors(resource.acked_boundary)
@@ -723,7 +714,7 @@ module.exports = function create_node() {
             
             fissure = {
                 a: node.pid,
-                b: origin.peer,
+                b: origin.them,
                 conn: origin.id,
                 versions,
                 parents
@@ -845,7 +836,6 @@ module.exports = function create_node() {
     //
     node.create_pipe = ({send, connect, id}) => {
         assert(send && connect && id)
-        var subscribed_keys = dict()
 
         // The Pipe Object!
         var pipe = {
@@ -854,61 +844,103 @@ module.exports = function create_node() {
             id: id || random_id(),
             connection: null,
             connecting: false,
-            peer: null,
+            them: null,
+            subscribed_keys: dict(),
+            we_welcomed: dict(),
+            remote: true,
 
             // It can Send and Receive messages
             send (args) {
-                // console.log(`pipe.send connection=${this.connection}, connecting=${this.connecting} ${args.method}`)
-                if (!this.connection && !this.connecting) {
-                    this.connecting = true
-                    // console.log(`pipe.send: ${id} Calling the custom connect func!`)
-                    connect.apply(this)
-                }
-                assert(this.connection, 'Not connected to send!')
-
+                // Clean out the origin... because we don't use that.
                 delete args.origin
 
-                // if (args.method === 'get')
-                //     console.log('    ###########\npipe.send: ####### GET #######', id, args)
+                // If this is the first message, let's try to connect the pipe.
+                if (!this.connection && !this.connecting) {
+                    this.connecting = true
 
-                // Remember new or forgotten keys
+                    // Run the programmer's connect function
+                    connect.apply(this)
+                }
+
+                // Now we should have a connection
+                assert(this.connection, 'Not connected to send!'
+                       // Todo: If the programmer's connection function
+                       // doesn't return synchronously, then there will be no
+                       // connection yet.  We will need to find a way to
+                       // handle this.  Like keep a queue of outstanding
+                       // messages?
+                      )
+
+                // Record new keys
                 if (args.method === 'get') {
-                    assert(!(subscribed_keys[args.key]
-                             && subscribed_keys[args.key].we_want_keep_alive),
-                           'Duplicate get:', args)
-                    subscribed_keys[args.key] = subscribed_keys[args.key] || {}
-                    subscribed_keys[args.key].we_want_keep_alive = args.subscribe
+                    assert(!this.connection
+                           || !this.subscribed_keys[args.key]
+                           || !this.subscribed_keys[args.key].we_requested,
+                           'Duplicate get 1:', args,
+                           {connection: this.connection,
+                            subscription: this.subscribed_keys[args.key]})
 
-                    // console.log('pipe.send: binding')
-                    node.bind(args.key, pipe)
+                    assert(args.key, resource_at(args.key).mergeable)
+
+                    // Initialize subscribed_keys
+                    this.subscribed_keys[args.key] = this.subscribed_keys[args.key] || {}
+
+                    // Remember that we requested this subscription
+                    this.subscribed_keys[args.key].we_requested = args.subscribe
+
+                    // Send out a welcome message (immediately, for now)
+                    var resource = resource_at(args.key)
+                    this.send({
+                        method: 'welcome', key: args.key,
+                        versions: resource.mergeable.generate_braid(x => false),
+                        fissures: Object.values(resource.fissures)
+                    })
+
+                    // And now send them all future events as well
+                    node.bind(args.key, this)
                 }
+
+                // Record forgotten keys
                 if (args.method === 'forget') {
-                    delete subscribed_keys[args.key]
-                    node.unbind(args.key, pipe)
+                    delete this.subscribed_keys[args.key].we_requested
+                    delete this.we_welcomed[args.key]
+                    node.unbind(args.key, this)
                 }
-                // console.log('pipe.send: calling the send function w/', args.method)
+
+                // We're making a commitment to them!
+                if (args.method === 'welcome')
+                    this.we_welcomed[args.key] = true
+
                 // And now send the message
                 console.log('pipe.send:', (id || node.pid), args.method, args.version||'')
-                send.call(pipe, args)
+                send.call(this, args)
             },
             recv (args) {
-                console.log('pipe.recv:', (id || node.pid), args.method, args.version||'')
+                var [from,to] = id.split('-')
+                console.log(`pipe.RECV: `+to+'-'+from, args.method, args.version||'')
 
                 // The hello method is only for pipes
                 if (args.method === 'hello') {
                     this.connection = (this.connection < args.connection
                                        ? this.connection : args.connection)
-                    this.peer = args.my_name_is
+                    this.them = args.my_name_is
                     return
                 }
 
                 // Remember new subscriptions from them
                 if (args.method === 'get') {
-                    assert(!(subscribed_keys[args.key]
-                             && subscribed_keys[args.key].they_want_keep_alive),
-                           'Duplicate get:', args)
-                    subscribed_keys[args.key] = subscribed_keys[args.key] || {}
-                    subscribed_keys[args.key].they_want_keep_alive = args.subscribe
+                    // assert(!(this.subscribed_keys[args.key]
+                    //          && this.subscribed_keys[args.key].they_requested),
+                    //        'Duplicate get 2:', args,
+                    //        {subscription: this.subscribed_keys[args.key]})
+
+                    // Initialize subscribed_keys
+                    this.subscribed_keys[args.key] = this.subscribed_keys[args.key] || {}
+
+                    // Record their subscription
+                    this.subscribed_keys[args.key].they_requested = args.subscribe
+
+                    console.log('pipe.recv: New remote!', this.id, 'Now we have', node.remotes(args.key).length)
                 }
 
                 args.origin = this
@@ -917,7 +949,7 @@ module.exports = function create_node() {
 
             // It can Connect and Disconnect
             connected () {
-                console.log('pipe.connect:', this.id, this.connection || '')
+                // console.log('pipe.connect:', this.id, this.connection || '')
 
                 if (this.connection) {
                     console.log('pipe.connect:', this.id, 'already exists! abort!')
@@ -935,12 +967,21 @@ module.exports = function create_node() {
                            my_name_is: node.pid})
 
                 // Send gets for all the subscribed keys again
-                for (k in subscribed_keys) {
+                for (k in this.subscribed_keys) {
                     // This one is getting called earlier.
-                    console.log('pipe.connect: Re-fetching the subscribed key', k)
+
+                    // console.log('pipe.connect: Re-fetching the subscribed key', k)
+
+                    // The send() function wants to make sure this isn't a
+                    // duplicate request, so let's delete the old one now so
+                    // that we can recreate it.
+
+                    var subscribe = this.subscribed_keys[k].we_requested
+                    delete this.subscribed_keys[k].we_requested
+
                     this.send({
                         key: k,
-                        subscribe: true,
+                        subscribe: subscribe,
                         method: 'get',
                     })
                 }
@@ -948,28 +989,47 @@ module.exports = function create_node() {
             disconnected () {
                 assert(this.connection)
 
-                // Tell the node.  It'll make fissures.
-                for (k in subscribed_keys) {
-                    if (pipe.is_citizen(k) && pipe.peer) {
-                        // console.log('disconnected:', this.id, 'citizen')
+                for (k in this.subscribed_keys) {
+
+                    // We need to FISSURE any key we've sent out a WELCOME for
+                    if (this.we_welcomed[k] && this.keep_alive(k))
+                        // Tell the node.  It'll make fissures.
                         node.disconnected({key:k, origin: this})
-                    } else {
-                        // console.log('disconnected:', this.id, 'non-citi',
-                        //             {citi: pipe.is_citizen(k), peer: pipe.peer})
-                        delete subscribed_keys[k]
-                    }
+
+                    // Now forget the welcome
+                    delete this.we_welcomed[k]
+
+                    // Drop all subscriptions not marked keep_alive
+                    var s = this.subscribed_keys[k]
+                    if (!(s.we_requested   && s.we_requested.keep_alive  ))
+                        delete s.we_requested
+                    if (!(s.they_requested && s.they_requested.keep_alive))
+                        delete s.they_requested
+
+                    // If both are gone, remove the whole subscription
+                    if (!(s.we_requested || s.they_requested))
+                        this.subscribed_keys[k]
                 }
 
                 this.connection = null
-                this.peer = null
+                this.them = null
             },
 
-            is_citizen (key) {
-                assert(key)
-                // console.log('is_citizen:', subscribed_keys)
-                return     subscribed_keys[key]
-                    && (   subscribed_keys[key].we_want_keep_alive
-                        || subscribed_keys[key].they_want_keep_alive )
+            keep_alive (key) {
+                var s = this.subscribed_keys[key]
+                return ((s.we_requested && s.we_requested.keep_alive)
+                        ||
+                        (s.they_requested && s.they_requested.keep_alive))
+            },
+
+            printy_stuff (key) {
+                return {id: this.id,
+                        w: !!this.we_welcomed[key],
+                        k_a: this.keep_alive(key),
+                        peer: this.them,
+                        c: !!this.connection,
+                        r: this.remote
+                       }
             }
         }
 
@@ -1057,14 +1117,15 @@ module.exports = function create_node() {
         return Object.values(result)
     }
 
-    node.citizens = (key) => {
-        var result = node.bindings(key).filter(
-            pipe => pipe.is_citizen && pipe.is_citizen(key)
-        )
-        // console.log('node.citizens: we have', node.bindings(key).length,
-        //             'bindings and only', result.length, 'are citizens')
-        return result
-    }
+    node.we_welcomed = (key) => node.bindings(key).filter(
+        pipe => pipe.we_welcomed && pipe.we_welcomed[key]
+    )
+
+    node.remotes = (key) => node.bindings(key).filter( pipe => pipe.remote )
+
+    node.active_remotes = (key) => node.bindings(key).filter(
+        pipe => pipe.remote && pipe.we_welcomed
+    )
 
     // ===============================================
     //
