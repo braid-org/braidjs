@@ -17,10 +17,12 @@ robust enough for production sites.
 ## What's in this repository?
 
 ```
-node.js            # 
+node.js            # A node implements the Abstract Braid Protocol
 resource.js        # A `subscribable HTTP resource`: a URI with subscriptions
-http-client.js     # Braid-HTTP networking for web browsers
-http-server.js     # Braid-HTTP networking for nodejs servers
+pipe.js            # A pipe connects two nodes together.  Networking happens here!
+http-client.js     # Braid-HTTP network pipe for web browsers
+http-server.js     # Braid-HTTP network pipe for nodejs servers
+events.js          # Binding event handlers to a node
 state-control.js   # Validation, access control, programmatic state on a peer
 reactivity.js      # Reactive version of the abstract Braid protocol
 proxy.js           # Reactive ES6 Proxy of the abstract Braid protocol
@@ -53,12 +55,14 @@ https://github.com/invisible-college/braidjs, according to this
 - [x] Change JSON encoding
 - [x] Remove recursion in `set`
 - [x] Incorporate the [Sync9](https://braid.news/sync9/performance) pruning peer-to-peer CRDT
-- [x] New disconnectable `pipes` networking API
-- [-] New [state-control API](https://braid.news/roadmap/new-api)
+- [x] Disconnectable `pipes`
+- [x] Event-handler bindings
+- [ ] HTTP [network protocol](https://github.com/braid-work/braid-spec)
+- [ ] Validation
 - [ ] Disk persistence
-- [ ] [Cache eviction policy](https://en.wikipedia.org/wiki/Cache_replacement_policies#Most_recently_used_(MRU))
-- [ ] Implement HTTP-braid [network protocol](https://github.com/braid-work/braid-spec)
-- [ ] New ES6 Proxy implementation
+- [ ] Reactive functions
+- [ ] Cache eviction policy
+- [ ] ES6 Proxy API
 
 
 ## Contributing

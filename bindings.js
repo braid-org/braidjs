@@ -1,7 +1,6 @@
-// Configuring a peer to validate changes to state, and implement access
-// control.
+// Binding event handlers to a node
 
-module.exports = require['state-control'] = function add_control(node) {
+module.exports = require.bindings = function add_control(node) {
     var u = require('./utilities.js')
 
     // ===============================================

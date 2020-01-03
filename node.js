@@ -841,7 +841,7 @@ module.exports = require.node = function create_node() {
     // var gets_out = u.dict()          // Maps `key' to `func' iff we get()ed `key'
 
     // Install handlers and bindings
-    require('./state-control.js')(node)
+    require('./bindings.js')(node)
 
     // This is an alternative to {}.  It creates a clean hash table without
     // any pre-existing keys, like .constructor or .prototype that are built
