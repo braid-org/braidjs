@@ -843,9 +843,5 @@ module.exports = require.node = function create_node() {
     // Install handlers and bindings
     require('./events.js')(node)
 
-    // This is an alternative to {}.  It creates a clean hash table without
-    // any pre-existing keys, like .constructor or .prototype that are built
-    // into Javascript Objects..
-
     return node
 }

@@ -10,10 +10,6 @@ robust enough for production sites.
 
 *We intentionally keep this readme short.* Read more about braid at https://braid.news!
 
-## Development status
-
-
-
 ## What's in this repository?
 
 ```
@@ -33,7 +29,7 @@ show-and-tell/
   vis-sim.html     # Visual demonstration of a simulated peer-to-peer network
 ```
 
-Note that many of these files are still stubs, but have partial
+Note that many of these files are still stubs.  You can find their previous
 implementations in the
 [invisible-college/braidjs](https://github.com/invisible-college/braidjs)
 repository.
