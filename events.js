@@ -1,6 +1,6 @@
 // Binding event handlers to a node
 
-module.exports = require.bindings = function add_control(node) {
+module.exports = require.events = function add_control(node) {
     var u = require('./utilities.js')
 
     // ===============================================
