@@ -8,6 +8,9 @@
 // When a pipe disconnects, it will automatically send out fissures.  When it
 // re-connects, it will automatically re-establish connections.
 //
+// Todo:
+//   • Describe the connect process and connect() function
+//
 module.exports = require.pipe = function create_pipe({node, id, send, connect}) {
     assert(node && send && connect && id)
 
