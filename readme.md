@@ -34,6 +34,22 @@ implementations in the
 [invisible-college/braidjs](https://github.com/invisible-college/braidjs)
 repository.
 
+## Running the code
+
+Run tests on the server with:
+
+```
+npm test
+```
+
+Run tests in a web browser by double-clicking on:
+
+```
+show-and-tell/vis-sim.html
+```
+
+...from your file manager, to open it in a web browser, with a `file://` URL.
+
 ## Implementation status
 
 The high-level strategy:
@@ -60,11 +76,3 @@ https://github.com/invisible-college/braidjs, according to this
 - [ ] Cache eviction policy
 - [ ] ES6 Proxy API
 
-
-## Contributing
-
-Be sure to run tests before committing, with:
-
-```
-npm test
-```
