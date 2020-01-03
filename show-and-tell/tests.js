@@ -1,10 +1,16 @@
 require('../greg/random001.js')
-require('../greg/sjcl.min.js')
+//require('../greg/sjcl.min.js')
+
+function dict () { return Object.create({}) }
+function random_id () { return Math.random().toString(36).substr(2) }
 
 assert = function () {
     if (!arguments[0]) {
         console.trace.apply(console, ['-Assert-', ...[...arguments].slice(1)])
-        process.exit()
+        if (this.process)
+            process.exit()
+        else
+            throw 'Bad'
     }
 }
 
@@ -108,7 +114,11 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     // New code for connecting peers
     var sim_pipes = {}
     function create_sim_pipe (from, to) {
-        var pipe = sim_pipes[from.pid + '-' + to.pid] = from.create_pipe({
+        var pipe = sim_pipes[from.pid + '-' + to.pid] = require('../pipe.js')({
+            node: from,
+            id: from.pid + '-' + to.pid,
+
+            // The send function
             send (args) {
                 if (!this.connection) {
                     console.log('sim-pipe.send: starting connection cause it was null')
@@ -129,13 +139,12 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 }])
             },
 
-            connect () { this.connected() },
-
-            id: from.pid + '-' + to.pid
+            // The connect function
+            connect () { this.connected() }
         })
 
         from.bind('my_key', pipe)
-        // from.bind('*', {id: random_id(),
+        // from.bind('*', {id: u.random_id(),
         //                 send (args) {
         //                     if (args.method === 'get')
         //                         from.bind(args.key, pipe)
@@ -168,7 +177,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     // Start sending get() messages over the pipes!
     peers_array.forEach(node => node.get({key: 'my_key',
                                           subscribe: {keep_alive: true},
-                                          origin: {id: random_id(),
+                                          origin: {id: u.random_id(),
                                                    send: (args) => null
                                                   }}))
 
@@ -499,7 +508,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             }
         }
         
-        var version = random_id()
+        var version = u.random_id()
         resource.next_version_id = (resource.next_version_id || 0) + 1
         var version = letters[0] + resource.next_version_id
         

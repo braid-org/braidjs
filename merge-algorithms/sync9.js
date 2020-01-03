@@ -1,6 +1,6 @@
 // Adapted from https://github.com/dglittle/cdn/blob/gh-pages/sync9_047.html
 
-module.exports = { create: create }
+module.exports = require.sync9 = { create: create }
 
 function create (resource) {
     resource.space_dag = null

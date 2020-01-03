@@ -12,13 +12,12 @@ robust enough for production sites.
 
 ## Development status
 
-Current work is happening in the
-[`refactor-sync9` branch](https://github.com/braid-work/toomim-braidjs/tree/refactor-sync9).  Go there.
 
 
 ## What's in this repository?
 
 ```
+node.js            # 
 resource.js        # A `subscribable HTTP resource`: a URI with subscriptions
 http-client.js     # Braid-HTTP networking for web browsers
 http-server.js     # Braid-HTTP networking for nodejs servers
@@ -53,16 +52,14 @@ https://github.com/invisible-college/braidjs, according to this
 - [x] Rename `statebus` -> `braidjs`
 - [x] Change JSON encoding
 - [x] Remove recursion in `set`
-- [ ] Incorporate the [Sync9](https://braid.news/sync9/performance) pruning peer-to-peer CRDT
-  - [ ] Disk persistence
-- [ ] New [API](https://braid.news/roadmap/new-api)
-  - [ ] Add [cache eviction policy](https://en.wikipedia.org/wiki/Cache_replacement_policies#Most_recently_used_(MRU))
-- [ ] New [network protocol](https://braid.news/protocol)
+- [x] Incorporate the [Sync9](https://braid.news/sync9/performance) pruning peer-to-peer CRDT
+- [x] New disconnectable `pipes` networking API
+- [-] New [state-control API](https://braid.news/roadmap/new-api)
+- [ ] Disk persistence
+- [ ] [Cache eviction policy](https://en.wikipedia.org/wiki/Cache_replacement_policies#Most_recently_used_(MRU))
+- [ ] Implement HTTP-braid [network protocol](https://github.com/braid-work/braid-spec)
 - [ ] New ES6 Proxy implementation
-- [ ] Rename `key` -> `link`
 
-Mike is currently refactoring Sync9 in the `refactor-sync9` branch of this
-repository.  He expects to complete this step before January.
 
 ## Contributing
 

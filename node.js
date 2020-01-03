@@ -1,12 +1,13 @@
-random_id = () => Math.random().toString(36).substr(2)
+u = require('./utilities.js')
 
-module.exports = function create_node() {
+module.exports = require.node = function create_node() {
     var node = {}
-    node.pid = random_id()
+    node.pid = u.random_id()
     node.resources = {}
-    function resource_at(key) {
+
+    node.resource_at = (key) => {
         if (!node.resources[key])
-            node.resources[key] = require('./resource.js')(node.pid)//(conn_funcs)
+            node.resources[key] = require('./resource.js')()
 
         return node.resources[key]
     }
@@ -119,7 +120,7 @@ module.exports = function create_node() {
     node.get = ({key, version, parents, subscribe, origin}) => {
         console.log('get:', node.pid, key)
         assert(key)
-        var resource = resource_at(key)
+        var resource = node.resource_at(key)
 
         // console.log('get:', key, version, parents, origin)
         assert(origin, 'Mike: remember to invent a default origin pipe, please')
@@ -175,7 +176,7 @@ module.exports = function create_node() {
     
     node.set = ({key, patches, version, parents, origin, joiner_num}) => {
         assert(key && patches)
-        var resource = resource_at(key)
+        var resource = node.resource_at(key)
 
         // G: cool, someone is giving us a new version to add to our datastructure.
         // it might seem like we would just go ahead and add it, but instead
@@ -302,7 +303,7 @@ module.exports = function create_node() {
                {key, versions, fissures})
         // console.log('welcome:', key, 'versions:', versions.length,
         //             'unacking:', Object.keys(unack_boundary))
-        var resource = resource_at(key)
+        var resource = node.resource_at(key)
 
         for (version in unack_boundary || {})
             assert(version in resource.time_dag,
@@ -610,7 +611,7 @@ module.exports = function create_node() {
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
         console.log('node.ack: Acking!!!!', key, seen, version)
         assert(key && version && origin)
-        var resource = resource_at(key)
+        var resource = node.resource_at(key)
 
         if (seen == 'local') {
             if (resource.acks_in_process[version]
@@ -641,7 +642,7 @@ module.exports = function create_node() {
         assert(key && fissure,
                'Missing some variables',
                {key, fissure})
-        var resource = resource_at(key)
+        var resource = node.resource_at(key)
 
         var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
         if (!resource.fissures[fkey]) {
@@ -678,7 +679,7 @@ module.exports = function create_node() {
         //  - make this work for read-only connections
         //  - make this work for multiple keys (a disconnection should
         //    affect all of its keys)
-        var resource = resource_at(key),
+        var resource = node.resource_at(key),
             fissure
 
         assert(!(name || versions || parents), 'Surprise!')
@@ -824,336 +825,27 @@ module.exports = function create_node() {
         }
     }
 
-    // A pipe is a network connection that can get disconnected and reconnected.
-    //
-    // A pipe can send and receive.  The user supplies a `send_function` that:
-    //
-    //   • will be called from pipe.send(), and
-    //   • will return a result to pipe.recv().
-    //
-    // When a pipe disconnects, it will automatically send out fissures.  When it
-    // re-connects, it will automatically re-establish connections.
-    //
-    node.create_pipe = ({send, connect, id}) => {
-        assert(send && connect && id)
-
-        // The Pipe Object!
-        var pipe = {
-
-            // A pipe holds four variables:
-            id: id || random_id(),
-            connection: null,
-            connecting: false,
-            them: null,
-            subscribed_keys: dict(),
-            we_welcomed: dict(),
-            remote: true,
-
-            // It can Send and Receive messages
-            send (args) {
-                // Clean out the origin... because we don't use that.
-                delete args.origin
-
-                // If this is the first message, let's try to connect the pipe.
-                if (!this.connection && !this.connecting) {
-                    this.connecting = true
-
-                    // Run the programmer's connect function
-                    connect.apply(this)
-                }
-
-                // Now we should have a connection
-                assert(this.connection, 'Not connected to send!'
-                       // Todo: If the programmer's connection function
-                       // doesn't return synchronously, then there will be no
-                       // connection yet.  We will need to find a way to
-                       // handle this.  Like keep a queue of outstanding
-                       // messages?
-                      )
-
-                // Record new keys
-                if (args.method === 'get') {
-                    assert(!this.connection
-                           || !this.subscribed_keys[args.key]
-                           || !this.subscribed_keys[args.key].we_requested,
-                           'Duplicate get 1:', args,
-                           {connection: this.connection,
-                            subscription: this.subscribed_keys[args.key]})
-
-                    assert(args.key, resource_at(args.key).mergeable)
-
-                    // Initialize subscribed_keys
-                    this.subscribed_keys[args.key] = this.subscribed_keys[args.key] || {}
-
-                    // Remember that we requested this subscription
-                    this.subscribed_keys[args.key].we_requested = args.subscribe
-
-                    // Send out a welcome message (immediately, for now)
-                    var resource = resource_at(args.key)
-                    this.send({
-                        method: 'welcome', key: args.key,
-                        versions: resource.mergeable.generate_braid(x => false),
-                        fissures: Object.values(resource.fissures)
-                    })
-
-                    // And now send them all future events as well
-                    node.bind(args.key, this)
-                }
-
-                // Record forgotten keys
-                if (args.method === 'forget') {
-                    delete this.subscribed_keys[args.key].we_requested
-                    delete this.we_welcomed[args.key]
-                    node.unbind(args.key, this)
-                }
-
-                // We're making a commitment to them!
-                if (args.method === 'welcome')
-                    this.we_welcomed[args.key] = true
-
-                // And now send the message
-                console.log('pipe.send:', (id || node.pid), args.method, args.version||'')
-                send.call(this, args)
-            },
-            recv (args) {
-                var [from,to] = id.split('-')
-                console.log(`pipe.RECV: `+to+'-'+from, args.method, args.version||'')
-
-                // The hello method is only for pipes
-                if (args.method === 'hello') {
-                    this.connection = (this.connection < args.connection
-                                       ? this.connection : args.connection)
-                    this.them = args.my_name_is
-                    return
-                }
-
-                // Remember new subscriptions from them
-                if (args.method === 'get') {
-                    // assert(!(this.subscribed_keys[args.key]
-                    //          && this.subscribed_keys[args.key].they_requested),
-                    //        'Duplicate get 2:', args,
-                    //        {subscription: this.subscribed_keys[args.key]})
-
-                    // Initialize subscribed_keys
-                    this.subscribed_keys[args.key] = this.subscribed_keys[args.key] || {}
-
-                    // Record their subscription
-                    this.subscribed_keys[args.key].they_requested = args.subscribe
-
-                    console.log('pipe.recv: New remote!', this.id, 'Now we have', node.remotes(args.key).length)
-                }
-
-                args.origin = this
-                node[args.method](args)
-            },
-
-            // It can Connect and Disconnect
-            connected () {
-                // console.log('pipe.connect:', this.id, this.connection || '')
-
-                if (this.connection) {
-                    console.log('pipe.connect:', this.id, 'already exists! abort!')
-                    return
-                }
-
-                this.connecting = false
-
-                // Create a new connection ID
-                this.connection = random_id()
-
-                // Initiate connection with peer
-                this.send({method: 'hello',
-                           connection: this.connection,
-                           my_name_is: node.pid})
-
-                // Send gets for all the subscribed keys again
-                for (k in this.subscribed_keys) {
-                    // This one is getting called earlier.
-
-                    // console.log('pipe.connect: Re-fetching the subscribed key', k)
-
-                    // The send() function wants to make sure this isn't a
-                    // duplicate request, so let's delete the old one now so
-                    // that we can recreate it.
-
-                    var subscribe = this.subscribed_keys[k].we_requested
-                    delete this.subscribed_keys[k].we_requested
-
-                    this.send({
-                        key: k,
-                        subscribe: subscribe,
-                        method: 'get',
-                    })
-                }
-            },
-            disconnected () {
-                assert(this.connection)
-
-                for (k in this.subscribed_keys) {
-
-                    // We need to FISSURE any key we've sent out a WELCOME for
-                    if (this.we_welcomed[k] && this.keep_alive(k))
-                        // Tell the node.  It'll make fissures.
-                        node.disconnected({key:k, origin: this})
-
-                    // Now forget the welcome
-                    delete this.we_welcomed[k]
-
-                    // Drop all subscriptions not marked keep_alive
-                    var s = this.subscribed_keys[k]
-                    if (!(s.we_requested   && s.we_requested.keep_alive  ))
-                        delete s.we_requested
-                    if (!(s.they_requested && s.they_requested.keep_alive))
-                        delete s.they_requested
-
-                    // If both are gone, remove the whole subscription
-                    if (!(s.we_requested || s.they_requested))
-                        this.subscribed_keys[k]
-                }
-
-                this.connection = null
-                this.them = null
-            },
-
-            keep_alive (key) {
-                var s = this.subscribed_keys[key]
-                return ((s.we_requested && s.we_requested.keep_alive)
-                        ||
-                        (s.they_requested && s.they_requested.keep_alive))
-            },
-
-            printy_stuff (key) {
-                return {id: this.id,
-                        w: !!this.we_welcomed[key],
-                        k_a: this.keep_alive(key),
-                        peer: this.them,
-                        c: !!this.connection,
-                        r: this.remote
-                       }
-            }
-        }
-
-        return pipe
-    }
-
     node.create_joiner = (key) => {
-        var resource = resource_at(key),
-            version = sjcl.codec.hex.fromBits(
-                sjcl.hash.sha256.hash(
-                    Object.keys(resource.current_version).sort().join(':')))
+        var resource = node.resource_at(key),
+            // version = sjcl.codec.hex.fromBits(
+            //     sjcl.hash.sha256.hash(
+            //         Object.keys(resource.current_version).sort().join(':')))
+            version = Object.keys(resource.current_version).sort().join(':')
         var joiner_num = Math.random()
         node.set({key, patches: [], version,
-                  parents: Object.assign(dict(), resource.current_version),
+                  parents: Object.assign(u.dict(), resource.current_version),
                   joiner_num})
     }        
 
-    // var bindings = dict()
-    // node.on = (f) => bindings[f.id] = f
+    var gets_in = u.one_to_many()   // Maps `key' to `pub_funcs' subscribed to our key
+    // var gets_out = u.dict()          // Maps `key' to `func' iff we get()ed `key'
 
-    var pending_gets = dict()
-    var gets_in = new one_to_many()   // Maps `key' to `pub_funcs' subscribed to our key
-    // var gets_out = dict()          // Maps `key' to `func' iff we get()ed `key'
-
-
-    // ===============================================
-    //
-    //   Bindings:
-    //
-    //         Attaching pipes to events
-    //
-    
-    // The funks attached to each key, maps e.g. 'get /point/3' to '/30'
-    var handlers = one_to_many()
-    var wildcard_handlers = []  // An array of {prefix, funk}
-
-    // A set of timers, for keys to send forgets on
-    var to_be_forgotten = {}
-    node.bind = (key, pipe, allow_wildcards) => {
-        allow_wildcards = true // temporarily
-        if (allow_wildcards && key[key.length-1] === '*')
-            wildcard_handlers.push({prefix: key, pipe: pipe})
-        else
-            handlers.add(key, pipe.id, pipe)
-
-        // Now check if the method is a get and there's a gotton
-        // key in this space, and if so call the handler.
-    }
-    node.unbind = (key, pipe, allow_wildcards) => {
-        allow_wildcards = true // temporarily
-        if (allow_wildcards && key[key.length-1] === '*')
-            // Delete wildcard connection
-            for (var i=0; i<wildcard_handlers.length; i++) {
-                var handler = wildcard_handlers[i]
-                if (handler.prefix === key && handler.pipe.id === pipe.id) {
-                    wildcard_handlers.splice(i,1)  // Splice this element out of the array
-                    i--                            // And decrement the counter while we're looping
-                }
-            }
-        else
-            // Delete direct connection
-            handlers.delete(key, pipe.id)
-    }
-
-    node.bindings = (key) => {
-        assert(typeof key === 'string',
-               'Error: "' + key + '" is not a string')
-
-        var result = dict()
-
-        // First get the exact key matches
-        var pipes = handlers.get(key)
-        for (var i=0; i < pipes.length; i++)
-            result[pipes[i].id] = pipes[i]
-
-        // Now iterate through prefixes
-        for (var i=0; i < wildcard_handlers.length; i++) {
-            var handler = wildcard_handlers[i]
-            var prefix = handler.prefix.slice(0, -1)       // Cut off the *
-
-            if (prefix === key.substr(0,prefix.length))
-                // If the prefix matches, add it to the list!
-                result[handler.pipe.id] = handler.pipe
-        }
-        return Object.values(result)
-    }
-
-    node.we_welcomed = (key) => node.bindings(key).filter(
-        pipe => pipe.we_welcomed && pipe.we_welcomed[key]
-    )
-
-    node.remotes = (key) => node.bindings(key).filter( pipe => pipe.remote )
-
-    node.active_remotes = (key) => node.bindings(key).filter(
-        pipe => pipe.remote && pipe.we_welcomed
-    )
-
-    // ===============================================
-    //
-    //   Utilities
-    //
-
-    function one_to_many () {
-        var data   = dict()
-        var counts = dict()
-        return {
-            get (k) { return Object.values(data[k] || dict()) },
-            add (k1, k2, value) {
-                if (  data[k1] === undefined)   data[k1] = dict()
-                if (counts[k1] === undefined) counts[k1] = 0
-                if (!data[k1][k2]) counts[k1]++
-                data[k1][k2] = value
-            },
-            delete (k, k2) { delete data[k][k2]; counts[k]-- },
-            delete_all (k) { delete data[k]; delete counts[k] },
-            has (k, k2)    { return data[k] && data[k][k2] },
-            count (k)      { return counts[k] || 0}
-        }
-    }
+    // Install handlers and bindings
+    require('./state-control.js')(node)
 
     // This is an alternative to {}.  It creates a clean hash table without
     // any pre-existing keys, like .constructor or .prototype that are built
     // into Javascript Objects..
-    function dict () { return Object.create({}) }
 
     return node
 }

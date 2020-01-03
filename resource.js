@@ -11,7 +11,7 @@
 // the mergeables/ directory
 
 
-module.exports = function create_resource() {
+module.exports = require.resource = function create_resource() {
     var resource = {}
 
     // The version history

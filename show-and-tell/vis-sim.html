@@ -1,1 +1,19 @@
-This will be a visual demo of a simulated peer-to-peer network, with edits, disconnects, and pruning.
+<script>
+function require (thing) {
+    thing = thing.split('/')
+    thing = thing[thing.length-1].slice(0,-3)
+    console.assert(require[thing], `Thing ${thing} don't exist on ${Object.keys(require)}!`)
+    return require[thing]
+}
+global = window
+module = {exports: {}}
+</script>
+<script src="../greg/random001.js"></script>
+<script src="../utilities.js"></script>
+<script src="../state-control.js"></script>
+<script src="../merge-algorithms/sync9.js"></script>
+<script src="../node.js"></script>
+<script src="../pipe.js"></script>
+<script src="../resource.js"></script>
+<script src="tests.js"></script>
+Hello!
