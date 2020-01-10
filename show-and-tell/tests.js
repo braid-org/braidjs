@@ -176,24 +176,16 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
 
     // Start sending get() messages over the pipes!
 
-    debugger
-
     peers_array.forEach(node => node.get({key: 'my_key',
                                           subscribe: {keep_alive: true},
                                           origin: {id: u.random_id(),
                                                    send: (args) => {
-
-        console.log('local pipe: args: ', args)
-
+                                                       console.log('local pipe: args: ', args)
                                                    },
                                                    connect: () => {
-
-                                                    debugger
-console.log('am I getting called?')
-
+                                                       console.log('am I getting called?')
                                                    }
                                                   }}))
-
 
     console.log('\nInitial edit: P1 is adding "root"')
 
@@ -253,13 +245,11 @@ console.log('am I getting called?')
                     }
 
                     peer.set({key: 'my_key',
-                            patches: e.changes, version: e.version, parents: e.parents})
+                              patches: e.changes, version: e.version, parents: e.parents})
                 }
             } else {
                 // Disconnect or reconnect
 
-                debugger
-                
                 var sim_pipe_keys = Object.keys(sim_pipes),
                     random_index = Math.floor(rand() * sim_pipe_keys.length),
                     random_pipe = sim_pipes[sim_pipe_keys[random_index]],
