@@ -138,6 +138,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
             // Create a new connection ID
             this.connection = u.random_id()
 
+
+            debugger
+
+            
             // Initiate connection with peer
             this.send({method: 'hello',
                        connection: this.connection,

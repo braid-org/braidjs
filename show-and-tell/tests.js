@@ -16,9 +16,9 @@ assert = function () {
 
 function main() {
     var num_trials = 300
-    var trial_length = 1000
+    var trial_length = 1
 
-    var special_i = -1
+    var special_i = 49 // -1
 
     var max_size = 0
     
@@ -69,7 +69,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     var debug_frames = show_debug ? [] : null
     var notes = []
 
-    var n_peers = 3
+    var n_peers = 2
     var peers = {}
     for (var i = 0; i < n_peers; i++) {
         ;(() => {
@@ -175,10 +175,23 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     console.log('\nSend get()s to establish connections')
 
     // Start sending get() messages over the pipes!
+
+    debugger
+
     peers_array.forEach(node => node.get({key: 'my_key',
                                           subscribe: {keep_alive: true},
                                           origin: {id: u.random_id(),
-                                                   send: (args) => null
+                                                   send: (args) => {
+
+        console.log('local pipe: args: ', args)
+
+                                                   },
+                                                   connect: () => {
+
+                                                    debugger
+console.log('am I getting called?')
+
+                                                   }
                                                   }}))
 
 
@@ -220,23 +233,32 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             if (rand() < 0.9) {
                 // Edit text
 
-                if (peer.letters_i >= peer.letters.length)
-                    peer.letters_i = 0
+                // ..but only if we have at least one version already, which
+                // is really to make sure we've received "root" already (but
+                // we can't check for "root" since it may get pruned away)
+                if (peer.resources['my_key'] &&
+                    Object.keys(peer.resources['my_key'].time_dag).length) {
 
-                var e = create_random_edit(peer.resources['my_key'], peer.letters[peer.letters_i++])
-                if (e.changes.length || show_nothings)
-                    console.log(t+' '+ peer.pid + ' EDIT text', e.version,
-                                e.changes.length ? e.changes : '--nothing--')
+                    if (peer.letters_i >= peer.letters.length)
+                        peer.letters_i = 0
 
-                if (e.changes.length) {
-                    did_something = true
-                    text_changed = true
+                    var e = create_random_edit(peer.resources['my_key'], peer.letters[peer.letters_i++])
+                    if (e.changes.length || show_nothings)
+                        console.log(t+' '+ peer.pid + ' EDIT text', e.version,
+                                    e.changes.length ? e.changes : '--nothing--')
+
+                    if (e.changes.length) {
+                        did_something = true
+                        text_changed = true
+                    }
+
+                    peer.set({key: 'my_key',
+                            patches: e.changes, version: e.version, parents: e.parents})
                 }
-
-                peer.set({key: 'my_key',
-                          patches: e.changes, version: e.version, parents: e.parents})
             } else {
                 // Disconnect or reconnect
+
+                debugger
                 
                 var sim_pipe_keys = Object.keys(sim_pipes),
                     random_index = Math.floor(rand() * sim_pipe_keys.length),
@@ -321,10 +343,6 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         notes = ['connecting ' + sim_pipes[pipe]]
         if (debug_frames) debug_frames.push({
             t: -1,
-            peer_notes: {
-                [p1_p.pid]: notes,
-                [p2_p.pid]: notes
-            },
             peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
         })
     }

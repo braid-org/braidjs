@@ -132,10 +132,14 @@ module.exports = require.node = function create_node() {
 
         // If this is the first subscription, fire the .on_get handlers
         if (gets_in.count(key) === 1) {
-            console.log('node.get:', node.pid, 'firing .on_get for', node.bindings(key).length, 'pipes!')
+            console.log('node.get:', node.pid, 'firing .on_get for', node.bindings(key), 'pipes!')
             // This one is getting called afterward
-            node.bindings(key).forEach(
-                pipe => pipe.send({method:'get', key, version, parents, subscribe, origin}))
+            node.bindings(key).forEach(pipe => {
+
+                console.log('pipe: ', pipe)
+
+                pipe.send({method:'get', key, version, parents, subscribe, origin})
+            })
         }
 
         // // G: now if the person connecting with us wants to be a citizen, they'll
@@ -716,7 +720,7 @@ module.exports = require.node = function create_node() {
             fissure = {
                 a: node.pid,
                 b: origin.them,
-                conn: origin.id,
+                conn: origin.connection,
                 versions,
                 parents
             }
