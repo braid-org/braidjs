@@ -18,7 +18,7 @@ module.exports = require.node = function create_node() {
         // and this fact implies that every ancestor of version is also fully
         // acknowledged, which means that we don't need to keep certain information
         // about them, like "acks_in_process".. this next section simply
-        // iterates over all the acestors (including this version itself) and deletes
+        // iterates over all the ancestors (including this version itself) and deletes
         // information we don't need anymore for each one..
 
         var marks = {}
@@ -51,13 +51,13 @@ module.exports = require.node = function create_node() {
         // this is just a somewhat reasonable time, since there is some chance
         // that with this new full acknowledgment, that we might be able to prune
         // more stuff than we could prune before (but we could also let the user
-        // call "prune" explicitely at their leisure)
+        // call "prune" explicitly at their leisure)
 
         node.prune(resource)
     }
     
     function check_ack_count(key, resource, version) {
-        // Todo: could this only take key, instead of key and resource?  Or
+        // TODO: could this only take key, instead of key and resource?  Or
         // perhaps a resource should know its key?
         assert(!resource.acks_in_process[version]
                || resource.acks_in_process[version].count >= 0,
@@ -65,11 +65,11 @@ module.exports = require.node = function create_node() {
                {key, version,
                 acks_in_process: resource.acks_in_process[version]})
 
-        // G: this function gets called from a couple of places, basically whenver
+        // G: this function gets called from a couple of places, basically whenever
         // someone suspects that the "count" within "acks_in_process" may have changed,
-        // since it might have gone all the way to zero, in which case we will act..
+        // since it might have gone all the way to zero, in which case we will act...
         // of course, in some such instances, acks_in_process may have been removed
-        // entirely for a version, so we guard against that here too..
+        // entirely for a version, so we guard against that here, too..
 
         if (resource.acks_in_process[version]
             && resource.acks_in_process[version].count == 0) {
@@ -82,7 +82,7 @@ module.exports = require.node = function create_node() {
                 // G: in this case, we have an "origin", which means we didn't create
                 // this version ourselves, and "origin" tells us who we first heard
                 // about it from, and so now, as per the ack-algorithm, we're going
-                // to send an ack back to that person (becaue the algorithm tells us
+                // to send an ack back to that person (because the algorithm tells us
                 // to only send an ack after we have received acks from everyone
                 // we forwarded the information to)
 
@@ -96,7 +96,7 @@ module.exports = require.node = function create_node() {
                 // G: in this case, we have no "origin", which means we created
                 // this version ourselves, and now the fact that all our peers
                 // have acknowledged it means that all of their peers have also
-                // acknowledged, in fact, everyone in the network must have
+                // acknowledged. In fact, everyone in the network must have
                 // acknowledged it (or else we would have received a fissure
                 // before receiving this acknowledgment, and that fissure would
                 // have wiped away "acks_in_process" for this version), so that
@@ -156,14 +156,14 @@ module.exports = require.node = function create_node() {
         // we should start by catching them up to our current state,
         // which we'll do by sending a "welcome". "generate_braid" calculates
         // the versions comprising this welcome (we need to calculate them because
-        // we store the versions inside a space dag, and we need to pull them out..
+        // we store the versions inside a space dag, and we need to pull them out...
         // note that it wouldn't work to just keep the versions around on the side,
         // because we also prune the space dag, meaning that the versions generated
         // here may be different than the version we originally received, though
         // hopefully no versions already known to this incoming peer will have been
         // modified, or if they have been, hopefully those versions are deep enough
         // in the incoming peer's version dag that they are not the direct parents
-        // of any new edits made by them.. we strive to enforce this fact with
+        // of any new edits made by them... we strive to enforce this fact with
         // the pruning algorithm)
 
         var versions = resource.mergeable.generate_braid(x => false)
@@ -278,9 +278,9 @@ module.exports = require.node = function create_node() {
                    && joiner_num == resource.joiners[version])
 
             // G: now if we're not going to add the version, most commonly because
-            // we already posses the version, there is another situation that
+            // we already possess the version, there is another situation that
             // can arise, namely, someone that we forwarded the version to
-            // sends it back to us.. how could that happen? well, they may have
+            // sends it back to us... How could that happen? Well, they may have
             // heard about this version from someone we sent it to, before
             // hearing about it from us (assuming some pretty gross latency)..
             // anyway, if it happens, we can treat it like an ACK for the version,
@@ -297,6 +297,7 @@ module.exports = require.node = function create_node() {
         // G: since we may have messed with the ack count, we check it
         // to see if it has gone to 0, and if it has, take the appropriate action
         // (which is probably to send a global ack)
+
 
         check_ack_count(key, resource, version)
     }
@@ -414,7 +415,7 @@ module.exports = require.node = function create_node() {
                 // well as tell them to our peers)
                 //
                 // If we don't do this, then this fissure will never get pruned,
-                // because it will never find it's "other half"
+                // because it will never find its "other half"
 
                 if (f.b == node.pid) gen_fissures.push({
                     a:        node.pid,
@@ -447,7 +448,7 @@ module.exports = require.node = function create_node() {
         // and we wait for a version created after this connection event
         // to get globally acknowledged (note that this involves un-globally
         // acknowledging things that we had thought were globally acknowledged,
-        // but not everything -- if a version is globally acknoledged by us,
+        // but not everything -- if a version is globally acknowledged by us,
         // and also by the incoming citizen, then we keep that version as
         // globally acknowledged)
 
@@ -498,10 +499,10 @@ module.exports = require.node = function create_node() {
             if (!our_conn_versions[x]) resource.unack_boundary[x] = true
         })
 
-        // G: so that was dealing with the unack_boundary stuff.. now
+        // G: so that was dealing with the unack_boundary stuff... now
         // we want to deal with the globally acknowledged stuff. Basically,
-        // anything that is globally acknowledge by both us, and the incoming
-        // citizien, will remain globally acknowledged. We'll compute these
+        // anything that is globally acknowledged by both us, and the incoming
+        // citizen, will remain globally acknowledged. We'll compute these
         // versions as the intersection of ours and their acknowledged set,
         // and then store just the boundary of the intersection set
         // and call it "min_leaves" (where "min" basically means "intersection"
@@ -510,7 +511,7 @@ module.exports = require.node = function create_node() {
         //
         // As before, min_leaves will be null on the initial welcome,
         // and we'll compute it, and then subsequent welcomes will have this
-        // result included..
+        // result included...
         
         if (!min_leaves) {
             min_leaves = {}
@@ -540,7 +541,7 @@ module.exports = require.node = function create_node() {
         }
 
         // G: we are now armed with this "min_leaves" variable,
-        // either because we computed it, or it was given to us..
+        // either because we computed it, or it was given to us...
         // what do we do with it? well, we want to roll-back our
         // boundary of globally acknowledged stuff so that it only
         // includes stuff within "min_leaves" (that is, we only want
@@ -598,7 +599,7 @@ module.exports = require.node = function create_node() {
         }
 
         // G: now we finally add the fissures we decided we need to create
-        // in gen_fissures.. we add them now, after the code above,
+        // in gen_fissures... we add them now, after the code above,
         // so that these network messages appear after the welcome (since
         // they may rely on information which is in the welcome for other
         // people to understand them)
@@ -608,7 +609,7 @@ module.exports = require.node = function create_node() {
     
     node.forget = ({key, origin}) => {
         assert(key)
-        // Todo: if this is the last subscription, send forget to all gets_out
+        // TODO: if this is the last subscription, send forget to all gets_out
         // origin.send({method: 'forget', key})
     }
 
