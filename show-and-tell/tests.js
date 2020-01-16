@@ -15,10 +15,10 @@ assert = function () {
 }
 
 function main() {
-    var num_trials = 30000
+    var num_trials = 100
     var trial_length = 40000
 
-    var do_just_this_trial = 9
+    var do_just_this_trial = -1
 
     var max_size = 0
     
@@ -69,7 +69,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     var debug_frames = show_debug ? [] : null
     var notes = []
 
-    var n_peers = 2
+    var n_peers = 4
     var peers = {}
     for (var i = 0; i < n_peers; i++) {
         ;(() => {

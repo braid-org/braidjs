@@ -70,7 +70,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
                 this.we_welcomed[args.key] = true
             } else if (args.method === 'hello') {
                 // we want to send hellos even if we haven't welcomed them yet
-                console.log('sending hello..')
+                if (this.show_debug)
+                    console.log('sending hello..')
             } else {
                 // If we haven't welcomed them yet, ignore this message
                 if (!this.we_welcomed[args.key]) {
