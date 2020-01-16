@@ -257,7 +257,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                     }
 
                     peer.set({key: 'my_key',
-                            patches: e.changes, version: e.version, parents: e.parents})
+                              patches: e.changes, version: e.version, parents: e.parents})
                 }
             } else {
                 // Disconnect or reconnect
