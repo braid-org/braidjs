@@ -88,7 +88,7 @@ module.exports = require.node = function create_node() {
 
                 resource.acks_in_process[version].origin.send({
                     method: 'ack', key, seen:'local', version,
-                    joiners: resource.joiners[version]
+                    joiner_num: resource.joiners[version]
                 })
 
             } else {
@@ -841,7 +841,7 @@ module.exports = require.node = function create_node() {
             // version = sjcl.codec.hex.fromBits(
             //     sjcl.hash.sha256.hash(
             //         Object.keys(resource.current_version).sort().join(':')))
-            version = Object.keys(resource.current_version).sort().join(':')
+            version = 'joiner:' + Object.keys(resource.current_version).sort().join(':')
         var joiner_num = Math.random()
         node.set({key, patches: [], version,
                   parents: Object.assign(u.dict(), resource.current_version),

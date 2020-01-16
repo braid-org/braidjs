@@ -16,9 +16,9 @@ assert = function () {
 
 function main() {
     var num_trials = 300
-    var trial_length = 2
+    var trial_length = 4
 
-    var do_just_this_trial = 15 // -1
+    var do_just_this_trial = 9
 
     var max_size = 0
     
@@ -363,7 +363,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             while (p.incoming.length > 0) {
                 tt++
                 if (show_debug) console.log('t => ' + tt)
-                
+
                 notes = []
 
                 p.incoming.shift()[1]()
