@@ -18,12 +18,12 @@ function main() {
     var num_trials = 300
     var trial_length = 2
 
-    var special_i = 15 // -1
+    var do_just_this_trial = 15 // -1
 
     var max_size = 0
     
-    for (var i = (special_i >= 0) ? special_i : 0; i < num_trials; i++) {
-        if ((special_i < 0) && (i % Math.floor(num_trials/20) == 0)) {
+    for (var i = (do_just_this_trial >= 0) ? do_just_this_trial : 0; i < num_trials; i++) {
+        if ((do_just_this_trial < 0) && (i % Math.floor(num_trials/20) == 0)) {
             console.log('TRIAL: ' + i + ` max_size:${max_size}`)
             max_size = 0
         }
@@ -31,14 +31,14 @@ function main() {
         check_good = false
         try {
             var size = run_trial('iiiifIIiiiEiiiiiEEff:' + i, trial_length,
-                                 special_i >= 0, i)
+                                 do_just_this_trial >= 0, i)
             if (size > max_size) max_size = size
         } catch (e) {
             console.log(e)
             console.log('TRIAL: ' + i + ' FAILED!')
             break
         }
-        if (special_i >= 0) break
+        if (do_just_this_trial >= 0) break
     }
     console.log(check_good ? 'Tests passed!' : 'Tests failed... :( :( :(')
 }
