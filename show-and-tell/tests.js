@@ -199,6 +199,29 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         console.log('\nInitial edit: P1 is adding "root"')
 
     if (true) {
+        // There are two modes of operations.  The differentiator is that in
+        // one mode, you can prune down to a single version, and in the other,
+        // you can only prune down to (in the worst case) the number of
+        // versions there are peers that have ever been a part of the system.
+        // (But often less than that.)
+
+        // In the first mode, you must dictate that all peers don't add
+        // anything unless they've already received a version from someone
+        // else, and you then need a special peer that creates the first
+        // version.
+
+        // But you can add something to a field of nothing.  There used to be
+        // a root node that was always there, but now you're allowed to have a
+        // version with parents where the parents is the empty set, and all
+        // the algorithms are fine with that.
+
+        // So now when we create a new timedag, a special peer will create the
+        // first version and send it to everyone else.  And that's what we do
+        // in the tests code right now.  And we do that so that we can prune
+        // down to one node, and that tells us that the tests are working, at
+        // the end of the tests.  It knows that everything should have exactly
+        // one version, that's the same thing, for all peers.
+
         notes = ['initial edit']
         let p = peers_array[0]
         p.set({key: 'my_key', version: 'root', parents: {}, patches: []})
