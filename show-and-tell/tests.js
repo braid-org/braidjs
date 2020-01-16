@@ -136,7 +136,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 to.incoming.push([from.pid, () => {
                     // Log to console
                     notes.push('RECV: ' + args.method + ' from:' + from.pid
-                               + ' to:' + to.pid,
+                               + ' to:' + to.pid + ' '
                                + JSON.stringify(args))
                     if (show_debug) console.log(notes)
 
