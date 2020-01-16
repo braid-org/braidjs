@@ -313,10 +313,6 @@ module.exports = require.node = function create_node() {
         // console.log('welcome:', key, 'versions:', versions.length,
         //             'unacking:', Object.keys(unack_boundary))
         var resource = node.resource_at(key)
-
-        for (version in unack_boundary || {})
-            assert(version in resource.time_dag,
-                   `This version ${version} no exist yet!`)
         
         // `versions` is actually array of set messages. Each one has a version.
         var new_versions = []

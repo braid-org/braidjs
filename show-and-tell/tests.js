@@ -15,18 +15,18 @@ assert = function () {
 }
 
 function main() {
-    var num_trials = 100
-    var trial_length = 40000
+    var num_trials = 1000
+    var trial_length = 6
 
     var do_just_this_trial = -1
 
     var max_size = 0
     
     for (var i = (do_just_this_trial >= 0) ? do_just_this_trial : 0; i < num_trials; i++) {
-        if ((do_just_this_trial < 0) && (i % Math.floor(num_trials/20) == 0)) {
+        // if ((do_just_this_trial < 0) && (i % Math.floor(num_trials/20) == 0)) {
             console.log('TRIAL: ' + i + ` max_size:${max_size}`)
             max_size = 0
-        }
+        // }
         
         check_good = false
         try {
@@ -69,7 +69,7 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     var debug_frames = show_debug ? [] : null
     var notes = []
 
-    var n_peers = 4
+    var n_peers = 3
     var peers = {}
     for (var i = 0; i < n_peers; i++) {
         ;(() => {
