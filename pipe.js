@@ -103,16 +103,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
                                    ? this.connection : args.connection)
                 this.them = args.my_name_is
 
-                // Send out a welcome message to all our subscriptions..
-                Object.keys(this.subscribed_keys).forEach(key => {
-                    var resource = node.resource_at(key)
-                    this.send({
-                        method: 'welcome', key,
-                        versions: resource.mergeable.generate_braid(x => false),
-                        fissures: Object.values(resource.fissures)
-                    })
-                })
-
+                // hello messages don't do anything else (they are just for the pipe)
                 return
             }
 
