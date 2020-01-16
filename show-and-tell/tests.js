@@ -414,7 +414,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 if (peer.resources['my_key']
                     && (Object.keys(peer.resources['my_key'].time_dag).length > 1)) {
                     too_many_versions = true
-                    console.log('Too many versions:',
+                    if (show_debug)
+                        console.log('Too many versions:',
                                 Object.keys(peer.resources['my_key'].time_dag),
                                 peer.resources.my_key.acks_in_process)
                 }
