@@ -15,8 +15,8 @@ assert = function () {
 }
 
 function main() {
-    var num_trials = 300
-    var trial_length = 4
+    var num_trials = 30000
+    var trial_length = 40000
 
     var do_just_this_trial = 9
 
