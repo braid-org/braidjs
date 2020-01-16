@@ -118,7 +118,8 @@ module.exports = require.node = function create_node() {
     }
 
     node.get = ({key, version, parents, subscribe, origin}) => {
-        console.log('get:', node.pid, key)
+        if (node.show_debug)
+            console.log('get:', node.pid, key)
         assert(key)
         var resource = node.resource_at(key)
 
@@ -132,11 +133,13 @@ module.exports = require.node = function create_node() {
 
         // If this is the first subscription, fire the .on_get handlers
         if (gets_in.count(key) === 1) {
-            console.log('node.get:', node.pid, 'firing .on_get for', node.bindings(key), 'pipes!')
+            if (node.show_debug)
+                console.log('node.get:', node.pid, 'firing .on_get for', node.bindings(key), 'pipes!')
             // This one is getting called afterward
             node.bindings(key).forEach(pipe => {
 
-                console.log('pipe: ', pipe)
+                if (node.show_debug)
+                    console.log('pipe: ', pipe)
 
                 pipe.send({method:'get', key, version, parents, subscribe, origin})
             })
@@ -233,8 +236,9 @@ module.exports = require.node = function create_node() {
                 count: node.joined_peers(key).length - (origin ? 1 : 0)
             }
 
-            console.log('node.set:', node.pid, 'Initializing ACKs for', version, 'to',
-                        `${node.remotes(key).length}-${(origin ? 1 : 0)}=${resource.acks_in_process[version].count}`)
+            if (node.show_debug)
+                console.log('node.set:', node.pid, 'Initializing ACKs for', version, 'to',
+                        `${node.joined_peers(key).length}-${(origin ? 1 : 0)}=${resource.acks_in_process[version].count}`)
 
             // console.log('node.set: we will want',
             //             node.citizens(key).length - (origin ? 1 : 0),
@@ -613,14 +617,16 @@ module.exports = require.node = function create_node() {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
-        console.log('node.ack: Acking!!!!', key, seen, version)
+        if (node.show_debug)
+            console.log('node.ack: Acking!!!!', key, seen, version)
         assert(key && version && origin)
         var resource = node.resource_at(key)
 
         if (seen == 'local') {
             if (resource.acks_in_process[version]
                 && (joiner_num == resource.joiners[version])) {
-                console.log('node.ack: Got a local ack! Decrement count to',
+                if (node.show_debug)
+                    console.log('node.ack: Got a local ack! Decrement count to',
                             resource.acks_in_process[version].count - 1)
                 resource.acks_in_process[version].count--
                 check_ack_count(key, resource, version)

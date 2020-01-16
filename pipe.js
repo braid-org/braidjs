@@ -28,26 +28,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
 
         // It can Send and Receive messages
         send (args) {
-            // Clean out the origin... because we don't use that.
-            delete args.origin
-
-            // If this is the first message, let's try to connect the pipe.
-            if (!this.connection && !this.connecting) {
-                this.connecting = true
-
-                // Run the programmer's connect function
-                connect.apply(this)
-            }
-
-            // Now we should have a connection
-            assert(this.connection, 'Not connected to send!'
-                   // Todo: If the programmer's connection function
-                   // doesn't return synchronously, then there will be no
-                   // connection yet.  We will need to find a way to
-                   // handle this.  Like keep a queue of outstanding
-                   // messages?
-                  )
-
             // Record new keys
             if (args.method === 'get') {
                 assert(!this.connection
@@ -65,42 +45,74 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
                 // Remember that we requested this subscription
                 this.subscribed_keys[args.key].we_requested = args.subscribe
 
-                // Send out a welcome message (immediately, for now)
-                var resource = node.resource_at(args.key)
-                this.send({
-                    method: 'welcome', key: args.key,
-                    versions: resource.mergeable.generate_braid(x => false),
-                    fissures: Object.values(resource.fissures)
-                })
-
                 // And now send them all future events as well
                 node.bind(args.key, this)
-            }
 
-            // Record forgotten keys
-            if (args.method === 'forget') {
+                // If this is the first message, let's try to connect the pipe.
+                if (this.connecting) return
+                if (!this.connection) {
+                    this.connecting = true
+
+                    // Run the programmer's connect function
+                    connect.apply(this)
+
+                    // Don't run the send code below,
+                    // since we'll send this get when the connection completes
+                    return
+                }
+            } else if (args.method === 'forget') {
+                // Record forgotten keys
                 delete this.subscribed_keys[args.key].we_requested
                 delete this.we_welcomed[args.key]
                 node.unbind(args.key, this)
+            } else if (args.method === 'welcome') {
+                // We're making a commitment to them!
+                this.we_welcomed[args.key] = true
+            } else if (args.method === 'hello') {
+                // we want to send hellos even if we haven't welcomed them yet
+                console.log('sending hello..')
+            } else {
+                // If we haven't welcomed them yet, ignore this message
+                if (!this.we_welcomed[args.key]) {
+                    return
+                }
             }
 
-            // We're making a commitment to them!
-            if (args.method === 'welcome')
-                this.we_welcomed[args.key] = true
+            // Clean out the origin... because we don't use that.
+            delete args.origin
 
             // And now send the message
-            console.log('pipe.send:', (id || node.pid), args.method, args.version||'')
-            send.call(this, args)
+            if (this.show_debug)
+                console.log('pipe.send:', (id || node.pid), args.method, args.version||'')
+
+            if (this.connection) {
+                send.call(this, args)
+            } else {
+                if (this.show_debug)
+                    console.log('FAILED to send, because pipe not yet connected..')
+            }
         },
         recv (args) {
             var [from,to] = id.split('-')
-            console.log(`pipe.RECV: `+to+'-'+from, args.method, args.version||'')
+            if (this.show_debug)
+                console.log(`pipe.RECV: `+to+'-'+from, args.method, args.version||'')
 
             // The hello method is only for pipes
             if (args.method === 'hello') {
                 this.connection = (this.connection < args.connection
                                    ? this.connection : args.connection)
                 this.them = args.my_name_is
+
+                // Send out a welcome message to all our subscriptions..
+                Object.keys(this.subscribed_keys).forEach(key => {
+                    var resource = node.resource_at(key)
+                    this.send({
+                        method: 'welcome', key,
+                        versions: resource.mergeable.generate_braid(x => false),
+                        fissures: Object.values(resource.fissures)
+                    })
+                })
+
                 return
             }
 
@@ -117,7 +129,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
                 // Record their subscription
                 this.subscribed_keys[args.key].they_requested = args.subscribe
 
-                console.log('pipe.recv: New remote!', this.id, 'Now we have', node.remotes(args.key).length)
+                if (this.show_debug)
+                    console.log('pipe.recv: New remote!', this.id, 'Now we have', node.remotes(args.key).length)
             }
 
             args.origin = this
@@ -129,7 +142,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
             // console.log('pipe.connect:', this.id, this.connection || '')
 
             if (this.connection) {
-                console.log('pipe.connect:', this.id, 'already exists! abort!')
+                if (this.show_debug)
+                    console.log('pipe.connect:', this.id, 'already exists! abort!')
                 return
             }
 
@@ -138,11 +152,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
             // Create a new connection ID
             this.connection = u.random_id()
 
-
-            debugger
-
-            
             // Initiate connection with peer
+            if (this.show_debug)
+                console.log('sending hello..')
+
             this.send({method: 'hello',
                        connection: this.connection,
                        my_name_is: node.pid})
@@ -168,8 +181,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
             }
         },
         disconnected () {
-            assert(this.connection)
-
             for (k in this.subscribed_keys) {
 
                 // We need to FISSURE any key we've sent out a WELCOME for
@@ -192,6 +203,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
                     this.subscribed_keys[k]
             }
 
+            this.connecting = false
             this.connection = null
             this.them = null
         },

@@ -16,9 +16,9 @@ assert = function () {
 
 function main() {
     var num_trials = 300
-    var trial_length = 1
+    var trial_length = 2
 
-    var special_i = 49 // -1
+    var special_i = 15 // -1
 
     var max_size = 0
     
@@ -79,6 +79,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             peer.pid = 'P' + (i + 1) // Give it an ID
             peer.incoming = []       // Give it an incoming message queue
             peers[peer.pid] = peer   // Add it to the list of peers
+
+            peer.show_debug = show_debug
             
             // Give it an alphabet
             if (i == 0) {
@@ -126,6 +128,11 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
                 }
                 // console.log('>> ', this.id, args)
                 assert(from.pid !== to.pid)
+
+                if (show_debug) {
+                    console.log(`add to incoming for ${to.pid}: `, args)
+                }
+
                 to.incoming.push([from.pid, () => {
                     // Log to console
                     notes.push('RECV: ' + args.method + ' from:' + from.pid
@@ -143,6 +150,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
             connect () { this.connected() }
         })
 
+        pipe.show_debug = show_debug
+
         from.bind('my_key', pipe)
         // from.bind('*', {id: u.random_id(),
         //                 send (args) {
@@ -155,7 +164,8 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
         //                 }})
     }
 
-    console.log('Create pipes')
+    if (show_debug)
+        console.log('Create pipes')
 
     // Create pipes for all the peers
     for (var p1 = 0; p1 < n_peers; p1++)
@@ -172,30 +182,21 @@ function run_trial(seed, trial_length, show_debug, trial_num) {
     // for (var pipe_key in sim_pipes)
     //     sim_pipes[pipe_key].connected()
 
-    console.log('\nSend get()s to establish connections')
+    if (show_debug)
+        console.log('\nSend get()s to establish connections')
 
     // Start sending get() messages over the pipes!
-
-    debugger
 
     peers_array.forEach(node => node.get({key: 'my_key',
                                           subscribe: {keep_alive: true},
                                           origin: {id: u.random_id(),
-                                                   send: (args) => {
-
-        console.log('local pipe: args: ', args)
-
-                                                   },
-                                                   connect: () => {
-
-                                                    debugger
-console.log('am I getting called?')
-
-                                                   }
+                                                   send: (args) => {},
+                                                   connect: () => {}
                                                   }}))
 
 
-    console.log('\nInitial edit: P1 is adding "root"')
+    if (show_debug)
+        console.log('\nInitial edit: P1 is adding "root"')
 
     if (true) {
         notes = ['initial edit']
@@ -211,7 +212,8 @@ console.log('am I getting called?')
     try {
     
     // Run a trial
-    console.log('\nRun the trial')
+    if (show_debug)
+        console.log('\nRun the trial')
 
     var things_done = 0,
         show_nothings = false
@@ -243,9 +245,11 @@ console.log('am I getting called?')
                         peer.letters_i = 0
 
                     var e = create_random_edit(peer.resources['my_key'], peer.letters[peer.letters_i++])
-                    if (e.changes.length || show_nothings)
-                        console.log(t+' '+ peer.pid + ' EDIT text', e.version,
-                                    e.changes.length ? e.changes : '--nothing--')
+                    if (e.changes.length || show_nothings) {
+                        if (show_debug)
+                            console.log(t+' '+ peer.pid + ' EDIT text', e.version,
+                                e.changes.length ? e.changes : '--nothing--')
+                    }
 
                     if (e.changes.length) {
                         did_something = true
@@ -257,9 +261,6 @@ console.log('am I getting called?')
                 }
             } else {
                 // Disconnect or reconnect
-
-                debugger
-                
                 var sim_pipe_keys = Object.keys(sim_pipes),
                     random_index = Math.floor(rand() * sim_pipe_keys.length),
                     random_pipe = sim_pipes[sim_pipe_keys[random_index]],
@@ -268,7 +269,8 @@ console.log('am I getting called?')
                     other_peer = peers[other_pid]
 
                 // Toggle the pipe!
-                console.log(t + ' ' + random_pipe.id.replace('-','•'), pid+'•'+other_pid, 'TOGGLE pipe', random_pipe.connection ? 'off':'on')
+                if (show_debug)
+                    console.log(t + ' ' + random_pipe.id.replace('-','•'), pid+'•'+other_pid, 'TOGGLE pipe', random_pipe.connection ? 'off':'on')
                 assert(!!random_pipe.connection === !!other_pipe.connection,
                        random_pipe.connection, other_pipe.connection)
                 if (random_pipe.connection) {
@@ -298,7 +300,8 @@ console.log('am I getting called?')
             // Receive incoming network message
 
             if (peer.incoming.length > 0) {
-                console.log(t + ' ' + things_done + ' ' + peer.pid + ' RECEIVE', `(of ${peer.incoming.length})`)
+                if (show_debug)
+                    console.log(t + ' ' + things_done + ' ' + peer.pid + ' RECEIVE', `(of ${peer.incoming.length})`)
                 did_something = true
                 text_changed = 'maybe'
                 
@@ -309,8 +312,10 @@ console.log('am I getting called?')
                 
                 var msg = peer.incoming.splice(peer.incoming.findIndex(x => x[0] == chosen_peer), 1)[0][1]()
             }
-            else if (show_nothings)
-                console.log(t + ' ' + things_done + ' ---- ' + peer.pid + ' receive nothing ---')
+            else if (show_nothings) {
+                if (show_debug)
+                    console.log(t + ' ' + things_done + ' ---- ' + peer.pid + ' receive nothing ---')
+            }
 
             if (!did_something) {
                 if (show_debug) console.log('did nothing')
@@ -331,11 +336,15 @@ console.log('am I getting called?')
             things_done++
             if (text_changed)
                 peers_array.forEach(
-                    p => console.log(t, things_done, p.pid, p.resources['my_key'].mergeable.read()))
+                    p => {
+                    if (show_debug)
+                        console.log(t, things_done, p.pid, p.resources['my_key'].mergeable.read())
+                })
         }
     }
 
-    console.log('Ok!! Now winding things up.')
+    if (show_debug)
+        console.log('Ok!! Now winding things up.')
 
     // After the trial, connect all the peers together
     for (var pipe in sim_pipes) {
@@ -349,7 +358,6 @@ console.log('am I getting called?')
     
     var tt = 0
     for (var t = 0; t < 50; t++) {
-
         // Now let all the remaining incoming messages get processed
         Object.values(peers).forEach(p => {
             while (p.incoming.length > 0) {
