@@ -16,7 +16,7 @@ assert = function () {
 
 function main() {
     var num_trials = 1000
-    var trial_length = 6
+    var trial_length = 1000
 
     var do_just_this_trial = -1
 
@@ -30,7 +30,7 @@ function main() {
         
         check_good = false
         try {
-            var size = run_trial('iiiifIIiiiEiiiiiEEff:' + i, trial_length,
+            var size = run_trial('iiiEEEIIiiiEiiiiiiiEEff:' + i, trial_length,
                                  do_just_this_trial >= 0, i)
             if (size > max_size) max_size = size
         } catch (e) {

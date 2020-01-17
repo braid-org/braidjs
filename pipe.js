@@ -65,7 +65,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
                 delete this.subscribed_keys[args.key].we_requested
                 delete this.we_welcomed[args.key]
                 node.unbind(args.key, this)
-            } else if (args.method === 'welcome') {
+            } else if (args.method === 'welcome' && !args.unack_boundary) {
                 // We're making a commitment to them!
                 this.we_welcomed[args.key] = true
             } else if (args.method === 'hello') {

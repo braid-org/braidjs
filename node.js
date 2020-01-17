@@ -489,7 +489,9 @@ module.exports = require.node = function create_node() {
         // console.log('processing1:', resource.unack_boundary)
         var our_conn_versions = resource.ancestors(resource.unack_boundary)
         // console.log('processing2:', unack_boundary)
+
         var new_conn_versions = resource.ancestors(unack_boundary)
+
         Object.keys(resource.unack_boundary).forEach(x => {
             if (new_conn_versions[x] && !unack_boundary[x]) {
                 delete resource.unack_boundary[x]
