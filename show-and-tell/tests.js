@@ -5,7 +5,7 @@ require('../merge-algorithms/sync9.js')
 var tau = Math.PI*2
 
 function main() {
-    var rand = create_rand('000_hi_003')
+    var rand = Math.create_rand('000_hi_003')
 
     var n_peers = 4
     
@@ -871,7 +871,7 @@ function deep_equals(a, b) {
 
 function dict () { return Object.create({}) }
 
-function assert() {
+assert = function () {
     if (!arguments[0]) {
         console.trace.apply(console, ['-Assert-', ...[...arguments].slice(1)])
         if (this.process)

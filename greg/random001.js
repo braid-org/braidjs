@@ -1,7 +1,7 @@
 
 // the next two functions added by me
 
-function create_rand(seed) {
+  Math.create_rand = function create_rand(seed) {
     if (typeof(seed) == 'string') {
       var t = new MersenneTwister(0)
       var a = []
