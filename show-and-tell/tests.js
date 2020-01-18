@@ -5,7 +5,7 @@ require('../merge-algorithms/sync9.js')
 var tau = Math.PI*2
 
 function main() {
-    var rand = create_rand('000_hi_001')
+    var rand = create_rand('000_hi_003')
 
     var n_peers = 4
     
@@ -24,23 +24,13 @@ function main() {
             // Give it an alphabet
             if (i == 0) {
                 peer.letters = 'abcdefghijklmnopqrstuvwxyz'
-                for (var ii = 0; ii < 100; ii++) {
-                    peer.letters += String.fromCharCode(12032 + ii)
-                }
-                peer.letters_i = 0
             } else if (i == 1) {
                 peer.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-                for (var ii = 0; ii < 100; ii++) {
-                    peer.letters += String.fromCharCode(12032 + 1000 + ii)
-                }
-                peer.letters_i = 0
-            } else {
-                peer.letters = ''
-                for (var ii = 0; ii < 100; ii++) {
-                    peer.letters += String.fromCharCode(12032 + 2000 + ii)
-                }
-                peer.letters_i = 0
+            } else peer.letters = ''
+            for (var ii = 0; ii < 100; ii++) {
+                peer.letters += String.fromCharCode(12032 + 1000*i + ii)
             }
+            peer.letters_i = 0
         })()
     }
     var peers_array = Object.values(peers)
@@ -61,9 +51,10 @@ function main() {
                 // console.log('>> ', this.id, args)
                 assert(from.pid !== to.pid)
 
+                args = JSON.parse(JSON.stringify(args))
                 to.incoming.push([from.pid, () => {
-                    sim_pipes[to.pid + '-' + from.pid].recv(args)
-                }, 'msg_id:' + rand().toString(36).slice(2), args.method, args])
+                    sim_pipes[to.pid + '-' + from.pid].recv(JSON.parse(JSON.stringify(args)))
+                }, 'msg_id:' + rand().toString(36).slice(2), args.method, JSON.parse(JSON.stringify(args))])
             },
 
             // The connect function
@@ -200,7 +191,7 @@ function main() {
                 peer.incoming.forEach(x => possible_peers[x[0]] = true)
                 possible_peers = Object.keys(possible_peers)
                 var chosen_peer = possible_peers[Math.floor(rand() * possible_peers.length)]
-                
+
                 var msg = peer.incoming.splice(peer.incoming.findIndex(x => x[0] == chosen_peer), 1)[0][1]()
             }
         }
@@ -466,7 +457,7 @@ function draw_network(c, g, frames, fi, percent, x, y, w, h, r) {
                     for (var a = 0; a < 5; a++) {
                         g.beginPath()
                         g.arc(pos[0] + Math.cos(tau/5*a)*rr, pos[1] + Math.sin(tau/5*a)*rr, plank * 0.35, 0, tau)
-                        g.fillStyle = 'white'
+                        g.fillStyle = m[4].unack_boundary ? 'lightblue' : 'white'
                         g.fill()
                         
                         g.beginPath()
