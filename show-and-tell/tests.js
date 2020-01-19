@@ -9,38 +9,36 @@ function main() {
     var rand = Math.create_rand('000_hi_003')
 
     var n_peers = 4
-    var n_steps_per_trial = 1000
-    var n_trials = 1000
-    var curr_trial = -1
+    var n_steps_per_trial = 2000
+    var n_trials = 100
 
     var debug_frames = is_browser && []
     var show_debug = !is_browser
-
     var peers = {}
+
+    // Create the peers
     for (var i = 0; i < n_peers; i++) {
-        ;(() => {
-            // Make a peer node
-            var peer = require('../node.js')()
+        // Make a peer node
+        var node = require('../node.js')()
 
-            peer.pid = 'P' + (i + 1) // Give it an ID
-            peer.incoming = []       // Give it an incoming message queue
-            peers[peer.pid] = peer   // Add it to the list of peers
+        node.pid = 'P' + (i + 1)   // Give it an ID
+        node.incoming = []         // Give it an incoming message queue
+        peers[node.pid] = node     // Add it to the list of peers
 
-            // Give it an alphabet
-            if (i == 0) {
-                peer.letters = 'abcdefghijklmnopqrstuvwxyz'
-            } else if (i == 1) {
-                peer.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-            } else peer.letters = ''
-            for (var ii = 0; ii < 100; ii++) {
-                peer.letters += String.fromCharCode(12032 + 1000*i + ii)
-            }
-            peer.letters_i = 0
-        })()
+        // Give it an alphabet
+        if (i == 0)
+            node.letters = 'abcdefghijklmnopqrstuvwxyz'
+        else if (i == 1)
+            node.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        else node.letters = ''
+        for (var ii = 0; ii < 100; ii++)
+            node.letters += String.fromCharCode(12032 + 1000*i + ii)
+        node.letters_i = 0
     }
     var peers_array = Object.values(peers)
 
-    // New code for connecting peers
+
+    // Create pipes that connect peers
     var sim_pipes = {}
     function create_sim_pipe (from, to) {
         var pipe = sim_pipes[from.pid + '-' + to.pid] = require('../pipe.js')({

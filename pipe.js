@@ -28,6 +28,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
 
         // It can Send and Receive messages
         send (args) {
+            assert(args.method !== 'hello')
+
             // Record new keys
             if (args.method === 'get') {
                 assert(!this.connection
@@ -68,10 +70,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
             } else if (args.method === 'welcome' && !args.unack_boundary) {
                 // We're making a commitment to them!
                 this.we_welcomed[args.key] = true
-            } else if (args.method === 'hello') {
-                // we want to send hellos even if we haven't welcomed them yet
-                if (this.show_debug)
-                    console.log('sending hello..')
             } else {
                 // If we haven't welcomed them yet, ignore this message
                 if (!this.we_welcomed[args.key]) {
@@ -148,9 +146,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
             if (this.show_debug)
                 console.log('sending hello..')
 
-            this.send({method: 'hello',
-                       connection: this.connection,
-                       my_name_is: node.pid})
+            send.call(this, {method: 'hello',
+                             connection: this.connection,
+                             my_name_is: node.pid})
 
             // Send gets for all the subscribed keys again
             for (k in this.subscribed_keys) {
