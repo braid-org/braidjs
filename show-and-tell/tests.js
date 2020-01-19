@@ -9,10 +9,11 @@ function main() {
     var rand = Math.create_rand('000_hi_003')
 
     var n_peers = 4
-    var n_steps_per_trial = 100
-    var n_trials = 100
-    
-    var debug_frames = []
+    var n_steps_per_trial = 1000
+    var n_trials = 1000
+    var curr_trial = -1
+
+    var debug_frames = is_browser && []
     var show_debug = !is_browser
 
     var peers = {}
@@ -89,7 +90,6 @@ function main() {
         }
 
     // Start sending get() messages over the pipes!
-
     peers_array.forEach(node => node.get({key: 'my_key',
                                           subscribe: {keep_alive: true},
                                           origin: {id: rand().toString(36).slice(2),
@@ -135,7 +135,7 @@ function main() {
 
         let p = peers_array[0]
         p.set({key: 'my_key', version: 'root', parents: {}, patches: ['=""']})
-        if (debug_frames) debug_frames.push({
+        debug_frames && debug_frames.push({
             peers: peers_array.map(x => save_node_copy(x))
         })
     }
@@ -200,7 +200,7 @@ function main() {
             }
         }
         
-        debug_frames.push({
+        debug_frames && debug_frames.push({
             frame_num,
             peers: peers_array.map(x => save_node_copy(x))
         })
@@ -305,17 +305,8 @@ function main() {
     var loop_inbetween_count = 0
     
     var is_on = true
-    var t = -1
-    loop()
+    var t
     function loop() {
-        t++
-        if (!is_browser && t > n_steps_per_trial) {
-            wrapup_trial()
-            return
-        }
-
-        show_debug && console.log('looping', t)
-
         if (is_on) {
             if (loop_inbetween_count == 0) {
                 try {
@@ -327,25 +318,19 @@ function main() {
                 }
                 loop_count++
             }
-            if (is_browser) {
-                if (debug_frames.length > 1)
-                    draw_frame(debug_frames.length - 2, loop_inbetween_count / 10)
-            
-                slider.setAttribute('max', debug_frames.length - 2)
-                slider.value = debug_frames.length - 2
-            }
 
+            if (debug_frames.length > 1)
+                draw_frame(debug_frames.length - 2, loop_inbetween_count / 10)
             if (debug_frames.length > 300) debug_frames = debug_frames.slice(100)
+            
+            slider.setAttribute('max', debug_frames.length - 2)
+            slider.value = debug_frames.length - 2
+
             loop_inbetween_count = (loop_inbetween_count + 1) % 1
         }
-        setTimeout(loop, is_browser ? 30 : 0)
+        setTimeout(loop, 30)
     }
     
-    if (is_browser)
-        c.addEventListener('mousedown', () => {
-            is_on = !is_on
-        })
-
     function wrapup_trial () {
         if (show_debug)
             console.log('Ok!! Now winding things up.')
@@ -354,7 +339,7 @@ function main() {
         for (var pipe in sim_pipes) {
             sim_pipes[pipe].connected()
             notes = ['connecting ' + sim_pipes[pipe]]
-            if (debug_frames) debug_frames.push({
+            debug_frames && debug_frames.push({
                 t: -1,
                 peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
             })
@@ -458,7 +443,8 @@ function main() {
             }
         })
         
-        console.log('CHECK GOOD: ' + check_good)
+        if (show_debug || !check_good)
+            console.log('CHECK GOOD: ' + check_good)
         if (!check_good) {
             Object.values(peers).forEach((x, i) => {
                 // console.log(x)
@@ -471,6 +457,31 @@ function main() {
             if (!show_debug) throw 'stop'
         }
     }
+
+    function run_trial () {
+        for (var t=0; t<n_steps_per_trial; t++) {
+            show_debug && console.log('looping', t)
+            step(t)
+        }
+        wrapup_trial()
+    }
+    function run_trials () {
+        show_debug = false
+        for (var i=0; i<n_trials; i++) {
+            console.log('Running trial', i)
+            run_trial()
+        }
+    }
+
+    if (is_browser)
+        c.addEventListener('mousedown', () => {
+            is_on = !is_on
+        })
+
+    if (is_browser)
+        loop()
+    else
+        run_trials()
 }
 
 function draw_text(c, g, text, x, y, color, x_align, y_align, font) {
