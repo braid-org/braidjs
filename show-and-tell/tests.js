@@ -1,6 +1,7 @@
-
 require('../greg/random001.js')
 require('../merge-algorithms/sync9.js')
+
+is_browser = typeof process !== 'object' || typeof global !== 'object'
 
 var tau = Math.PI*2
 
@@ -8,8 +9,11 @@ function main() {
     var rand = Math.create_rand('000_hi_003')
 
     var n_peers = 4
+    var n_steps_per_trial = 100
+    var n_trials = 100
     
     var debug_frames = []
+    var show_debug = !is_browser
 
     var peers = {}
     for (var i = 0; i < n_peers; i++) {
@@ -265,42 +269,53 @@ function main() {
         // })        
     }
     
-    var a = document.createElement('div')
-    a.style.display = 'grid'
-    a.style['grid-template-rows'] = '1fr 20px'
-    a.style.width = '100%'
-    a.style.height = '100%'
-    document.body.append(a)
-    
-    var c = document.createElement('canvas')
-    c.width = 1000 * devicePixelRatio
-    c.height = (window.innerHeight - 20) * devicePixelRatio
-    c.style.width = (c.width / devicePixelRatio) + 'px'
-    c.style.height = (c.height / devicePixelRatio) + 'px'
-    var g = c.getContext('2d')
-    a.append(c)
-    
-    // var top_part = document.createElement('div')
-    // a.append(top_part)
-    
-    var slider = document.createElement('input')
-    slider.style.width = '50%'
-    slider.setAttribute('type', 'range')
-    slider.setAttribute('min', '0')
-    slider.setAttribute('max', debug_frames.length - 1)
-    slider.setAttribute('value', debug_frames.length - 1)
-    slider.oninput = () => {
-        is_on = false
-        draw_frame(1*slider.value, 0)
+    if (is_browser) {
+        var a = document.createElement('div')
+        a.style.display = 'grid'
+        a.style['grid-template-rows'] = '1fr 20px'
+        a.style.width = '100%'
+        a.style.height = '100%'
+        document.body.append(a)
+        
+        var c = document.createElement('canvas')
+        c.width = 1000 * devicePixelRatio
+        c.height = (window.innerHeight - 20) * devicePixelRatio
+        c.style.width = (c.width / devicePixelRatio) + 'px'
+        c.style.height = (c.height / devicePixelRatio) + 'px'
+        var g = c.getContext('2d')
+        a.append(c)
+        
+        // var top_part = document.createElement('div')
+        // a.append(top_part)
+        
+        var slider = document.createElement('input')
+        slider.style.width = '50%'
+        slider.setAttribute('type', 'range')
+        slider.setAttribute('min', '0')
+        slider.setAttribute('max', debug_frames.length - 1)
+        slider.setAttribute('value', debug_frames.length - 1)
+        slider.oninput = () => {
+            is_on = false
+            draw_frame(1*slider.value, 0)
+        }
+        a.append(slider)
     }
-    a.append(slider)
     
     var loop_count = 0
     var loop_inbetween_count = 0
     
     var is_on = true
+    var t = -1
     loop()
     function loop() {
+        t++
+        if (!is_browser && t > n_steps_per_trial) {
+            wrapup_trial()
+            return
+        }
+
+        show_debug && console.log('looping', t)
+
         if (is_on) {
             if (loop_inbetween_count == 0) {
                 try {
@@ -312,22 +327,150 @@ function main() {
                 }
                 loop_count++
             }
-            if (debug_frames.length > 1) {
-                draw_frame(debug_frames.length - 2, loop_inbetween_count / 10)
+            if (is_browser) {
+                if (debug_frames.length > 1)
+                    draw_frame(debug_frames.length - 2, loop_inbetween_count / 10)
+            
+                slider.setAttribute('max', debug_frames.length - 2)
+                slider.value = debug_frames.length - 2
             }
+
             if (debug_frames.length > 300) debug_frames = debug_frames.slice(100)
-            
-            slider.setAttribute('max', debug_frames.length - 2)
-            slider.value = debug_frames.length - 2
-            
             loop_inbetween_count = (loop_inbetween_count + 1) % 1
         }
-        setTimeout(loop, 30)
+        setTimeout(loop, is_browser ? 30 : 0)
     }
     
-    c.addEventListener('mousedown', () => {
-        is_on = !is_on
-    })
+    if (is_browser)
+        c.addEventListener('mousedown', () => {
+            is_on = !is_on
+        })
+
+    function wrapup_trial () {
+        if (show_debug)
+            console.log('Ok!! Now winding things up.')
+
+        // After the trial, connect all the peers together
+        for (var pipe in sim_pipes) {
+            sim_pipes[pipe].connected()
+            notes = ['connecting ' + sim_pipes[pipe]]
+            if (debug_frames) debug_frames.push({
+                t: -1,
+                peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
+            })
+        }
+        
+        var num_actions = 0
+        for (var i = 0; i < 50; i++) {
+
+            // Now let all the remaining incoming messages get processed
+            for (var p in peers) {
+                p = peers[p]
+                while (p.incoming.length > 0) {
+                    num_actions++
+                    if (show_debug) console.log('t => ' + num_actions)
+
+                    notes = []
+
+                    p.incoming.shift()[1]()
+                    
+                    if (debug_frames) debug_frames.push({
+                        tt: num_actions,
+                        peer_notes: {[p.pid]: notes},
+                        peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
+                    })
+                }
+            }
+            
+            // And what does this do?  Check to make sure that everything looks good?
+            if (Object.values(peers).every(x => x.incoming.length == 0)) {
+                num_actions++
+                var too_many_fissures = false
+                Object.values(peers).forEach((x, i) => {
+                    if (x.resources['my_key']
+                        && (Object.keys(x.resources['my_key'].fissures).length > 0))
+                        too_many_fissures = true
+                })
+                
+                var too_many_versions = false
+                Object.values(peers).forEach((peer, i) => {
+                    if (peer.resources['my_key']
+                        && (Object.keys(peer.resources['my_key'].time_dag).length > 1)) {
+                        too_many_versions = true
+                        if (show_debug)
+                            console.log('Multiple versions:',
+                                        Object.keys(peer.resources['my_key'].time_dag),
+                                        peer.resources.my_key.acks_in_process)
+                    }
+                })
+                
+                if (too_many_fissures || too_many_versions) {
+                    var i = Math.floor(rand() * n_peers)
+                    var p = peers_array[i]
+                    
+                    if (show_debug)
+                        console.log('creating joiner')
+
+                    notes = ['creating joiner']
+                    p.create_joiner('my_key')
+                    
+                    if (debug_frames) debug_frames.push({
+                        tt: num_actions,
+                        peer_notes: {[p.pid]: notes},
+                        peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
+                    })
+                } else
+                    break
+            }
+        }
+        
+        Object.values(peers).forEach((x, i) => {
+            if (!x.resources.my_key) {
+                console.log('missing my_key for ' + x.pid)
+                check_good = false
+                throw 'bad'
+            }
+        })
+    
+        var check_val = null
+        check_good = true
+        Object.values(peers).forEach((x, i) => {
+            var val = x.resources.my_key.mergeable.read()
+            if (i == 0)
+                check_val = val
+            else if (!deep_equals(val, check_val))
+                check_good = false
+        })
+
+        var too_many_fissures = false
+        Object.values(peers).forEach((x, i) => {
+            if (Object.keys(x.resources.my_key.fissures).length > 0) {
+                check_good = false
+                too_many_fissures = true
+            }
+        })
+    
+        var too_many_versions = false
+        Object.values(peers).forEach((x, i) => {
+            if (Object.keys(x.resources.my_key.time_dag).length > 2) {
+                check_good = false
+                too_many_versions = true
+            }
+        })
+        
+        console.log('CHECK GOOD: ' + check_good)
+        if (!check_good) {
+            Object.values(peers).forEach((x, i) => {
+                // console.log(x)
+                var val = x.resources.my_key.mergeable.read()
+                console.log('val: ' + JSON.stringify(val))
+            })
+            console.log('too_many_fissures: ' + too_many_fissures)
+            console.log('too_many_versions: ' + too_many_versions)
+            console.log('trial_num: ' + trial_num)
+            if (!show_debug) throw 'stop'
+        }
+    }
 }
 
 function draw_text(c, g, text, x, y, color, x_align, y_align, font) {
@@ -498,7 +641,7 @@ function draw_network(c, g, frames, fi, percent, x, y, w, h, r) {
                 } else if (m[3] == 'fissure') {
                     var fis = m[4].fissure
                     
-                    var rand = create_rand(fis.conn)
+                    var rand = Math.create_rand(fis.conn)
                     var color = '#' + rand().toString(16).slice(2, 8)
                     var rr = 10 * (1 + rand())
                     
@@ -554,7 +697,7 @@ function draw_fissure_dag(c, g, frames, fi, pi, x, y, w, h, r) {
     Object.values(peer.fissures).forEach(f => {
         var ff = fs[f.conn]
         if (!ff) {
-            var rand = create_rand(f.conn)
+            var rand = Math.create_rand(f.conn)
             ff = fs[f.conn] = {
                 id: f.conn,
                 color: '#' + rand().toString(16).slice(2, 8),
@@ -627,7 +770,7 @@ function draw_fissure_dag(c, g, frames, fi, pi, x, y, w, h, r) {
     Object.values(fs).forEach(f => {
         var node_pos = get_node_pos(f)
         
-        var rand = create_rand(f.id)
+        var rand = Math.create_rand(f.id)
         var color = '#' + rand().toString(16).slice(2, 8)
         var rr = r * (1 + rand())
         
@@ -782,7 +925,7 @@ function draw_time_dag(c, g, frames, fi, pi, x, y, w, h, r) {
             if (!resource.time_dag[v]) return
             g.beginPath()
             
-            var rand = create_rand(f.conn)
+            var rand = Math.create_rand(f.conn)
             g.strokeStyle = '#' + rand().toString(16).slice(2, 8)
             
             var node_pos = get_node_pos(vs[v])
