@@ -10,7 +10,7 @@ function main() {
 
     var n_peers = 4
     var n_steps_per_trial = 2000
-    var n_trials = 100
+    var n_trials = 10
 
     var debug_frames = is_browser && []
     var show_debug = !is_browser
@@ -329,7 +329,7 @@ function main() {
         setTimeout(loop, 30)
     }
     
-    function wrapup_trial () {
+    function wrapup_trial (trial_num) {
         if (show_debug)
             console.log('Ok!! Now winding things up.')
 
@@ -456,18 +456,18 @@ function main() {
         }
     }
 
-    function run_trial () {
+    function run_trial (trial_num) {
         for (var t=0; t<n_steps_per_trial; t++) {
             show_debug && console.log('looping', t)
             step(t)
         }
-        wrapup_trial()
+        wrapup_trial(trial_num)
     }
     function run_trials () {
         show_debug = false
         for (var i=0; i<n_trials; i++) {
             console.log('Running trial', i)
-            run_trial()
+            run_trial(i)
         }
     }
 

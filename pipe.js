@@ -51,15 +51,15 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
                 node.bind(args.key, this)
 
                 // If this is the first message, let's try to connect the pipe.
-                if (this.connecting) return
+                if ( this.connecting) return
                 if (!this.connection) {
                     this.connecting = true
 
                     // Run the programmer's connect function
                     connect.apply(this)
 
-                    // Don't run the send code below,
-                    // since we'll send this get when the connection completes
+                    // Don't run the send code below, since we'll send this
+                    // get when the connection completes
                     return
                 }
             } else if (args.method === 'forget') {
@@ -120,7 +120,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect}) 
                 this.subscribed_keys[args.key].they_requested = args.subscribe
 
                 if (this.show_debug)
-                    console.log('pipe.recv: New remote!', this.id, 'Now we have', node.remotes(args.key).length)
+                    console.log('pipe.recv: New remote!', this.id,
+                                'Now we have', node.remotes(args.key).length)
             }
 
             args.origin = this
