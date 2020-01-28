@@ -8,8 +8,8 @@ function main() {
     var rand = Math.create_rand('000_hi_003')
 
     var n_peers = 4
-    var n_steps_per_trial = 1000
-    var n_trials = 10
+    var n_steps_per_trial = 200
+    var n_trials = 900
 
     var peers = {}
 
@@ -243,9 +243,10 @@ function main() {
         }
         
         var num_actions = 0
-        for (var i = 0; i < 50; i++) {
+        var sent_joiner = false
 
-            // Now let all the remaining incoming messages get processed
+        // Now let all the remaining incoming messages get processed
+        do {
             for (var p in peers) {
                 p = peers[p]
                 while (p.incoming.length > 0) {
@@ -254,8 +255,10 @@ function main() {
 
                     notes = []
 
+                    // Process the message.
                     p.incoming.shift()[1]()
-                    
+                    // That might have added messages to another peer's queue.
+
                     vis.add_frame({
                         tt: num_actions,
                         peer_notes: {[p.pid]: notes},
@@ -263,92 +266,68 @@ function main() {
                     })
                 }
             }
-            
-            // And what does this do?  Check to make sure that everything looks good?
-            if (Object.values(peers).every(x => x.incoming.length == 0)) {
-                num_actions++
-                var too_many_fissures = false
-                Object.values(peers).forEach((x, i) => {
-                    if (x.resources['my_key']
-                        && (Object.keys(x.resources['my_key'].fissures).length > 0))
-                        too_many_fissures = true
-                })
-                
-                var too_many_versions = false
-                Object.values(peers).forEach((peer, i) => {
-                    if (peer.resources['my_key']
-                        && (Object.keys(peer.resources['my_key'].time_dag).length > 1)) {
-                        too_many_versions = true
-                        log('Multiple versions:',
-                            Object.keys(peer.resources['my_key'].time_dag),
-                            peer.resources.my_key.acks_in_process)
-                    }
-                })
-                
-                if (too_many_fissures || too_many_versions) {
-                    var i = Math.floor(rand() * n_peers)
-                    var p = peers_array[i]
-                    
-                    log('creating joiner')
 
-                    notes = ['creating joiner']
-                    p.create_joiner('my_key')
-                    
-                    vis.add_frame({
-                        tt: num_actions,
-                        peer_notes: {[p.pid]: notes},
-                        peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
-                    })
-                } else
-                    break
+            var more_messages_exist = peers_array.some(p => p.incoming.length > 0)
+
+            // Once everything's clear, make a joiner
+            if (!more_messages_exist && !sent_joiner) {
+                var i = Math.floor(rand() * n_peers)
+                var p = peers_array[i]
+            
+                log('creating joiner')
+                notes = ['creating joiner']
+
+                // Create it!
+                p.create_joiner('my_key')
+                sent_joiner = true
+            
+                vis.add_frame({
+                    tt: num_actions,
+                    peer_notes: {[p.pid]: notes},
+                    peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
+                })
+
+                // That'll make messages exist again
+                more_messages_exist = true
             }
-        }
-        
-        Object.values(peers).forEach((x, i) => {
+        } while (more_messages_exist)
+            
+        // Make sure the resource exists on each peer
+        peers_array.forEach((x, i) => {
             if (!x.resources.my_key) {
                 console.log('missing my_key for ' + x.pid)
-                check_good = false
+                total_success = false
                 throw 'bad'
             }
         })
     
-        var check_val = null
-        check_good = true
-        Object.values(peers).forEach((x, i) => {
-            var val = x.resources.my_key.mergeable.read()
-            if (i == 0)
-                check_val = val
-            else if (!u.deep_equals(val, check_val))
-                check_good = false
-        })
+        // Do all peers have the same resulting value?
+        var first_peer_val = peers_array[0].resources.my_key.mergeable.read()
+        var same_values = peers_array.every(
+            p => u.deep_equals(p.resources.my_key.mergeable.read(), first_peer_val)
+        )
 
-        var too_many_fissures = false
-        Object.values(peers).forEach((x, i) => {
-            if (Object.keys(x.resources.my_key.fissures).length > 0) {
-                check_good = false
-                too_many_fissures = true
-            }
-        })
-    
-        var too_many_versions = false
-        Object.values(peers).forEach((x, i) => {
-            if (Object.keys(x.resources.my_key.time_dag).length > 2) {
-                check_good = false
-                too_many_versions = true
-            }
-        })
+        // Are all time dags pruned down to a single version?
+        var multiple_versions = peers_array.some(
+            p => Object.keys(p.resources.my_key.time_dag).length > 1
+        )
+
+        // Are all fissures cleaned up?
+        var fissures_exist = peers_array.some(
+            p => Object.keys(p.resources.my_key.fissures).length > 0
+        )
+
+        total_success = same_values && !multiple_versions && !fissures_exist
         
-        if (show_debug || !check_good)
-            console.log('CHECK GOOD: ' + check_good)
-        if (!check_good) {
-            Object.values(peers).forEach((x, i) => {
-                // console.log(x)
-                var val = x.resources.my_key.mergeable.read()
-                console.log('val: ' + JSON.stringify(val))
-            })
-            console.log('too_many_fissures: ' + too_many_fissures)
-            console.log('too_many_versions: ' + too_many_versions)
-            console.log('trial_num: ' + trial_num)
+        if (show_debug || !total_success) {
+            console.log('TOTAL SUCCESS: ' + total_success)
+            peers_array.forEach(
+                p => console.log('val:', p.resources.my_key.mergeable.read())
+            )
+            var results = {same_values, multiple_versions, fissures_exist}
+            for (k in results)
+                console.log(k+':', results[k])
+            console.log('trial_num:', trial_num)
             if (!show_debug) throw 'stop'
         }
     }
