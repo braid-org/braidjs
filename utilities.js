@@ -45,6 +45,12 @@ assert = function () {
     }
 }
 
+show_debug = false
+log = function () {
+    if (show_debug)
+        return console.log.apply(console, arguments)
+}
+
 function deep_equals(a, b) {
     if (typeof(a) != 'object' || typeof(b) != 'object') return a == b
     if (a == null) return b == null
@@ -64,4 +70,3 @@ function deep_equals(a, b) {
 }
 
 
-log = console.log.bind(console)

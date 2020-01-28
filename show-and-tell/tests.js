@@ -12,7 +12,6 @@ function main() {
     var n_steps_per_trial = 1000
     var n_trials = 10
 
-    var show_debug = !is_browser
     var peers = {}
 
     var vis
@@ -233,8 +232,7 @@ function main() {
     // var t
     
     function wrapup_trial (trial_num) {
-        if (show_debug)
-            console.log('Ok!! Now winding things up.')
+        log('Ok!! Now winding things up.')
 
         // After the trial, connect all the peers together
         for (var pipe in sim_pipes) {
@@ -254,7 +252,7 @@ function main() {
                 p = peers[p]
                 while (p.incoming.length > 0) {
                     num_actions++
-                    if (show_debug) console.log('t => ' + num_actions)
+                    log('t => ' + num_actions)
 
                     notes = []
 
@@ -283,10 +281,9 @@ function main() {
                     if (peer.resources['my_key']
                         && (Object.keys(peer.resources['my_key'].time_dag).length > 1)) {
                         too_many_versions = true
-                        if (show_debug)
-                            console.log('Multiple versions:',
-                                        Object.keys(peer.resources['my_key'].time_dag),
-                                        peer.resources.my_key.acks_in_process)
+                        log('Multiple versions:',
+                            Object.keys(peer.resources['my_key'].time_dag),
+                            peer.resources.my_key.acks_in_process)
                     }
                 })
                 
@@ -294,8 +291,7 @@ function main() {
                     var i = Math.floor(rand() * n_peers)
                     var p = peers_array[i]
                     
-                    if (show_debug)
-                        console.log('creating joiner')
+                    log('creating joiner')
 
                     notes = ['creating joiner']
                     p.create_joiner('my_key')
@@ -361,13 +357,12 @@ function main() {
 
     function run_trial (trial_num) {
         for (var t=0; t<n_steps_per_trial; t++) {
-            show_debug && console.log('looping', t)
+            log('looping', t)
             step(t)
         }
         wrapup_trial(trial_num)
     }
     function run_trials () {
-        show_debug = false
         for (var i=0; i<n_trials; i++) {
             console.log('Running trial', i)
             run_trial(i)
