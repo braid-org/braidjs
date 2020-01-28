@@ -1,7 +1,6 @@
 require('../greg/random001.js')
 require('../merge-algorithms/sync9.js')
-
-is_browser = typeof process !== 'object' || typeof global !== 'object'
+require('../utilities.js')
 
 var tau = Math.PI*2
 
@@ -13,8 +12,6 @@ function main() {
     var n_trials = 10
 
     var peers = {}
-
-    var vis
 
     // Create the peers
     for (var i = 0; i < n_peers; i++) {
@@ -36,6 +33,10 @@ function main() {
         node.letters_i = 0
     }
     var peers_array = Object.values(peers)
+
+    var vis = is_browser
+        ? require('./visualization.js')(peers_array, step)
+        : {add_frame() {}}
 
 
     // Create pipes that connect peers
@@ -133,7 +134,7 @@ function main() {
 
         let p = peers_array[0]
         p.set({key: 'my_key', version: 'root', parents: {}, patches: ['=""']})
-        vis && vis.add_frame({
+        vis.add_frame({
             peers: peers_array.map(x => save_node_copy(x))
         })
     }
@@ -200,7 +201,7 @@ function main() {
             }
         }
         
-        vis && vis.add_frame({
+        vis.add_frame({
             frame_num,
             peers: peers_array.map(x => save_node_copy(x))
         })
@@ -226,9 +227,6 @@ function main() {
         }
     }
     
-    if (is_browser)
-        vis = require('./visualization.js')(peers_array, step)
-    
     // var t
     
     function wrapup_trial (trial_num) {
@@ -238,7 +236,7 @@ function main() {
         for (var pipe in sim_pipes) {
             sim_pipes[pipe].connected()
             notes = ['connecting ' + sim_pipes[pipe]]
-            vis && vis.add_frame({
+            vis.add_frame({
                 t: -1,
                 peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
             })
@@ -258,7 +256,7 @@ function main() {
 
                     p.incoming.shift()[1]()
                     
-                    vis && vis.add_frame({
+                    vis.add_frame({
                         tt: num_actions,
                         peer_notes: {[p.pid]: notes},
                         peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
@@ -296,7 +294,7 @@ function main() {
                     notes = ['creating joiner']
                     p.create_joiner('my_key')
                     
-                    vis && vis.add_frame({
+                    vis.add_frame({
                         tt: num_actions,
                         peer_notes: {[p.pid]: notes},
                         peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))

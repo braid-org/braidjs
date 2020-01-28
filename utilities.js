@@ -3,6 +3,8 @@
 //   Utilities
 //
 
+is_browser = typeof process !== 'object' || typeof global !== 'object'
+
 // dict() is an alternative to {}.  It creates a clean hash table without any
 // pre-existing keys, like .constructor or .prototype that are built into
 // Javascript Objects.
