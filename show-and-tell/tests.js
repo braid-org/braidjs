@@ -93,7 +93,8 @@ var faux_p2p_network = {
                 create_sim_pipe(peer2, peer1)
             }
     },
-    wrapup (num_actions) {
+    wrapup () {
+        var num_actions = 0
         var sent_joiner = false
 
         // Connect all the pipes together
@@ -313,12 +314,23 @@ function main() {
         ? require('./visualization.js')(peers_array, step)
         : vis = {add_frame() {}}
     
-    function wrapup_trial (trial_num) {
+    function run_trials () {
+        for (var i=0; i<n_trials; i++) {
+            console.log('Running trial', i)
+            run_trial(i)
+        }
+    }
+    function run_trial (trial_num) {
+        for (var t=0; t<n_steps_per_trial; t++) {
+            log('looping', t)
+            step(t)
+        }
+        network.wrapup()
+        evaluate_trial(trial_num)
+    }
+    function evaluate_trial (trial_num) {
         log('Ok!! Now winding things up.')
-        var num_actions = 0
 
-        num_actions = network.wrapup(num_actions)
-            
         // Make sure the resource exists on each peer
         peers_array.forEach((x, i) => {
             if (!x.resources.my_key) {
@@ -356,20 +368,6 @@ function main() {
                 console.log(k+':', results[k])
             console.log('trial_num:', trial_num)
             if (!show_debug) throw 'stop'
-        }
-    }
-
-    function run_trial (trial_num) {
-        for (var t=0; t<n_steps_per_trial; t++) {
-            log('looping', t)
-            step(t)
-        }
-        wrapup_trial(trial_num)
-    }
-    function run_trials () {
-        for (var i=0; i<n_trials; i++) {
-            console.log('Running trial', i)
-            run_trial(i)
         }
     }
 
