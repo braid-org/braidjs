@@ -4,89 +4,187 @@ require('../utilities.js')
 
 var tau = Math.PI*2
 
-function main() {
-    var rand = Math.create_rand('000_hi_003')
+var rand = Math.create_rand('000_hi_003')
 
-    var n_peers = 4
-    var n_steps_per_trial = 200
-    var n_trials = 900
+var n_peers = 4
+var n_steps_per_trial = 1000
+var n_trials = 10
 
-    var peers = {}
+var peers = {}
+var peers_array
 
-    // Create the peers
-    for (var i = 0; i < n_peers; i++) {
-        // Make a peer node
-        var node = require('../node.js')()
+var vis
 
-        node.pid = 'P' + (i + 1)   // Give it an ID
-        node.incoming = []         // Give it an incoming message queue
-        peers[node.pid] = node     // Add it to the list of peers
+function make_alphabet (node, letters) {
+    node.letters = letters
+    for (var ii = 0; ii < 100; ii++)
+        node.letters += String.fromCharCode(12032 + 1000*i + ii)
+    node.letters_i = 0
+}
 
-        // Give it an alphabet
-        if (i == 0)
-            node.letters = 'abcdefghijklmnopqrstuvwxyz'
-        else if (i == 1)
-            node.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        else node.letters = ''
-        for (var ii = 0; ii < 100; ii++)
-            node.letters += String.fromCharCode(12032 + 1000*i + ii)
-        node.letters_i = 0
-    }
-    var peers_array = Object.values(peers)
+var faux_p2p_network = {
+    setup () {
+        for (var i = 0; i < n_peers; i++) {
+            // Make a peer node
+            var node = require('../node.js')()
 
-    var vis = is_browser
-        ? require('./visualization.js')(peers_array, step)
-        : {add_frame() {}}
+            node.pid = 'P' + (i + 1)   // Give it an ID
+            node.incoming = []         // Give it an incoming message queue
+            peers[node.pid] = node     // Add it to the list of peers
 
-
-    // Create pipes that connect peers
-    var sim_pipes = {}
-    function create_sim_pipe (from, to) {
-        var pipe = sim_pipes[from.pid + '-' + to.pid] = require('../pipe.js')({
-            node: from,
-            id: from.pid + '-' + to.pid,
-
-            // The send function
-            send (args) {
-                if (!this.connection) {
-                    console.log('sim-pipe.send: starting connection cause it was null')
-                    this.connected()
-                }
-                // console.log('>> ', this.id, args)
-                assert(from.pid !== to.pid)
-
-                args = JSON.parse(JSON.stringify(args))
-                to.incoming.push([from.pid, () => {
-                    sim_pipes[to.pid + '-' + from.pid].recv(JSON.parse(JSON.stringify(args)))
-                }, 'msg_id:' + rand().toString(36).slice(2), args.method, JSON.parse(JSON.stringify(args))])
-            },
-
-            // The connect function
-            connect () { this.connected() }
-        })
-
-        from.bind('my_key', pipe)
-        // from.bind('*', {id: u.random_id(),
-        //                 send (args) {
-        //                     if (args.method === 'get')
-        //                         from.bind(args.key, pipe)
-        //                     if (args.method === 'forget')
-        //                         from.unbin(args.key, pipe)
-        //                     console.log(from.pid, 'Wrapper pipe firing! Now bindings are',
-        //                                 from.bindings(args.key).length)
-        //                 }})
-    }
-
-    // Create pipes for all the peers
-    for (var p1 = 0; p1 < n_peers; p1++)
-        for (var p2 = p1 + 1; p2 < n_peers; p2++) {
-            let peer1 = peers_array[p1],
-                peer2 = peers_array[p2]
-            // Pipe for A -> B
-            create_sim_pipe(peer1, peer2)
-            // Pipe for B -> A
-            create_sim_pipe(peer2, peer1)
+            // Give it an alphabet
+            if (i == 0)
+                node.letters = 'abcdefghijklmnopqrstuvwxyz'
+            else if (i == 1)
+                node.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            else node.letters = ''
+            for (var ii = 0; ii < 100; ii++)
+                node.letters += String.fromCharCode(12032 + 1000*i + ii)
+            node.letters_i = 0
         }
+        peers_array = Object.values(peers)
+
+        vis = is_browser
+            ? require('./visualization.js')(peers_array, step)
+            : {add_frame() {}}
+
+        // Create pipes that connect peers
+        this.sim_pipes = {}
+        var create_sim_pipe = (from, to) => {
+            var sim_pipes = this.sim_pipes
+            var pipe = sim_pipes[from.pid + '-' + to.pid] = require('../pipe.js')({
+                node: from,
+                id: from.pid + '-' + to.pid,
+
+                // The send function
+                send (args) {
+                    if (!this.connection) {
+                        console.log('sim-pipe.send: starting connection cause it was null')
+                        this.connected()
+                    }
+                    // console.log('>> ', this.id, args)
+                    assert(from.pid !== to.pid)
+
+                    args = JSON.parse(JSON.stringify(args))
+                    to.incoming.push([from.pid,
+                                      () => {
+                                          sim_pipes[to.pid + '-' + from.pid].recv(
+                                              JSON.parse(JSON.stringify(args)))
+                                      },
+                                      'msg_id:' + rand().toString(36).slice(2),
+                                      args.method, JSON.parse(JSON.stringify(args))])
+                },
+
+                // The connect function
+                connect () { this.connected() }
+            })
+
+            from.bind('my_key', pipe)
+        }
+
+        // Create pipes for all the peers
+        for (var p1 = 0; p1 < n_peers; p1++)
+            for (var p2 = p1 + 1; p2 < n_peers; p2++) {
+                let peer1 = peers_array[p1],
+                    peer2 = peers_array[p2]
+                // Pipe for A -> B
+                create_sim_pipe(peer1, peer2)
+                // Pipe for B -> A
+                create_sim_pipe(peer2, peer1)
+            }
+    },
+    wrapup (num_actions) {
+        var sent_joiner = false
+
+        // Connect all the pipes together
+        for (var pipe in this.sim_pipes) {
+            this.sim_pipes[pipe].connected()
+            notes = ['connecting ' + this.sim_pipes[pipe]]
+            vis.add_frame({
+                t: -1,
+                peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
+            })
+        }
+
+        // Now let all the remaining incoming messages get processed
+        do {
+            for (var p in peers) {
+                p = peers[p]
+                while (p.incoming.length > 0) {
+                    num_actions++
+                    log('t => ' + num_actions)
+
+                    notes = []
+
+                    // Process the message.
+                    p.incoming.shift()[1]()
+                    // That might have added messages to another peer's queue.
+
+                    vis.add_frame({
+                        tt: num_actions,
+                        peer_notes: {[p.pid]: notes},
+                        peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
+                    })
+                }
+            }
+
+            var more_messages_exist = peers_array.some(p => p.incoming.length > 0)
+
+            // Once everything's clear, make a joiner
+            if (!more_messages_exist && !sent_joiner) {
+                var i = Math.floor(rand() * n_peers)
+                var p = peers_array[i]
+                
+                log('creating joiner')
+                notes = ['creating joiner']
+
+                // Create it!
+                p.create_joiner('my_key')
+                sent_joiner = true
+                
+                vis.add_frame({
+                    tt: num_actions,
+                    peer_notes: {[p.pid]: notes},
+                    peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
+                })
+
+                // That'll make messages exist again
+                more_messages_exist = true
+            }
+        } while (more_messages_exist)
+
+        return num_actions
+    },
+    toggle_pipe () {
+        var sim_pipe_keys = Object.keys(this.sim_pipes),
+            random_index = Math.floor(rand() * sim_pipe_keys.length),
+            random_pipe = this.sim_pipes[sim_pipe_keys[random_index]],
+            [pid, other_pid] = sim_pipe_keys[random_index].split('-'),
+            other_pipe = this.sim_pipes[other_pid + '-' + pid],
+            other_peer = peers[other_pid]
+
+        // Toggle the pipe!
+        assert(!!random_pipe.connection === !!other_pipe.connection,
+               random_pipe.connection, other_pipe.connection)
+        if (random_pipe.connection) {
+            random_pipe.disconnected()
+            other_pipe.disconnected()
+
+            peers[pid].incoming = peers[pid].incoming.filter(x => x[0] !== other_pid)
+            other_peer.incoming = other_peer.incoming.filter(x => x[0] !== pid)
+        } else {
+            random_pipe.connected()
+            other_pipe.connected()
+        }
+    }
+}
+
+
+var network = faux_p2p_network
+function main() {
+    peers_array = Object.values(peers)
+
+    network.setup()
 
     // Start sending get() messages over the pipes!
     peers_array.forEach(node => node.get({key: 'my_key',
@@ -141,14 +239,14 @@ function main() {
     
     var num_edits = 0
     function step(frame_num) {
-        var i = Math.floor(rand() * n_peers)
-        var peer = peers_array[i]
-
         // Randomly choose whether to do an action vs. process the network
         if (rand() < 0.1) {
             // Do an action
             if (rand() < 0.9) {
                 // Edit text
+
+                var i = Math.floor(rand() * n_peers)
+                var peer = peers_array[i]
 
                 // ..but only if we have at least one version already, which
                 // is really to make sure we've received "root" already (but
@@ -167,29 +265,13 @@ function main() {
                 }
             } else {
                 // Disconnect or reconnect
-                var sim_pipe_keys = Object.keys(sim_pipes),
-                    random_index = Math.floor(rand() * sim_pipe_keys.length),
-                    random_pipe = sim_pipes[sim_pipe_keys[random_index]],
-                    [pid, other_pid] = sim_pipe_keys[random_index].split('-'),
-                    other_pipe = sim_pipes[other_pid + '-' + pid],
-                    other_peer = peers[other_pid]
-
-                // Toggle the pipe!
-                assert(!!random_pipe.connection === !!other_pipe.connection,
-                       random_pipe.connection, other_pipe.connection)
-                if (random_pipe.connection) {
-                    random_pipe.disconnected()
-                    other_pipe.disconnected()
-
-                    peers[pid].incoming = peers[pid].incoming.filter(x => x[0] !== other_pid)
-                    other_peer.incoming = other_peer.incoming.filter(x => x[0] !== pid)
-                } else {
-                    random_pipe.connected()
-                    other_pipe.connected()
-                }
+                network.toggle_pipe()
             }
         } else {
             // Receive incoming network message
+
+            var i = Math.floor(rand() * n_peers)
+            var peer = peers_array[i]
 
             if (peer.incoming.length > 0) {
                 var possible_peers = {}
@@ -227,70 +309,15 @@ function main() {
         }
     }
     
-    // var t
+    vis = is_browser
+        ? require('./visualization.js')(peers_array, step)
+        : vis = {add_frame() {}}
     
     function wrapup_trial (trial_num) {
         log('Ok!! Now winding things up.')
-
-        // After the trial, connect all the peers together
-        for (var pipe in sim_pipes) {
-            sim_pipes[pipe].connected()
-            notes = ['connecting ' + sim_pipes[pipe]]
-            vis.add_frame({
-                t: -1,
-                peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
-            })
-        }
-        
         var num_actions = 0
-        var sent_joiner = false
 
-        // Now let all the remaining incoming messages get processed
-        do {
-            for (var p in peers) {
-                p = peers[p]
-                while (p.incoming.length > 0) {
-                    num_actions++
-                    log('t => ' + num_actions)
-
-                    notes = []
-
-                    // Process the message.
-                    p.incoming.shift()[1]()
-                    // That might have added messages to another peer's queue.
-
-                    vis.add_frame({
-                        tt: num_actions,
-                        peer_notes: {[p.pid]: notes},
-                        peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
-                    })
-                }
-            }
-
-            var more_messages_exist = peers_array.some(p => p.incoming.length > 0)
-
-            // Once everything's clear, make a joiner
-            if (!more_messages_exist && !sent_joiner) {
-                var i = Math.floor(rand() * n_peers)
-                var p = peers_array[i]
-            
-                log('creating joiner')
-                notes = ['creating joiner']
-
-                // Create it!
-                p.create_joiner('my_key')
-                sent_joiner = true
-            
-                vis.add_frame({
-                    tt: num_actions,
-                    peer_notes: {[p.pid]: notes},
-                    peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
-                })
-
-                // That'll make messages exist again
-                more_messages_exist = true
-            }
-        } while (more_messages_exist)
+        num_actions = network.wrapup(num_actions)
             
         // Make sure the resource exists on each peer
         peers_array.forEach((x, i) => {
