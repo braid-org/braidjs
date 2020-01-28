@@ -1,6 +1,6 @@
-require('../greg/random001.js')
-require('../merge-algorithms/sync9.js')
-require('../utilities.js')
+require('./greg/random001.js')
+require('./merge-algorithms/sync9.js')
+require('./utilities.js')
 
 var tau = Math.PI*2
 
