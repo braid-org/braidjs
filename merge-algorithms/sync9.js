@@ -606,7 +606,7 @@ function traverse_space_dag(S, f, cb, view_deleted, tail_cb) {
 
 function parse_change(change) {
     var ret = { keys : [] }
-    var re = /\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|'(\\'|[^'])*'|"(\\"|[^"])*")\]|\s*=\s*(.*)/g
+    var re = /\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|'(\\'|[^'])*'|"(\\"|[^"])*")\]|\s*=\s*([\s\S]*)/g
     var m
     while (m = re.exec(change)) {
         if (m[1])
