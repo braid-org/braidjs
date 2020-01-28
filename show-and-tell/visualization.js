@@ -1,4 +1,7 @@
-module.exports = require.visualization = function create_vis(debug_frames, peers_array, step) {
+module.exports = require.visualization = function create_vis(peers_array, step) {
+    var debug_frames = []
+    var add_frame = (f) => debug_frames && debug_frames.push(f)
+
     var a = document.createElement('div')
     a.style.display = 'grid'
     a.style['grid-template-rows'] = '1fr 20px'
@@ -650,5 +653,5 @@ module.exports = require.visualization = function create_vis(debug_frames, peers
     var add   = (a, b) => a.map((a, i) => a + b[i])
     var sub   = (a, b) => a.map((a, i) => a - b[i])
 
-    return {loop}
+    return {loop, add_frame}
 }

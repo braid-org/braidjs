@@ -12,7 +12,6 @@ function main() {
     var n_steps_per_trial = 1000
     var n_trials = 10
 
-    var debug_frames = is_browser && []
     var show_debug = !is_browser
     var peers = {}
 
@@ -135,7 +134,7 @@ function main() {
 
         let p = peers_array[0]
         p.set({key: 'my_key', version: 'root', parents: {}, patches: ['=""']})
-        debug_frames && debug_frames.push({
+        vis && vis.add_frame({
             peers: peers_array.map(x => save_node_copy(x))
         })
     }
@@ -202,7 +201,7 @@ function main() {
             }
         }
         
-        debug_frames && debug_frames.push({
+        vis && vis.add_frame({
             frame_num,
             peers: peers_array.map(x => save_node_copy(x))
         })
@@ -229,7 +228,7 @@ function main() {
     }
     
     if (is_browser)
-        vis = require('./visualization.js')(debug_frames, peers_array, step)
+        vis = require('./visualization.js')(peers_array, step)
     
     // var t
     
@@ -241,7 +240,7 @@ function main() {
         for (var pipe in sim_pipes) {
             sim_pipes[pipe].connected()
             notes = ['connecting ' + sim_pipes[pipe]]
-            debug_frames && debug_frames.push({
+            vis && vis.add_frame({
                 t: -1,
                 peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
             })
@@ -261,7 +260,7 @@ function main() {
 
                     p.incoming.shift()[1]()
                     
-                    if (debug_frames) debug_frames.push({
+                    vis && vis.add_frame({
                         tt: num_actions,
                         peer_notes: {[p.pid]: notes},
                         peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
@@ -301,7 +300,7 @@ function main() {
                     notes = ['creating joiner']
                     p.create_joiner('my_key')
                     
-                    if (debug_frames) debug_frames.push({
+                    vis && vis.add_frame({
                         tt: num_actions,
                         peer_notes: {[p.pid]: notes},
                         peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
