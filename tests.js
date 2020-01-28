@@ -1,11 +1,10 @@
-require('./greg/random001.js')
+//require('./greg/random001.js')
 require('./merge-algorithms/sync9.js')
 require('./utilities.js')
 
 var tau = Math.PI*2
 
-var rand = Math.create_rand('000_hi_003')
-
+var rand = Math.create_rand('000_hi_001')
 
 var n_peers = 4
 var n_steps_per_trial = 100
