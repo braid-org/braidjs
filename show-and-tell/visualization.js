@@ -1,6 +1,7 @@
-module.exports = require.visualization = function create_vis(peers_array, step) {
+module.exports = require.visualization = function create_vis(sim) {
     var debug_frames = []
     var add_frame = (f) => debug_frames && debug_frames.push(f)
+    var vis = {loop, add_frame}
 
     var a = document.createElement('div')
     a.style.display = 'grid'
@@ -72,7 +73,7 @@ module.exports = require.visualization = function create_vis(peers_array, step) 
         g.clearRect(0, 0, c.width, c.height)
         
         draw_network(c, g, debug_frames, di, percent, 0, 0, 800, 800, 300)
-        peers_array.forEach((p, i) => {
+        sim.peers.forEach((p, i) => {
             p = d.peers[i]
             var x = 800
             var y = 20 + 450*i
@@ -95,12 +96,11 @@ module.exports = require.visualization = function create_vis(peers_array, step) 
         })
         
         draw_text(c, g, 'f# = ' + d.frame_num + ' + ' + percent, 0, 0, 'grey', 'left', 'top')
-        
-        
+
         // top_part.innerHTML = ''
         // top_part.style.display = 'grid'
         // top_part.style['grid-template-columns'] = '1fr 1fr 1fr'
-        // peers_array.forEach((p, i) => {
+        // sim.peers.forEach((p, i) => {
         //     p = d.peers[i]
         //     var dd = document.createElement('textarea')
         //     dd.value = '= ' + (p.keys.my_key ? JSON.stringify(sync9_read(p.keys.my_key.s9)) : 'n/a') + '\n\n' + JSON.stringify(p, null, '    ')
@@ -653,5 +653,5 @@ module.exports = require.visualization = function create_vis(peers_array, step) 
     var add   = (a, b) => a.map((a, i) => a + b[i])
     var sub   = (a, b) => a.map((a, i) => a - b[i])
 
-    return {loop, add_frame}
+    return vis
 }
