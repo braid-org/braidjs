@@ -31,5 +31,37 @@ module.exports = require.utilities = {
             has (k, k2)    { return data[k] && data[k][k2] },
             count (k)      { return counts[k] || 0}
         }
+    },
+    deep_equals,
+}
+
+assert = function () {
+    if (!arguments[0]) {
+        console.trace.apply(console, ['-Assert-', ...[...arguments].slice(1)])
+        if (this.process)
+            process.exit()
+        else
+            throw 'Bad'
     }
 }
+
+function deep_equals(a, b) {
+    if (typeof(a) != 'object' || typeof(b) != 'object') return a == b
+    if (a == null) return b == null
+    if (Array.isArray(a)) {
+        if (!Array.isArray(b)) return false
+        if (a.length != b.length) return false
+        for (var i = 0; i < a.length; i++)
+            if (!deep_equals(a[i], b[i])) return false
+        return true
+    }
+    var ak = Object.keys(a).sort()
+    var bk = Object.keys(b).sort()
+    if (ak.length != bk.length) return false
+    for (var k of ak)
+        if (!deep_equals(a[k], b[k])) return false
+    return true
+}
+
+
+log = console.log.bind(console)
