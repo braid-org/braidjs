@@ -140,12 +140,10 @@ module.exports = require.node = function create_node() {
 
         // If this is the first subscription, fire the .on_get handlers
         if (gets_in.count(key) === 1) {
-            log('node.get:', node.pid, 'firing .on_get for', node.bindings(key), 'pipes!')
+            log('node.get:', node.pid, 'firing .on_get for',
+                node.bindings(key), 'pipes!')
             // This one is getting called afterward
             node.bindings(key).forEach(pipe => {
-
-                log('pipe: ', pipe)
-
                 pipe.send({method:'get', key, version, parents, subscribe, origin})
             })
         }

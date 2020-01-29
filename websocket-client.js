@@ -1,18 +1,19 @@
 // Example braid-peer as a web browser client
 
-module.exports = require['websocket-client'] = function add_websocket_client(node, url) {
-    url = url || 'ws://localhost:3007/'
+module.exports = require['websocket-client'] = function add_websocket_client({node, url, prefix}) {
+    url = url       || 'ws://localhost:3007/'
+    prefix = prefix || '/*'
 
-    var prefix = '/*',
-        client_creds = null
+    console.log('ws-client: Making a client on', node.pid)
 
+    var client_creds = null
     var enabled = true
-
     var sock
+
     var connect = () => {
         sock           = new WebSocket(url + '.braid-websocket')
         sock.onopen    = ()  => pipe.connected()
-        sock.onmessage = msg => {console.log('got msg', msg.data);
+        sock.onmessage = msg => {console.log('ws-client: got msg', msg.data);
                                  pipe.recv(JSON.parse(msg.data))}
         sock.onclose   = ()  => {
             pipe.disconnected()
@@ -20,11 +21,12 @@ module.exports = require['websocket-client'] = function add_websocket_client(nod
         }
     }
     var pipe = require('./pipe.js')({
+        id: node.pid,
         node,
         connect,
-        send: (msg) => {console.log('Sending', msg); sock.send(JSON.stringify(msg))}
+        send: (msg) => {console.log('ws-client: Sending', msg); sock.send(JSON.stringify(msg))}
     })
-    node.bind('/*', pipe)
+    node.bind(prefix, pipe)
 
     return {
         disable() {enabled = false; sock.terminate()},

@@ -1,4 +1,5 @@
 module.exports = require.visualization = function create_vis(sim) {
+    var tau = Math.PI*2
     var debug_frames = []
     var add_frame = (f) => debug_frames && debug_frames.push(f)
     var vis = {loop, add_frame}

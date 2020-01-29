@@ -65,19 +65,23 @@ bHieUzx8qriZ8KrD3PbjKqap
 
             // Make the clients
             var clients = []
-            for (var i=0; i < sim.n_peers - 1; i++) {
+            for (var i = 0; i < sim.n_peers - 1; i++) {
                 var client = require('./node.js')()
-                client.pid = 'C' + i + 1
+                client.pid = 'C' + (i+1)
                 sim.add_peer(client)
+                clients.push(client)
             }
 
             // Create pipes that connect peers to the hub
             this.client_pipes = {}
             for (var i = 0; i < clients.length; i++)
                 this.client_pipes[clients[i].pid] = require('./websocket-client.js')({
-                    client,
-                    url: 'ws://localhost:3007/'
+                    node: clients[i],
+                    url: 'ws://localhost:3007/',
+                    prefix: 'my_key'
                 })
+
+            show_debug = true
         },
         wrapup (cb) {
             console.log('Wrapping up!')
@@ -110,26 +114,7 @@ bHieUzx8qriZ8KrD3PbjKqap
             }
         },
         toggle_pipe () {
-            var sim_pipe_keys = Object.keys(this.sim_pipes),
-                random_index = Math.floor(rand() * sim_pipe_keys.length),
-                random_pipe = this.sim_pipes[sim_pipe_keys[random_index]],
-                [pid, other_pid] = sim_pipe_keys[random_index].split('-'),
-                other_pipe = this.sim_pipes[other_pid + '-' + pid],
-                other_peer = peers[other_pid]
-
-            // Toggle the pipe!
-            assert(!!random_pipe.connection === !!other_pipe.connection,
-                   random_pipe.connection, other_pipe.connection)
-            if (random_pipe.connection) {
-                random_pipe.disconnected()
-                other_pipe.disconnected()
-
-                peers[pid].incoming = peers[pid].incoming.filter(x => x[0] !== other_pid)
-                other_peer.incoming = other_peer.incoming.filter(x => x[0] !== pid)
-            } else {
-                random_pipe.connected()
-                other_pipe.connected()
-            }
+            console.log('XXX Fake toggling pipe XXX')
         }
     }
 )

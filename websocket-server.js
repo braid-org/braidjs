@@ -11,13 +11,12 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
     // })
 
     s.on('connection', function(conn) {
-        console.log('connected')
-        function connect () { console.log('connecting!'); /*pipe.connected()*/ }
-        function send (msg) { console.log('sending',msg); conn.send(JSON.stringify(msg)) }
+        function connect () { log('ws-serve: connecting!'); /*pipe.connected()*/ }
+        function send (msg) { log('ws-serve: sending', msg.substr(0,200)); conn.send(JSON.stringify(msg)) }
 
         var pipe = require('./pipe.js')({node, connect, send})
-        conn.on('message', (msg) => {console.log('got data', msg); pipe.recv(JSON.parse(msg)) })
-        conn.on('close', ()       => {console.log('closed'); pipe.disconnected() })
+        conn.on('message', (msg) => {log('ws-serve: got data', pipe.them, msg); pipe.recv(JSON.parse(msg)) })
+        conn.on('close', ()       => {log('ws-serve: closed'); pipe.disconnected() })
         pipe.connected()
     })
     // s.installHandlers(httpserver, {prefix:'/.braid-websocket'})

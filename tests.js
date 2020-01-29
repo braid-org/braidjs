@@ -1,13 +1,10 @@
 require('./merge-algorithms/sync9.js')
 require('./utilities.js')
 
-var tau = Math.PI*2
-
-var rand = Math.create_rand('000_hi_001')
-
 var n_peers = 4
 var n_steps_per_trial = 100
 var n_trials = 10
+var rand = Math.create_rand('000_hi_001')
 
 var sim = {
     n_peers,
@@ -36,10 +33,11 @@ function make_alphabet (node, peer_number) {
     var alphabets = [
         'abcdefghijklmnopqrstuvwxyz',
         'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-        '⬅︎⬇︎⬆︎'
+        '⬅︎⬇︎⬆︎',
+        ''
     ]
     node.letters = alphabets[peer_number] || ''
-    for (var i = 0; i < 100; i++)
+    for (var i = 0; i < 26; i++)
         node.letters += String.fromCharCode(12032 + 1000*peer_number + i)
     node.letters_i = 0
 }
@@ -264,7 +262,7 @@ run_trial.async = (trial_num, cb) => {
         else {
             log('  step', t)
             step(t)
-            setTimeout(run_step, 0)
+            setTimeout(run_step, 300)
         }
     }
     run_step()
@@ -276,12 +274,15 @@ if (is_browser) {
     vis.loop()
 } else {
     var network = require(
-        //'./virtual-network.js'
-        './websocket-test.js'
+        './virtual-network.js'
+        //'./websocket-test.js'
     )(sim)
 
     if (network.sync)
         run_trials()
     else
-        run_trials.async(() => console.log('Done with all trials!'))
+        run_trials.async(() => {
+            console.log('Done with all trials!')
+            process.exit()
+        })
 }
