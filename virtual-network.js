@@ -10,19 +10,9 @@ module.exports = require['virtual-network'] = (sim) => (
 
                 node.pid = 'P' + (i + 1)   // Give it an ID
                 node.incoming = []         // Give it an incoming message queue
-                sim.peers.push(node)       // Add it to the list of peers
-
-                // Give it an alphabet
-                if (i == 0)
-                    node.letters = 'abcdefghijklmnopqrstuvwxyz'
-                else if (i == 1)
-                    node.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-                else node.letters = ''
-                for (var ii = 0; ii < 100; ii++)
-                    node.letters += String.fromCharCode(12032 + 1000*i + ii)
-                node.letters_i = 0
+                sim.add_peer(node, i)      // Give it an alphabet
             }
-            sim.peers.forEach(p => sim.peers_dict[p.pid] = p)
+            // sim.peers.forEach(p => sim.peers_dict[p.pid] = p)
 
             // Create pipes that connect peers
             this.pipes = {}

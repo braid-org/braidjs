@@ -16,7 +16,7 @@ var sim = {
 
     rand,
     step,
-    //make_alphabet,
+    add_peer,
 
     peers_dict: {},
     peers: []
@@ -27,10 +27,20 @@ sim.vis = is_browser
 
 var vis = sim.vis
 
-function make_alphabet (node, letters) {
-    node.letters = letters
-    for (var ii = 0; ii < 100; ii++)
-        node.letters += String.fromCharCode(12032 + 1000*i + ii)
+function add_peer (node, peer_number) {
+    sim.peers.push(node)
+    make_alphabet(node, peer_number)
+    sim.peers_dict[node.pid] = node
+}
+function make_alphabet (node, peer_number) {
+    var alphabets = [
+        'abcdefghijklmnopqrstuvwxyz',
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        '⬅︎⬇︎⬆︎'
+    ]
+    node.letters = alphabets[peer_number] || ''
+    for (var i = 0; i < 100; i++)
+        node.letters += String.fromCharCode(12032 + 1000*peer_number + i)
     node.letters_i = 0
 }
 

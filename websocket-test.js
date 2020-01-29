@@ -58,8 +58,9 @@ bHieUzx8qriZ8KrD3PbjKqap
             // Make the hub
             var hub = require('../node.js')()
             hub.pid = 'hub'
-            peers['hub'] = hub
-            make_alphabet(hub, '--------------------------')
+            sim.peers.push(hub)
+            sim.make_alphabet(hub, '--------------------------')
+            sim.peers.forEach(p => sim.peers_dict[p.pid] = p)
             require('../websocket-server.js')(hub,
                                               this.certificate,
                                               this.private_key)
@@ -73,12 +74,7 @@ bHieUzx8qriZ8KrD3PbjKqap
                 peers[client.pid] = client
 
                 // Give it an alphabet
-                if (i == 0)
-                    make_alphabet(node, 'abcdefghijklmnopqrstuvwxyz')
-                else if (i == 1)
-                    make_alphabet(node, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')
-                else
-                    make_alphabet(node, '')
+                sim.make_alphabet(node, i)
             }
 
             // Create pipes that connect peers to the hub
