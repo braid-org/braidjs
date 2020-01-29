@@ -118,12 +118,19 @@ module.exports = require.node = function create_node() {
     }
 
     node.get = ({key, version, parents, subscribe, origin}) => {
-        if (node.show_debug)
-            console.log('get:', node.pid, key)
+        log('get:', node.pid, key)
         assert(key)
         var resource = node.resource_at(key)
 
-        // console.log('get:', key, version, parents, origin)
+        // Set defaults
+        if (!version)
+            // We might default keep_alive to false in a future version
+            subscribe = subscribe || {keep_alive: true}
+        // if (cb && !origin)
+        //     // Note: Let's revise the whole "cb" API upon alpha release
+        //     origin = {send: (args) => {
+        //         if (args.method in {set:1,welcome:1}) cb(resource.mergeable.read())
+        //     }}
         assert(origin, 'Mike: remember to invent a default origin pipe, please')
 
         // Now record this subscription to the bus
@@ -133,13 +140,11 @@ module.exports = require.node = function create_node() {
 
         // If this is the first subscription, fire the .on_get handlers
         if (gets_in.count(key) === 1) {
-            if (node.show_debug)
-                console.log('node.get:', node.pid, 'firing .on_get for', node.bindings(key), 'pipes!')
+            log('node.get:', node.pid, 'firing .on_get for', node.bindings(key), 'pipes!')
             // This one is getting called afterward
             node.bindings(key).forEach(pipe => {
 
-                if (node.show_debug)
-                    console.log('pipe: ', pipe)
+                log('pipe: ', pipe)
 
                 pipe.send({method:'get', key, version, parents, subscribe, origin})
             })
@@ -184,6 +189,9 @@ module.exports = require.node = function create_node() {
     node.set = ({key, patches, version, parents, origin, joiner_num}) => {
         assert(key && patches)
         var resource = node.resource_at(key)
+
+        for (p in parents)
+            assert(resource.time_dag[p], 'Parent ' + p + ' is not a version!')
 
         // G: cool, someone is giving us a new version to add to our datastructure.
         // it might seem like we would just go ahead and add it, but instead
@@ -236,11 +244,10 @@ module.exports = require.node = function create_node() {
                 count: node.joined_peers(key).length - (origin ? 1 : 0)
             }
 
-            if (node.show_debug)
-                console.log('node.set:', node.pid, 'Initializing ACKs for', version, 'to',
-                        `${node.joined_peers(key).length}-${(origin ? 1 : 0)}=${resource.acks_in_process[version].count}`)
+            // log('node.set:', node.pid, 'Initializing ACKs for', version, 'to',
+            //     `${node.joined_peers(key).length}-${(origin ? 1 : 0)}=${resource.acks_in_process[version].count}`)
 
-            // console.log('node.set: we will want',
+            // log('node.set: we will want',
             //             node.citizens(key).length - (origin ? 1 : 0),
             //             'acks, because we have citizens', node.citizens(key))
 
@@ -616,17 +623,15 @@ module.exports = require.node = function create_node() {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
-        if (node.show_debug)
-            console.log('node.ack: Acking!!!!', key, seen, version)
+        log('node.ack: Acking!!!!', key, seen, version)
         assert(key && version && origin)
         var resource = node.resource_at(key)
 
         if (seen == 'local') {
             if (resource.acks_in_process[version]
                 && (joiner_num == resource.joiners[version])) {
-                if (node.show_debug)
-                    console.log('node.ack: Got a local ack! Decrement count to',
-                            resource.acks_in_process[version].count - 1)
+                log('node.ack: Got a local ack! Decrement count to',
+                    resource.acks_in_process[version].count - 1)
                 resource.acks_in_process[version].count--
                 check_ack_count(key, resource, version)
             }
