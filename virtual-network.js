@@ -114,6 +114,22 @@ module.exports = require['virtual-network'] = (sim) => (
             } while (more_messages_exist)
             if (cb) cb()
         },
+
+        receive_message (peer) {
+            var inbox = peer.incoming
+            if (inbox.length > 0) {
+                var possible_peers = {}
+                inbox.forEach(x => possible_peers[x[0]] = true)
+                possible_peers = Object.keys(possible_peers)
+                var chosen_peer = possible_peers[
+                    Math.floor(sim.rand() * possible_peers.length)]
+
+                var msg = inbox.splice(inbox.findIndex(x => x[0] == chosen_peer),
+                                       1)
+                msg[0][1]()
+            }
+        },
+
         toggle_pipe () {
             var pipe_keys = Object.keys(this.pipes),
                 random_index = Math.floor(sim.rand() * pipe_keys.length),

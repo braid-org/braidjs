@@ -92,17 +92,10 @@ function step(frame_num) {
         }
     } else {
         // Receive incoming network message
-
-        var i = Math.floor(rand() * n_peers)
-        var peer = sim.peers[i]
-
-        if (peer.incoming.length > 0) {
-            var possible_peers = {}
-            peer.incoming.forEach(x => possible_peers[x[0]] = true)
-            possible_peers = Object.keys(possible_peers)
-            var chosen_peer = possible_peers[Math.floor(rand() * possible_peers.length)]
-
-            var msg = peer.incoming.splice(peer.incoming.findIndex(x => x[0] == chosen_peer), 1)[0][1]()
+        if (network.receive_message) {
+            var i = Math.floor(rand() * n_peers)
+            var peer = sim.peers[i]
+            network.receive_message(peer)
         }
     }
     
@@ -277,11 +270,18 @@ run_trial.async = (trial_num, cb) => {
     run_step()
 }
 
-var network = require('./virtual-network.js')(sim)
 if (is_browser) {
+    var network = require('./virtual-network.js')(sim)
     setup_test()
     vis.loop()
-} else if (network.sync)
-    run_trials()
-else
-    run_trials.async(() => console.log('Done with all trials!'))
+} else {
+    var network = require(
+        //'./virtual-network.js'
+        './websocket-test.js'
+    )(sim)
+
+    if (network.sync)
+        run_trials()
+    else
+        run_trials.async(() => console.log('Done with all trials!'))
+}

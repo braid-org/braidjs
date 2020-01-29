@@ -56,84 +56,58 @@ bHieUzx8qriZ8KrD3PbjKqap
 `,
         setup () {
             // Make the hub
-            var hub = require('../node.js')()
+            var hub = require('./node.js')()
             hub.pid = 'hub'
-            sim.peers.push(hub)
-            sim.make_alphabet(hub, '--------------------------')
-            sim.peers.forEach(p => sim.peers_dict[p.pid] = p)
-            require('../websocket-server.js')(hub,
-                                              this.certificate,
-                                              this.private_key)
+            sim.add_peer(hub)
+            require('./websocket-server.js')(hub,
+                                             this.certificate,
+                                             this.private_key)
 
             // Make the clients
             var clients = []
-            for (var i=0; i < n_peers - 1; i++) {
-                var client = require('../node.js')()
+            for (var i=0; i < sim.n_peers - 1; i++) {
+                var client = require('./node.js')()
                 client.pid = 'C' + i + 1
-                clients.push(client)
-                peers[client.pid] = client
-
-                // Give it an alphabet
-                sim.make_alphabet(node, i)
+                sim.add_peer(client)
             }
 
             // Create pipes that connect peers to the hub
             this.client_pipes = {}
             for (var i = 0; i < clients.length; i++)
-                this.client_pipes[clients[i].pid] = require('../websocket-client.js')({
+                this.client_pipes[clients[i].pid] = require('./websocket-client.js')({
                     client,
                     url: 'ws://localhost:3007/'
                 })
         },
-        wrapup () {
-            var sent_joiner = false
+        wrapup (cb) {
+            console.log('Wrapping up!')
 
             // Connect all the pipes together
             for (var pipe in this.client_pipes)
                 if (!this.client_pipes[pipe].enabled())
                     this.client_pipes[pipe].enable()
 
-            // Now let all the remaining incoming messages get processed
-            do {
-                for (var p in peers) {
-                    p = peers[p]
-                    while (p.incoming.length > 0) {
-                        notes = []
+            // Make a joiner at 500ms
+            setTimeout(make_joiner, 500)
 
-                        // Process the message.
-                        p.incoming.shift()[1]()
-                        // That might have added messages to another peer's queue.
+            // And be done at 1000ms
+            setTimeout(cb, 1000)
 
-                        vis.add_frame({
-                            peer_notes: {[p.pid]: notes},
-                            peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
-                        })
-                    }
-                }
+            function make_joiner () {
+                var i = Math.floor(sim.rand() * sim.n_peers)
+                var p = sim.peers[i]
+                
+                console.log('creating joiner')
+                notes = ['creating joiner']
 
-                var more_messages_exist = peers_array.some(p => p.incoming.length > 0)
-
-                // Once everything's clear, make a joiner
-                if (!more_messages_exist && !sent_joiner) {
-                    var i = Math.floor(rand() * n_peers)
-                    var p = peers_array[i]
-                    
-                    log('creating joiner')
-                    notes = ['creating joiner']
-
-                    // Create it!
-                    p.create_joiner('my_key')
-                    sent_joiner = true
-                    
-                    vis.add_frame({
-                        peer_notes: {[p.pid]: notes},
-                        peers: peers_array.map(x => JSON.parse(JSON.stringify(x)))
-                    })
-
-                    // That'll make messages exist again
-                    more_messages_exist = true
-                }
-            } while (more_messages_exist)
+                // Create it!
+                p.create_joiner('my_key')
+                
+                sim.vis.add_frame({
+                    peer_notes: {[p.pid]: notes},
+                    peers: sim.peers.map(x => JSON.parse(JSON.stringify(x)))
+                })
+            }
         },
         toggle_pipe () {
             var sim_pipe_keys = Object.keys(this.sim_pipes),
@@ -158,4 +132,4 @@ bHieUzx8qriZ8KrD3PbjKqap
             }
         }
     }
-}
+)
