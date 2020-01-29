@@ -126,7 +126,6 @@ function setup_test () {
     sim.peers_dict = {}
 
     network.setup()
-    // peers = vis.peers = Object.values(peers)
 
     // Start sending get() messages over the pipes!
     sim.peers.forEach(node => node.get({key: 'my_key',
@@ -169,29 +168,6 @@ function setup_test () {
     }
 }
 
-function run_trials_sync () {
-    for (var i=0; i<n_trials; i++) {
-        console.log('Running trial', i)
-        run_trial_sync(i)
-    }
-}
-function run_trial_sync (trial_num) {
-    setup_test()
-
-    // Now do all the stuff
-    for (var t=0; t<n_steps_per_trial; t++) {
-        log('looping', t)
-        step(t)
-    }
-    network.wrapup()
-    evaluate_trial(trial_num)
-}
-function run_trials_async () {
-
-}
-function run_trial_async (trial_num) {
-    setup_test()
-}
 function evaluate_trial (trial_num) {
     log('Ok!! Now winding things up.')
 
@@ -225,7 +201,7 @@ function evaluate_trial (trial_num) {
 
     // If so, print them out
     if (show_debug || !total_success) {
-        console.log('TOTAL SUCCESS: ' + total_success)
+        console.log('TOTAL', total_success ? 'SUCCESS' : 'FAILURE')
         sim.peers.forEach(
             p => console.log('val:', p.resources.my_key.mergeable.read())
         )
@@ -237,11 +213,65 @@ function evaluate_trial (trial_num) {
     }
 }
 
+
+// Synchronous version of the simulator
+//  - Fast and deterministic.  For testing the core algorithm.
+function run_trials () {
+    for (var i=0; i < n_trials; i++) {
+        console.log('Running trial', i)
+        run_trial(i)
+    }
+}
+function run_trial (trial_num) {
+    setup_test()
+
+    // Now do all the stuff
+    for (var t=0; t < n_steps_per_trial; t++) {
+        log('looping', t)
+        step(t)
+    }
+    network.wrapup()
+    evaluate_trial(trial_num)
+}
+
+// Async version of the simulator
+//  - For testing actual network activity
+run_trials.async = (cb) => {
+    var i = -1
+    function next_trial () {
+        i++
+        console.log('Doing trial', i)
+        if (i === n_trials)
+            setImmediate(cb)
+        else
+            setImmediate(() => run_trial.async(i, next_trial))
+    }
+    next_trial()
+}
+run_trial.async = (trial_num, cb) => {
+    setup_test()
+    var t = -1
+    function run_step () {
+        t++
+        if (t === n_steps_per_trial)
+            network.wrapup(() => {
+                evaluate_trial(trial_num)
+                setImmediate(cb)
+            })
+        else {
+            log('  step', t)
+            step(t)
+            setTimeout(run_step, 0)
+        }
+    }
+    run_step()
+}
+
 var network = require('./virtual-network.js')(sim)
 if (is_browser) {
     setup_test()
     vis.loop()
 } else if (network.sync)
-    run_trials_sync()
+    run_trials()
 else
-    run_trials_async()
+    run_trials.async(() => console.log('Done with all trials!'))

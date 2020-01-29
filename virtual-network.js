@@ -69,7 +69,7 @@ module.exports = require['virtual-network'] = (sim) => (
                     create_vpipe(peer2, peer1)
                 }
         },
-        wrapup () {
+        wrapup (cb) {
             var sent_joiner = false
 
             // Connect all the pipes together
@@ -122,6 +122,7 @@ module.exports = require['virtual-network'] = (sim) => (
                     more_messages_exist = true
                 }
             } while (more_messages_exist)
+            if (cb) cb()
         },
         toggle_pipe () {
             var pipe_keys = Object.keys(this.pipes),

@@ -76,10 +76,10 @@ function deep_equals(a, b) {
 //
 //   Random number generator
 //
-//   This customized random number generator can be seeded, to
-//   produce deterministic results.
+//     This customized random number generator can be seeded, to
+//     produce deterministic results.
 //
-//   That way, we can reproduce test-cases, and debug them.
+//     That way, we can reproduce test-cases, and debug them.
 //
 {
     // These two functions are added by Glittle.
