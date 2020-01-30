@@ -11,8 +11,15 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     var connect = () => {
         sock           = new WebSocket(url + '.braid-websocket')
         sock.onopen    = ()  => pipe.connected()
-        sock.onmessage = msg => {log('ws-client: RECV', msg.data);
-                                 pipe.recv(JSON.parse(msg.data))}
+        sock.onmessage = msg => {
+            log('ws:',
+                node.pid,
+                'recv',
+                JSON.parse(msg.data).method.toUpperCase().padEnd(7),
+                msg.data.substr(70))
+            
+            pipe.recv(JSON.parse(msg.data))
+        }
         sock.onclose   = ()  => {
             pipe.disconnected()
             if (enabled) setTimeout(connect, 5000)
@@ -20,9 +27,18 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     }
     var pipe = require('./pipe.js')({
         id: node.pid,
+        type: 'ws-client',
         node,
         connect,
-        send: (msg) => {log('ws-client: SEND', msg); sock.send(JSON.stringify(msg))}
+        send: (msg) => {
+            console.log('ws:',
+                node.pid,
+                'send',
+                msg.method.toUpperCase().padEnd(7),
+                JSON.stringify(msg).substr(0,70))
+
+            sock.send(JSON.stringify(msg))
+        }
     })
     node.bind(prefix, pipe)
 

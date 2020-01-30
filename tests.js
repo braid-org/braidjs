@@ -1,6 +1,8 @@
 require('./merge-algorithms/sync9.js')
 require('./utilities.js')
 
+show_debug = true
+
 var n_peers = 4
 var n_steps_per_trial = 10
 var n_trials = 100
@@ -71,8 +73,6 @@ function step(frame_num) {
             var i = Math.floor(rand() * n_peers)
             var peer = sim.peers[i]
 
-            log('editing', frame_num, peer.resources['my_key'])
-
             // ..but only if we have at least one version already, which
             // is really to make sure we've received "root" already (but
             // we can't check for "root" since it may get pruned away)
@@ -88,13 +88,16 @@ function step(frame_num) {
                 peer.set({key: 'my_key',
                           patches: e.changes, version: e.version, parents: e.parents})
             }
+            log('    editing', frame_num, peer.pid, e ? e.changes : '')
         } else {
             // Disconnect or reconnect
+            log('    toggling network', frame_num)
             network.toggle_pipe()
         }
     } else {
         // Receive incoming network message
         if (network.receive_message) {
+            log('    receiving message', frame_num)
             var i = Math.floor(rand() * n_peers)
             var peer = sim.peers[i]
             network.receive_message(peer)
@@ -133,12 +136,11 @@ function setup_test () {
     network.setup()
 
     // Start sending get() messages over the pipes!
-    sim.peers.forEach(node => node.get({key: 'my_key',
-                                        subscribe: {keep_alive: true},
-                                        origin: {id: rand().toString(36).slice(2),
-                                                 send: (args) => {},
-                                                 connect: () => {}
-                                                }}))
+    sim.peers.forEach(node => node.get({
+        key: 'my_key',
+        subscribe: {keep_alive: true},
+        origin: {id: 'fake' + rand().toString(36).slice(2,6)}
+    }))
 
 
     // Create initial root version
@@ -241,6 +243,7 @@ function run_trial (trial_num) {
     }
     network.wrapup()
     evaluate_trial(trial_num)
+    if (network.die) network.die()
 }
 
 // Async version of the simulator
@@ -258,7 +261,7 @@ run_trials.async = (cb) => {
             else
                 setImmediate(() => run_trial.async(i, next_trial))
         }
-        next_trial()
+        setTimeout(next_trial, 100)
     }
 }
 run_trial.async = (trial_num, cb) => {
@@ -269,7 +272,10 @@ run_trial.async = (trial_num, cb) => {
         if (t === n_steps_per_trial)
             network.wrapup(() => {
                 evaluate_trial(trial_num)
-                setImmediate(cb)
+                if (network.die)
+                    network.die(() => setImmediate(cb))
+                else
+                    setImmediate(cb)
             })
         else {
             log('  step', t)

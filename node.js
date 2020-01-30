@@ -141,10 +141,10 @@ module.exports = require.node = function create_node() {
         // If this is the first subscription, fire the .on_get handlers
         if (gets_in.count(key) === 1) {
             log('node.get:', node.pid, 'firing .on_get for',
-                node.bindings(key), 'pipes!')
+                node.bindings(key).length, 'pipes!')
             // This one is getting called afterward
             node.bindings(key).forEach(pipe => {
-                pipe.send({method:'get', key, version, parents, subscribe, origin})
+                pipe.send && pipe.send({method:'get', key, version, parents, subscribe, origin})
             })
         }
 
@@ -181,7 +181,7 @@ module.exports = require.node = function create_node() {
 
         // G: ok, here we actually send out the welcome
 
-        origin.send({method: 'welcome', key, versions, fissures})
+        origin.send && origin.send({method: 'welcome', key, versions, fissures})
     }
     
     node.set = ({key, patches, version, parents, origin, joiner_num}) => {
@@ -267,11 +267,15 @@ module.exports = require.node = function create_node() {
             // (unless we received this "set" from one of our peers,
             // in which case we don't want to send it back to them)
 
+            log('set: broadcasting to', node.bindings(key).map(p=>p.pid),
+                'pipes from', origin && origin.id)
             // console.log('Now gonna send a set on', node.bindings(key))
             node.bindings(key).forEach(pipe => {
-                if (!origin || (pipe.id != origin.id))
+                if (pipe.send && (!origin || (pipe.id != origin.id))) {
+                    log('set: sending now from', node.pid, pipe.type)
                     pipe.send({method: 'set',
                                key, patches, version, parents, joiner_num})
+                }
             })
             
         } else if (resource.acks_in_process[version]
@@ -598,7 +602,7 @@ module.exports = require.node = function create_node() {
         assert(unack_boundary && min_leaves && fissures && new_versions)
         if (new_versions.length > 0 || new_fissures.length > 0) {
             node.bindings(key).forEach(pipe => {
-                if (pipe.id != origin.id)
+                if (pipe.send && (pipe.id !== origin.id))
                     pipe.send({method: 'welcome',
                                key, versions: new_versions, unack_boundary, min_leaves,
                                fissures: new_fissures})
@@ -644,7 +648,7 @@ module.exports = require.node = function create_node() {
             
             add_full_ack_leaf(resource, version)
             node.bindings(key).forEach(pipe => {
-                if (pipe.id != origin.id)
+                if (pipe.send && (pipe.id != origin.id))
                     pipe.send({method: 'ack', key, version, seen: 'global'})
             })
         }
@@ -664,7 +668,7 @@ module.exports = require.node = function create_node() {
             
             // First forward this fissure along
             node.bindings(key).forEach(pipe => {
-                if (!origin || (pipe.id != origin.id))
+                if (pipe.send && (!origin || (pipe.id != origin.id)))
                     pipe.send({method: 'fissure',
                                key,
                                fissure})

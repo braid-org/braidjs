@@ -80,7 +80,7 @@ bHieUzx8qriZ8KrD3PbjKqap
                 this.client_pipes[clients[i].pid] = require('./websocket-client.js')({
                     node: clients[i],
                     url: 'ws://localhost:3007/',
-                    prefix: 'my_key'
+                    prefix: '*'
                 })
 
             WebSocket = require('ws')
@@ -93,11 +93,11 @@ bHieUzx8qriZ8KrD3PbjKqap
                 if (!this.client_pipes[pipe].enabled())
                     this.client_pipes[pipe].enable()
 
-            // Make a joiner at 100ms
-            setTimeout(make_joiner, 100)
+            // Make a joiner after a delay
+            setTimeout(make_joiner, 300)
 
-            // And be done at 200ms
-            setTimeout(() => this.server.close(cb), 200)
+            // And be done after another one
+            setTimeout(cb, 600)
 
             function make_joiner () {
                 var i = Math.floor(sim.rand() * sim.n_peers)
@@ -113,6 +113,17 @@ bHieUzx8qriZ8KrD3PbjKqap
                     peers: sim.peers.map(x => JSON.parse(JSON.stringify(x)))
                 })
             }
+        },
+        die (cb) {
+            var x = show_debug
+            // show_debug = false
+            console.log('YYY closing')
+            this.server.dead = true
+            this.server.close(() => {
+                show_debug = x
+                console.log('XXX closed')
+                cb()
+            })
         },
         toggle_pipe () {
             console.log('XXX Fake toggling pipe XXX')
