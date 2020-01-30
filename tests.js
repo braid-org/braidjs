@@ -2,9 +2,13 @@ require('./merge-algorithms/sync9.js')
 require('./utilities.js')
 
 var n_peers = 4
-var n_steps_per_trial = 100
-var n_trials = 10
+var n_steps_per_trial = 10
+var n_trials = 100
 var rand = Math.create_rand('000_hi_001')
+
+var solo_trial = null
+if (process.argv.length >= 4 && process.argv[2] === 'solo')
+    solo_trial = parseInt(process.argv[3])
 
 var sim = {
     n_peers,
@@ -204,13 +208,13 @@ function evaluate_trial (trial_num) {
     if (show_debug || !total_success) {
         console.log('TOTAL', total_success ? 'SUCCESS' : 'FAILURE')
         sim.peers.forEach(
-            p => console.log('val:', p.resources.my_key.mergeable.read())
+            p => console.log('val:', JSON.stringify(p.resources.my_key.mergeable.read()))
         )
         var results = {same_values, multiple_versions, fissures_exist}
         for (k in results)
             console.log(k+':', results[k])
         console.log('trial_num:', trial_num)
-        if (!show_debug) throw 'stop'
+        if (!total_success) throw 'stop'
     }
 }
 
@@ -218,12 +222,16 @@ function evaluate_trial (trial_num) {
 // Synchronous version of the simulator
 //  - Fast and deterministic.  For testing the core algorithm.
 function run_trials () {
-    for (var i=0; i < n_trials; i++) {
-        console.log('Running trial', i)
-        run_trial(i)
-    }
+    if (solo_trial)
+        run_trial(solo_trial)
+    else
+        for (var i=0; i < n_trials; i++) {
+            console.log('Running trial', i)
+            run_trial(i)
+        }
 }
 function run_trial (trial_num) {
+    Math.randomSeed(trial_num + '')
     setup_test()
 
     // Now do all the stuff
@@ -238,16 +246,20 @@ function run_trial (trial_num) {
 // Async version of the simulator
 //  - For testing actual network activity
 run_trials.async = (cb) => {
-    var i = -1
-    function next_trial () {
-        i++
-        console.log('Doing trial', i)
-        if (i === n_trials)
-            setImmediate(cb)
-        else
-            setImmediate(() => run_trial.async(i, next_trial))
+    if (solo_trial)
+        run_trial.async(solo_trial, cb)
+    else {
+        var i = -1
+        function next_trial () {
+            i++
+            console.log('Doing trial', i)
+            if (i === n_trials)
+                setImmediate(cb)
+            else
+                setImmediate(() => run_trial.async(i, next_trial))
+        }
+        next_trial()
     }
-    next_trial()
 }
 run_trial.async = (trial_num, cb) => {
     setup_test()
@@ -262,11 +274,12 @@ run_trial.async = (trial_num, cb) => {
         else {
             log('  step', t)
             step(t)
-            setTimeout(run_step, 300)
+            setTimeout(run_step, 10)
         }
     }
     run_step()
 }
+
 
 if (is_browser) {
     var network = require('./virtual-network.js')(sim)
@@ -274,8 +287,8 @@ if (is_browser) {
     vis.loop()
 } else {
     var network = require(
-        './virtual-network.js'
-        //'./websocket-test.js'
+        //'./virtual-network.js'
+        './websocket-test.js'
     )(sim)
 
     if (network.sync)

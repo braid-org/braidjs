@@ -4,8 +4,6 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     url = url       || 'ws://localhost:3007/'
     prefix = prefix || '/*'
 
-    console.log('ws-client: Making a client on', node.pid)
-
     var client_creds = null
     var enabled = true
     var sock
@@ -13,7 +11,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     var connect = () => {
         sock           = new WebSocket(url + '.braid-websocket')
         sock.onopen    = ()  => pipe.connected()
-        sock.onmessage = msg => {console.log('ws-client: got msg', msg.data);
+        sock.onmessage = msg => {log('ws-client: RECV', msg.data);
                                  pipe.recv(JSON.parse(msg.data))}
         sock.onclose   = ()  => {
             pipe.disconnected()
@@ -24,7 +22,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         id: node.pid,
         node,
         connect,
-        send: (msg) => {console.log('ws-client: Sending', msg); sock.send(JSON.stringify(msg))}
+        send: (msg) => {log('ws-client: SEND', msg); sock.send(JSON.stringify(msg))}
     })
     node.bind(prefix, pipe)
 

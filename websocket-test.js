@@ -59,9 +59,11 @@ bHieUzx8qriZ8KrD3PbjKqap
             var hub = require('./node.js')()
             hub.pid = 'hub'
             sim.add_peer(hub)
-            require('./websocket-server.js')(hub,
-                                             this.certificate,
-                                             this.private_key)
+            this.server = require('./websocket-server.js')(
+                hub,
+                this.certificate,
+                this.private_key
+            )
 
             // Make the clients
             var clients = []
@@ -81,27 +83,26 @@ bHieUzx8qriZ8KrD3PbjKqap
                     prefix: 'my_key'
                 })
 
-            show_debug = true
+            WebSocket = require('ws')
         },
         wrapup (cb) {
-            console.log('Wrapping up!')
+            log('Wrapping up!')
 
             // Connect all the pipes together
             for (var pipe in this.client_pipes)
                 if (!this.client_pipes[pipe].enabled())
                     this.client_pipes[pipe].enable()
 
-            // Make a joiner at 500ms
-            setTimeout(make_joiner, 500)
+            // Make a joiner at 100ms
+            setTimeout(make_joiner, 100)
 
-            // And be done at 1000ms
-            setTimeout(cb, 1000)
+            // And be done at 200ms
+            setTimeout(() => this.server.close(cb), 200)
 
             function make_joiner () {
                 var i = Math.floor(sim.rand() * sim.n_peers)
                 var p = sim.peers[i]
                 
-                console.log('creating joiner')
                 notes = ['creating joiner']
 
                 // Create it!
