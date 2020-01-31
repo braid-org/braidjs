@@ -218,12 +218,11 @@ module.exports = require.node = function create_node() {
         // First rewrite the arguments if called as get(key, ...)
         if (typeof args[0] === 'string') {
             key = args[0]
-            var val = args[1]
-            var patches = args[2]
+            patches = args[2]
             if (typeof patches === 'string')
                 patches = [patches]
             if (!patches)
-                patches = ['= ' + JSON.stringify(val)]
+                patches = ['= ' + JSON.stringify(args[1])]
         }
         else {
             // Else each parameter is passed explicitly
