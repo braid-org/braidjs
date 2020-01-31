@@ -27,7 +27,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
             if (enabled) setTimeout(connect, 5000)
         }
     }
-    var pipe = require('./pipe.js')({
+    var pipe = require('../pipe.js')({
         id: node.pid,
         type: 'ws-client',
         node,

@@ -6,7 +6,7 @@ module.exports = require['virtual-network'] = (sim) => (
         setup () {
             for (var i = 0; i < sim.n_peers; i++) {
                 // Make a peer node
-                var node = require('./node.js')()
+                var node = require('../node.js')()
 
                 node.pid = 'P' + (i + 1)   // Give it an ID
                 node.incoming = []         // Give it an incoming message queue
@@ -18,7 +18,7 @@ module.exports = require['virtual-network'] = (sim) => (
             this.pipes = {}
             var create_vpipe = (from, to) => {
                 var pipes = this.pipes
-                var pipe = pipes[from.pid + '-' + to.pid] = require('./pipe.js')({
+                var pipe = pipes[from.pid + '-' + to.pid] = require('../pipe.js')({
                     node: from,
                     id: from.pid + '-' + to.pid,
 

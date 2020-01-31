@@ -6,7 +6,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
     var s = new (require('ws')).Server({port})
 
     s.on('connection', function(conn) {
-        var pipe = require('./pipe.js')({node, connect, send})
+        var pipe = require('../pipe.js')({node, connect, send})
 
         conn.on('message', (msg) => {
             var m = JSON.parse(msg)

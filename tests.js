@@ -289,13 +289,13 @@ run_trial.async = (trial_num, cb) => {
 
 
 if (is_browser) {
-    var network = require('./virtual-network.js')(sim)
+    var network = require('./networks/virtual-network.js')(sim)
     setup_test()
     vis.loop()
 } else {
     var network = require(
-        //'./virtual-network.js'
-        './websocket-test.js'
+        //'./networks/virtual-network.js'
+        './networks/websocket-test.js'
     )(sim)
 
     if (network.sync)
