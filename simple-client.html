@@ -1,0 +1,28 @@
+<script>
+function require (thing) {
+    thing = thing.split('/')
+    thing = thing[thing.length-1].slice(0,-3)
+    console.assert(require[thing], `Thing ${thing} don't exist on ${Object.keys(require)}!`)
+    return require[thing]
+}
+global = window
+module = {exports: {}}
+require.random001 = true
+</script>
+<script src="./utilities.js"></script>
+<script src="./events.js"></script>
+<script src="./merge-algorithms/sync9.js"></script>
+<script src="./node.js"></script>
+<script src="./pipe.js"></script>
+<script src="./resource.js"></script>
+<!--<script src="./networks/http-client.js"></script>-->
+<script src="./networks/websocket-client.js"></script>
+<body></body>
+
+<script>; // So Mike's editor will indent properly
+node = require('./node.js')()
+node.pid = 'c'
+//require('./http-client.js')(node)
+require('./networks/websocket-client.js')({node})
+node.get({key: '/foo', origin: {send: (args) => console.log('Default:', args)}})
+</script>
