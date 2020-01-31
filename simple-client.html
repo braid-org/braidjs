@@ -24,5 +24,16 @@ node = require('./node.js')()
 node.pid = 'c'
 //require('./http-client.js')(node)
 require('./networks/websocket-client.js')({node})
-node.get({key: '/foo', origin: {send: (args) => console.log('Default:', args)}})
+//node.get({key: '/foo', origin: {send: (args) => console.log('Default:', args)}})
+
+
+function get (k) {
+    return node.resources[k].mergeable.read()
+}
+get.init = (k) => {
+    node.get({key: k, origin: {send: (args) => console.log('Received:', args)}})
+}
+function set (k, v) {
+    node.set({key: k, patches: ['= ' + JSON.stringify(v)]})
+}
 </script>
