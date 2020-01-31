@@ -17,7 +17,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
                  node.pid,
                  ' Recvs',
                  JSON.parse(msg.data).method.toUpperCase().padEnd(7),
-                 '  ',
+                 '   ',
                  msg.data.substr(0,w))
             
             pipe.recv(JSON.parse(msg.data))
@@ -37,7 +37,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
                  node.pid,
                  ' Sends',
                  msg.method.toUpperCase().padEnd(7),
-                 '  ',
+                 '   ',
                  JSON.stringify(msg).substr(0,w))
 
             sock.send(JSON.stringify(msg))

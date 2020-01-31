@@ -12,7 +12,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
             var m = JSON.parse(msg)
             nlog('ws: hub Recvs',
                  m.method.toUpperCase().padEnd(7),
-                 pipe.them || m.my_name_is,
+                 ((pipe.them || m.my_name_is)+'').padEnd(3),
                  msg.substr(0,w))
 
             pipe.recv(JSON.parse(msg))
@@ -31,7 +31,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
         function send (msg) {
             nlog('ws: hub Sends',
                  msg.method.toUpperCase().padEnd(7),
-                 pipe.them || '? ',
+                 ((pipe.them || '?')+'').padEnd(3),
                  JSON.stringify(msg).substr(0,w))
 
             conn.send(JSON.stringify(msg))
