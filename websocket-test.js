@@ -56,7 +56,6 @@ bHieUzx8qriZ8KrD3PbjKqap
 `,
         setup () {
             // Make the hub
-            console.log('\nmaking hub')
             var hub = require('./node.js')()
             hub.pid = 'hub'
             sim.add_peer(hub, 0)
@@ -95,10 +94,10 @@ bHieUzx8qriZ8KrD3PbjKqap
                     this.client_pipes[pipe].enable()
 
             // Make a joiner after a delay
-            setTimeout(make_joiner, 300)
+            setTimeout(make_joiner, 100)
 
             // And be done after another one
-            setTimeout(cb, 600)
+            setTimeout(cb, 200)
 
             function make_joiner () {
                 var i = Math.floor(sim.rand() * sim.n_peers)

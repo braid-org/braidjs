@@ -3,9 +3,9 @@ require('./utilities.js')
 
 //show_debug = true
 
-var n_peers = 4
-var n_steps_per_trial = 100
-var n_trials = 10
+var n_peers = 5
+var n_steps_per_trial = 10
+var n_trials = 1000
 var rand = Math.create_rand('000_hi_001')
 
 var solo_trial = null
@@ -262,7 +262,7 @@ run_trials.async = (cb) => {
             else
                 setImmediate(() => run_trial.async(i, next_trial))
         }
-        setTimeout(next_trial, 100)
+        setTimeout(next_trial, 10)
     }
 }
 run_trial.async = (trial_num, cb) => {
@@ -281,7 +281,7 @@ run_trial.async = (trial_num, cb) => {
         else {
             log('  step', t)
             step(t)
-            setTimeout(run_step, 4)
+            setTimeout(run_step, 0)
         }
     }
     run_step()

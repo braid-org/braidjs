@@ -48,8 +48,8 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     return {
         pipe,
         enabled() {return enabled},
-        enable()  {nlog('ENABLING', pipe.id);enabled = true; connect()},
-        disable() {nlog('DISABLING',pipe.id);enabled = false; sock.terminate()},
+        enable()  {nlog('ENABLING PIPE', pipe.id);enabled = true; connect()},
+        disable() {nlog('DISABLING PIPE',pipe.id);enabled = false; sock.terminate()},
         toggle()  {if (enabled) {disable()} else enable()}
     }
 }
