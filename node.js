@@ -267,11 +267,14 @@ module.exports = require.node = function create_node() {
             // (unless we received this "set" from one of our peers,
             // in which case we don't want to send it back to them)
 
-            log('set: broadcasting to', node.bindings(key).map(p=>p.pid),
+            log('set: broadcasting to',
+                node.bindings(key)
+                   .filter(p => p.send && (!origin || p.id !== origin.id))
+                   .map   (p => p.id),
                 'pipes from', origin && origin.id)
             // console.log('Now gonna send a set on', node.bindings(key))
             node.bindings(key).forEach(pipe => {
-                if (pipe.send && (!origin || (pipe.id != origin.id))) {
+                if (pipe.send && (!origin || (pipe.id !== origin.id))) {
                     log('set: sending now from', node.pid, pipe.type)
                     pipe.send({method: 'set',
                                key, patches, version, parents, joiner_num})

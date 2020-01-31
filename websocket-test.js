@@ -118,6 +118,12 @@ bHieUzx8qriZ8KrD3PbjKqap
             var x = show_debug
             // show_debug = false
             console.log('YYY closing')
+
+            // Disable the clients
+            for (var k in this.client_pipes)
+                this.client_pipes[k].disable()
+
+            // Kill the server
             this.server.dead = true
             this.server.close(() => {
                 show_debug = x

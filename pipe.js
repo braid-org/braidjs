@@ -72,6 +72,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                 delete this.subscribed_keys[args.key].we_requested
                 delete this.we_welcomed[args.key]
                 node.unbind(args.key, this)
+
             } else if (args.method === 'welcome' && !args.unack_boundary) {
                 // We're making a commitment to them!
                 this.we_welcomed[args.key] = true
@@ -114,7 +115,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                 return
             }
 
-            if (args.method === 'welcome' && !this.we_welcomed[args.key]) {
+            if (args.method === 'welcome'
+                && !this.we_welcomed[args.key]
+                /*&& !this.subscribed_keys[args.key].we_requested*/) {
                 // Then we need to welcome them too
                 var resource = node.resource_at(args.key)
                 var versions = resource.mergeable.generate_braid(x => false)

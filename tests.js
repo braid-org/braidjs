@@ -1,11 +1,11 @@
 require('./merge-algorithms/sync9.js')
 require('./utilities.js')
 
-show_debug = true
+//show_debug = true
 
 var n_peers = 4
-var n_steps_per_trial = 10
-var n_trials = 100
+var n_steps_per_trial = 100
+var n_trials = 10
 var rand = Math.create_rand('000_hi_001')
 
 var solo_trial = null
@@ -233,7 +233,7 @@ function run_trials () {
         }
 }
 function run_trial (trial_num) {
-    Math.randomSeed(trial_num + '')
+    rand = sim.rand = Math.create_rand(trial_num + '')
     setup_test()
 
     // Now do all the stuff
