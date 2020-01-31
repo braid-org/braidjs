@@ -30,7 +30,11 @@ node = require('./node.js')()
 node.pid = 'C'
 require('./networks/websocket-client.js')({node})
 
-node.get('/foo', (x) => document.getElementById('out').innerText = x)
+node.get('/foo', (x) => {
+    document.getElementById('out').innerText = x
+    if (document.getElementById('in').value !== x)
+        document.getElementById('in').value = x
+})
 document.getElementById('in').addEventListener('input',
                                                (e) => node.set('/foo', e.target.value))
 
