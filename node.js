@@ -188,6 +188,9 @@ module.exports = require.node = function create_node() {
         assert(key && patches)
         var resource = node.resource_at(key)
 
+        if (!version) version = u.random_id()
+        if (!parents) parents = {...resource.current_version}
+        log('set:', {key, version, parents, patches, origin, joiner_num})
         for (p in parents)
             assert(resource.time_dag[p], 'Parent ' + p + ' is not a version!')
 
@@ -628,7 +631,7 @@ module.exports = require.node = function create_node() {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
-        log('node.ack: Acking!!!!', key, seen, version)
+        log('node.ack: Acking!!!!', {key, seen, version, origin})
         assert(key && version && origin)
         var resource = node.resource_at(key)
 

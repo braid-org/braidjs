@@ -36,4 +36,8 @@ get.init = (k) => {
 function set (k, v) {
     node.set({key: k, patches: ['= ' + JSON.stringify(v)]})
 }
+
+show_debug = true
+get.init('/foo')
+set('/foo', 3)
 </script>
