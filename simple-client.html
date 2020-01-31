@@ -16,13 +16,19 @@ module = {exports: {}}
 <script src="./resource.js"></script>
 <!--<script src="./networks/http-client.js"></script>-->
 <script src="./networks/websocket-client.js"></script>
-<body></body>
+<body>
+  <div id="out"></div>
+  <textarea id="in"></textarea>
+</body>
 
 <script>; // So Mike's editor will indent properly
 node = require('./node.js')()
 node.pid = 'C'
 require('./networks/websocket-client.js')({node})
 
+node.get('/foo', (x) => document.getElementById('out').innerText = x)
+document.getElementById('in').addEventListener('input',
+                                               (e) => node.set('/foo', e.target.value))
 
 //print_network = true
 // show_debug = true
