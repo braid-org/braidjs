@@ -131,7 +131,10 @@ module.exports = require.node = function create_node() {
         //     origin = {send: (args) => {
         //         if (args.method in {set:1,welcome:1}) cb(resource.mergeable.read())
         //     }}
-        assert(origin, 'Mike: remember to invent a default origin pipe, please')
+        //assert(origin, 'Mike: remember to invent a default origin pipe, please')
+
+        if (!origin)
+            origin = {id: u.random_id()}
 
         // Now record this subscription to the bus
         gets_in.add(key, origin.id)

@@ -1,8 +1,6 @@
 // Adapted from https://github.com/dglittle/cdn/blob/gh-pages/sync9_047.html
 
-module.exports = require.sync9 = { create: create }
-
-function create (resource) {
+module.exports = require.sync9 = function create (resource) {
     resource.space_dag = null
     return {
         add_version: function (version, parents, patches, is_anc) {
@@ -25,7 +23,6 @@ function create (resource) {
         }
     }
 }
-
 
 function generate_braid(resource, is_anc) {
     if (Object.keys(resource.time_dag).length === 0) return []

@@ -31,7 +31,7 @@ module.exports = require.resource = function create_resource() {
         return result
     }
     // A data structure that can merge simultaneous operations
-    resource.mergeable = require('./merge-algorithms/sync9.js').create(resource)
+    resource.mergeable = require('./merge-algorithms/sync9.js')(resource)
 
     // The pipes that wanna hear about this resource
     // resource.subscriptions = {}
