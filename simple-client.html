@@ -24,33 +24,6 @@ node.pid = 'C'
 require('./networks/websocket-client.js')({node})
 
 
-global_origin = {}
-function get (k, cb) {
-    if (typeof k === 'object')
-        node.get(k)
-    else {
-        console.assert(typeof k === 'string')
-        var origin = cb
-            ? {send(args) {
-                if (args.method === 'set'
-                    || args.method === 'welcome') {
-                    //console.trace('got msg of', args)
-                    cb && cb(node.resources[k].mergeable.read())}}}
-            : global_origin
-        node.get({key: k, origin})
-    }
-    return node.resources[k].mergeable.read()
-}
-function set (k, v, patches) {
-    if (!patches)
-        patches = ['= ' + JSON.stringify(v)]
-    else
-    if (typeof patches === 'string')
-        patches = [patches]
-
-    node.set({key: k, patches})
-}
-
 //print_network = true
 // show_debug = true
 </script>

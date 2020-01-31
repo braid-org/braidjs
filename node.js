@@ -221,7 +221,7 @@ module.exports = require.node = function create_node() {
             var val = args[1]
             var patches = args[2]
             if (typeof patches === 'string')
-                pataches = [pataches]
+                patches = [patches]
             if (!patches)
                 patches = ['= ' + JSON.stringify(val)]
         }
