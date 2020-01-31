@@ -117,24 +117,42 @@ module.exports = require.node = function create_node() {
         }
     }
 
-    node.get = ({key, version, parents, subscribe, origin}) => {
-        log('get:', node.pid, key)
-        assert(key)
-        var resource = node.resource_at(key)
+    var default_pipe = {id: 'null-pipe'}
 
+    // Can be called as:
+    //  - get(key)
+    //  - get(key, cb)
+    //  - get({key, origin, ...})
+    node.get = (...args) => {
+        var key, version, parents, subscribe, origin
+        // First rewrite the arguments if called as get(key) or get(key, cb)
+        if (typeof args[0] === 'string') {
+            key = args[0]
+            var cb = args[1]
+            origin = (cb
+                      ? {send(args) {
+                          if (args.method === 'set'
+                              || args.method === 'welcome') {
+                              //console.trace('got msg of', args)
+                              cb(node.resource_at(key).mergeable.read())}}}
+                      : default_pipe)
+        }
+        else {
+            // Else each parameter is passed explicitly
+            ({key, version, parents, subscribe, origin} = args[0])
+        }
+      
         // Set defaults
         if (!version)
             // We might default keep_alive to false in a future version
             subscribe = subscribe || {keep_alive: true}
-        // if (cb && !origin)
-        //     // Note: Let's revise the whole "cb" API upon alpha release
-        //     origin = {send: (args) => {
-        //         if (args.method in {set:1,welcome:1}) cb(resource.mergeable.read())
-        //     }}
-        //assert(origin, 'Mike: remember to invent a default origin pipe, please')
 
         if (!origin)
             origin = {id: u.random_id()}
+
+        log('get:', node.pid, key)
+        assert(key)
+        var resource = node.resource_at(key)
 
         // Now record this subscription to the bus
         gets_in.add(key, origin.id)
@@ -185,9 +203,33 @@ module.exports = require.node = function create_node() {
         // G: ok, here we actually send out the welcome
 
         origin.send && origin.send({method: 'welcome', key, versions, fissures})
+
+        return resource.mergeable.read()
     }
     
-    node.set = ({key, patches, version, parents, origin, joiner_num}) => {
+    // Can be called as:
+    //  - set(key, val)
+    //  - set(key, null, '= "foo"')
+    //  - set(key, null, ['= "foo"', ...])
+    //  - set({key, patches, origin, ...})
+    node.set = (...args) => {
+        var key, patches, version, parents, origin, joiner_num
+
+        // First rewrite the arguments if called as get(key, ...)
+        if (typeof args[0] === 'string') {
+            key = args[0]
+            var val = args[1]
+            var patches = args[2]
+            if (typeof patches === 'string')
+                pataches = [pataches]
+            if (!patches)
+                patches = ['= ' + JSON.stringify(val)]
+        }
+        else {
+            // Else each parameter is passed explicitly
+            ({key, patches, version, parents, origin, joiner_num} = args[0])
+        }
+
         assert(key && patches)
         var resource = node.resource_at(key)
 
