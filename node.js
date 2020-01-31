@@ -208,9 +208,9 @@ module.exports = require.node = function create_node() {
     }
     
     // Can be called as:
-    //  - set(key, val)
-    //  - set(key, null, '= "foo"')
-    //  - set(key, null, ['= "foo"', ...])
+    //  - set(key, val)                     // Set key to val
+    //  - set(key, null, '= "foo"')         // Patch with a patch
+    //  - set(key, null, ['= "foo"', ...])  // Patch with multiple patches
     //  - set({key, patches, origin, ...})
     node.set = (...args) => {
         var key, patches, version, parents, origin, joiner_num
