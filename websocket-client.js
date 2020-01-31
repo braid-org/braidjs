@@ -1,4 +1,5 @@
 // Example braid-peer as a web browser client
+w = 70
 
 module.exports = require['websocket-client'] = function add_websocket_client({node, url, prefix}) {
     url = url       || 'ws://localhost:3007/'
@@ -14,9 +15,10 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock.onmessage = msg => {
             nlog('ws:',
                  node.pid,
-                 'recv',
+                 ' Recvs',
                  JSON.parse(msg.data).method.toUpperCase().padEnd(7),
-                 msg.data.substr(0,70))
+                 '  ',
+                 msg.data.substr(0,w))
             
             pipe.recv(JSON.parse(msg.data))
         }
@@ -32,10 +34,11 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         connect,
         send: (msg) => {
             nlog('ws:',
-                node.pid,
-                'send',
-                msg.method.toUpperCase().padEnd(7),
-                JSON.stringify(msg).substr(0,70))
+                 node.pid,
+                 ' Sends',
+                 msg.method.toUpperCase().padEnd(7),
+                 '  ',
+                 JSON.stringify(msg).substr(0,w))
 
             sock.send(JSON.stringify(msg))
         }
@@ -45,8 +48,8 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     return {
         pipe,
         enabled() {return enabled},
-        enable()  {enabled = true;  connect()},
-        disable() {enabled = false; sock.terminate()},
+        enable()  {nlog('ENABLING', pipe.id);enabled = true; connect()},
+        disable() {nlog('DISABLING',pipe.id);enabled = false; sock.terminate()},
         toggle()  {if (enabled) {disable()} else enable()}
     }
 }

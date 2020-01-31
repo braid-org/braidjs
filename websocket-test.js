@@ -56,9 +56,10 @@ bHieUzx8qriZ8KrD3PbjKqap
 `,
         setup () {
             // Make the hub
+            console.log('\nmaking hub')
             var hub = require('./node.js')()
             hub.pid = 'hub'
-            sim.add_peer(hub)
+            sim.add_peer(hub, 0)
             this.server = require('./websocket-server.js')(
                 hub,
                 this.certificate,
@@ -67,10 +68,10 @@ bHieUzx8qriZ8KrD3PbjKqap
 
             // Make the clients
             var clients = []
-            for (var i = 0; i < sim.n_peers - 1; i++) {
+            for (var i = 1; i < sim.n_peers; i++) {
                 var client = require('./node.js')()
-                client.pid = 'C' + (i+1)
-                sim.add_peer(client)
+                client.pid = 'C' + i
+                sim.add_peer(client, i)
                 clients.push(client)
             }
 
@@ -86,7 +87,7 @@ bHieUzx8qriZ8KrD3PbjKqap
             WebSocket = require('ws')
         },
         wrapup (cb) {
-            log('Wrapping up!')
+            nlog('Wrapping up!')
 
             // Connect all the pipes together
             for (var pipe in this.client_pipes)

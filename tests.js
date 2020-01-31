@@ -46,6 +46,7 @@ function make_alphabet (node, peer_number) {
     for (var i = 0; i < 26; i++)
         node.letters += String.fromCharCode(12032 + 1000*peer_number + i)
     node.letters_i = 0
+    // console.log('Node', peer_number, 'letters:', node.letters)
 }
 
 
@@ -210,7 +211,7 @@ function evaluate_trial (trial_num) {
     if (show_debug || !total_success) {
         console.log('TOTAL', total_success ? 'SUCCESS' : 'FAILURE')
         sim.peers.forEach(
-            p => console.log('val:', JSON.stringify(p.resources.my_key.mergeable.read()))
+            n => console.log(n.pid+':', JSON.stringify(n.resources.my_key.mergeable.read()))
         )
         var results = {same_values, multiple_versions, fissures_exist}
         for (k in results)

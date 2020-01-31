@@ -1,4 +1,5 @@
 // Example braid-peer as a web server
+w = 70
 
 module.exports = require['websocket-server'] = function add_websocket_server(node, certificate, private_key) {
     var port = '3007'
@@ -9,10 +10,10 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
 
         conn.on('message', (msg) => {
             var m = JSON.parse(msg)
-            nlog('ws: Recv',
-                pipe.them || m.my_name_is,
-                m.method.toUpperCase().padEnd(7),
-                msg.substr(0,70))
+            nlog('ws: hub Recvs',
+                 m.method.toUpperCase().padEnd(7),
+                 pipe.them || m.my_name_is,
+                 msg.substr(0,w))
 
             pipe.recv(JSON.parse(msg))
         })
@@ -28,10 +29,10 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
             // pipe.connected()
         }
         function send (msg) {
-            nlog('ws: Send',
-                pipe.them || '? ',
-                msg.method.toUpperCase().padEnd(7),
-                JSON.stringify(msg).substr(0,70))
+            nlog('ws: hub Sends',
+                 msg.method.toUpperCase().padEnd(7),
+                 pipe.them || '? ',
+                 JSON.stringify(msg).substr(0,w))
 
             conn.send(JSON.stringify(msg))
         }
