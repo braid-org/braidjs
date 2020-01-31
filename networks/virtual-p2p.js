@@ -1,6 +1,6 @@
 // Tests using a virtual network
 
-module.exports = require['virtual-network'] = (sim) => (
+module.exports = require['virtual-p2p'] = (sim) => (
     {
         name: 'virtual',
         sync: true,
