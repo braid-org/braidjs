@@ -2,6 +2,7 @@
 
 module.exports = require['virtual-network'] = (sim) => (
     {
+        name: 'virtual',
         sync: true,
         setup () {
             for (var i = 0; i < sim.n_peers; i++) {

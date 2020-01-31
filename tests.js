@@ -3,9 +3,9 @@ require('./utilities.js')
 
 //show_debug = true
 
-var n_peers = 5
-var n_steps_per_trial = 10
-var n_trials = 1000
+var n_peers = 4
+var n_steps_per_trial = 50
+var n_trials = 50
 var rand = Math.create_rand('000_hi_001')
 
 var solo_trial = null
@@ -229,7 +229,7 @@ function run_trials () {
         run_trial(solo_trial)
     else
         for (var i=0; i < n_trials; i++) {
-            console.log('Running trial', i)
+            console.log('Running trial', network.name, i)
             run_trial(i)
         }
 }
@@ -256,7 +256,7 @@ run_trials.async = (cb) => {
         var i = -1
         function next_trial () {
             i++
-            console.log('Doing trial', i)
+            console.log('Running trial', network.name, i)
             if (i === n_trials)
                 setImmediate(cb)
             else
@@ -288,21 +288,25 @@ run_trial.async = (trial_num, cb) => {
 }
 
 
+var networks = [
+    './networks/virtual-p2p.js',
+    './networks/websocket-test.js'
+]
+
+var network
 if (is_browser) {
-    var network = require('./networks/virtual-network.js')(sim)
+    network = require('./networks/virtual-p2p.js')(sim)
     setup_test()
     vis.loop()
-} else {
-    var network = require(
-        //'./networks/virtual-network.js'
-        './networks/websocket-test.js'
-    )(sim)
+} else
+    networks.forEach( n => {
+        network = require(n)(sim)
 
-    if (network.sync)
-        run_trials()
-    else
-        run_trials.async(() => {
-            console.log('Done with all trials!')
-            process.exit()
-        })
-}
+        if (network.sync)
+            run_trials()
+        else
+            run_trials.async(() => {
+                console.log('Done with all trials!')
+                process.exit()
+            })
+    })

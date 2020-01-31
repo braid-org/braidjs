@@ -2,6 +2,7 @@
 
 module.exports = require['websocket-test'] = (sim) => (
     {
+        name: 'websocket',
         sync: false,
         certificate: `-----BEGIN CERTIFICATE-----
 MIIDXTCCAkWgAwIBAgIJANoWGfl3pEeHMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
