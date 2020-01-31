@@ -9,7 +9,7 @@ var n_trials = 10
 var rand = Math.create_rand('000_hi_001')
 
 var solo_trial = null
-if (process.argv.length >= 4 && process.argv[2] === 'solo')
+if (!is_browser && process.argv.length >= 4 && process.argv[2] === 'solo')
     solo_trial = parseInt(process.argv[3])
 
 var sim = {
@@ -280,7 +280,7 @@ run_trial.async = (trial_num, cb) => {
         else {
             log('  step', t)
             step(t)
-            setTimeout(run_step, 10)
+            setTimeout(run_step, 4)
         }
     }
     run_step()

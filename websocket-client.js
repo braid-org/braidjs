@@ -12,11 +12,11 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock           = new WebSocket(url + '.braid-websocket')
         sock.onopen    = ()  => pipe.connected()
         sock.onmessage = msg => {
-            log('ws:',
-                node.pid,
-                'recv',
-                JSON.parse(msg.data).method.toUpperCase().padEnd(7),
-                msg.data.substr(70))
+            nlog('ws:',
+                 node.pid,
+                 'recv',
+                 JSON.parse(msg.data).method.toUpperCase().padEnd(7),
+                 msg.data.substr(0,70))
             
             pipe.recv(JSON.parse(msg.data))
         }
@@ -31,7 +31,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         node,
         connect,
         send: (msg) => {
-            console.log('ws:',
+            nlog('ws:',
                 node.pid,
                 'send',
                 msg.method.toUpperCase().padEnd(7),
@@ -43,9 +43,10 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     node.bind(prefix, pipe)
 
     return {
-        disable() {enabled = false; sock.terminate()},
-        enable()  {enabled = true;  connect()},
+        pipe,
         enabled() {return enabled},
+        enable()  {enabled = true;  connect()},
+        disable() {enabled = false; sock.terminate()},
         toggle()  {if (enabled) {disable()} else enable()}
     }
 }

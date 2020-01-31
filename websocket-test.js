@@ -115,24 +115,25 @@ bHieUzx8qriZ8KrD3PbjKqap
             }
         },
         die (cb) {
-            var x = show_debug
-            // show_debug = false
-            console.log('YYY closing')
-
             // Disable the clients
             for (var k in this.client_pipes)
                 this.client_pipes[k].disable()
 
             // Kill the server
             this.server.dead = true
-            this.server.close(() => {
-                show_debug = x
-                console.log('XXX closed')
-                cb()
-            })
+            this.server.close(cb)
         },
         toggle_pipe () {
-            console.log('XXX Fake toggling pipe XXX')
+            var pipes = Object.keys(this.client_pipes)
+            var rand_pipe = this.client_pipes[
+                pipes[Math.floor(sim.rand() * pipes.length)]]
+            
+            nlog('toggling', rand_pipe.pipe.id, 'to',
+                 rand_pipe.enabled() ? 'disabled':'enabled')
+            if (rand_pipe.enabled())
+                rand_pipe.disable()
+            else
+                rand_pipe.enable()
         }
     }
 )
