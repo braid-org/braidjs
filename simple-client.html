@@ -16,6 +16,7 @@ module = {exports: {}}
 <script src="./resource.js"></script>
 <!--<script src="./networks/http-client.js"></script>-->
 <script src="./networks/websocket-client.js"></script>
+
 <body>
   <div id="out"></div>
   <textarea id="in"></textarea>
@@ -38,6 +39,6 @@ node.get('/foo', (x) => {
 document.getElementById('in').addEventListener('input',
                                                (e) => node.set('/foo', e.target.value))
 
-//print_network = true
+print_network = true
 // show_debug = true
 </script>
