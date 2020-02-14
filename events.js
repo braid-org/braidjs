@@ -42,6 +42,19 @@ module.exports = require.events = function add_control(node) {
     }
 
     node.bindings = (key) => {
+        // Note:
+        //
+        // We need the bindings that persist state to the database to come
+        // first.  In statebus we added a .priority flag to them, and
+        // processed those priority handlers first.  We haven't implemented
+        // that yet, and are just relying on setting these handlers first in
+        // the array and hash, which makes them come first.  But we need to
+        // make this more robust in the future.
+        //
+        // We might, instead of doing a .priority flag, have separate
+        // .on_change and .on_change_sync handlers.  Then the database stuff
+        // would go there.
+
         assert(typeof key === 'string',
                'Error: "' + key + '" is not a string')
 
