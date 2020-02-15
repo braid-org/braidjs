@@ -79,7 +79,7 @@ module.exports = require.events = function add_control(node) {
 
     node.remotes = (key) => node.bindings(key).filter( pipe => pipe.remote )
 
-    node.joined_peers = (key) => node.bindings(key).filter(
+    node.welcomed_peers = (key) => node.bindings(key).filter(
         pipe => pipe.remote && pipe.we_welcomed && pipe.we_welcomed[key]
     )
 }

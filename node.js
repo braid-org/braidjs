@@ -110,8 +110,8 @@ module.exports = require.node = function create_node() {
                 // we send a "global" ack to all our peers (and they'll forward it
                 // to their peers)
 
-                node.joined_peers(key).forEach( pipe => {
-                    pipe.send({method: 'ack', key, seen:'global', version})
+                node.bindings(key).forEach( pipe => {
+                    pipe.send && pipe.send({method: 'ack', key, seen:'global', version})
                 })
             }
         }
@@ -286,7 +286,7 @@ module.exports = require.node = function create_node() {
 
             resource.acks_in_process[version] = {
                 origin: origin,
-                count: node.joined_peers(key).length - (origin ? 1 : 0)
+                count: node.welcomed_peers(key).length - (origin ? 1 : 0)
             }
 
             // log('node.set:', node.pid, 'Initializing ACKs for', version, 'to',
