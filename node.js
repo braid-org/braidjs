@@ -1,8 +1,8 @@
 u = require('./utilities.js')
 
-module.exports = require.node = function create_node() {
+module.exports = require.node = function create_node({id} = {}) {
     var node = {}
-    node.pid = u.random_id()
+    node.pid = id || u.random_id()
     node.resources = {}
 
     node.resource_at = (key) => {
