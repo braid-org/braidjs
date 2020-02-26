@@ -1,5 +1,5 @@
 // Example braid-peer as a web browser client
-w = 70
+w = 700
 
 module.exports = require['websocket-client'] = function add_websocket_client({node, url, prefix}) {
     url = url       || 'ws://localhost:3007/'

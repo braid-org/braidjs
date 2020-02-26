@@ -11,12 +11,10 @@
 // the mergeables/ directory
 
 
-module.exports = require.resource = function create_resource() {
-    var resource = {}
-
+module.exports = require.resource = function create_resource(resource = {}) {
     // The version history
-    resource.time_dag = {}
-    resource.current_version = {}
+    if (!resource.time_dag) resource.time_dag = {}
+    if (!resource.current_version) resource.current_version = {}
     resource.ancestors = (versions) => {
         var result = {}
         // console.log('ancestors:', versions)
@@ -40,16 +38,19 @@ module.exports = require.resource = function create_resource() {
     // resource.citizens = () => Object.values(resource.subscriptions)
     // resource.citizens = () => Object.values(resource.pipes).filter(p => p.peer)
 
+    // Peers that we have sent a welcome message to
+    if (!resource.we_welcomed) resource.we_welcomed = {}
+
     // Disconnections that have occurred in the network without a forget()
-    resource.fissures = {}
+    if (!resource.fissures) resource.fissures = {}
 
     // Acknowledgement data
-    resource.acked_boundary = {}
-    resource.unack_boundary = {}
-    resource.acks_in_process = {}
+    if (!resource.acked_boundary) resource.acked_boundary = {}
+    if (!resource.unack_boundary) resource.unack_boundary = {}
+    if (!resource.acks_in_process) resource.acks_in_process = {}
 
     // Empty versions sent to collapse outstanding parallel edits
-    resource.joiners = {}
+    if (!resource.joiners) resource.joiners = {}
    
     return resource
 }

@@ -79,7 +79,8 @@ module.exports = require.events = function add_control(node) {
 
     node.remotes = (key) => node.bindings(key).filter( pipe => pipe.remote )
 
-    node.welcomed_peers = (key) => node.bindings(key).filter(
-        pipe => pipe.remote && pipe.we_welcomed && pipe.we_welcomed[key]
-    )
+    node.welcomed_peers = (key) => {
+        var r = node.resource_at(key)
+        return node.bindings(key).filter(pipe => pipe.remote && r.we_welcomed[pipe.id])
+    }
 }

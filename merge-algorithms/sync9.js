@@ -1,7 +1,7 @@
 // Adapted from https://github.com/dglittle/cdn/blob/gh-pages/sync9_047.html
 
 module.exports = require.sync9 = function create (resource) {
-    resource.space_dag = null
+    if (!resource.space_dag) resource.space_dag = null
     return {
         add_version: function (version, parents, patches, is_anc) {
             return add_version(resource, version, parents, patches, is_anc)

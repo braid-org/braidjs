@@ -1,5 +1,5 @@
 // Example braid-peer as a web server
-w = 70
+w = 700
 
 module.exports = require['websocket-server'] = function add_websocket_server(node, certificate, private_key) {
     var port = '3007'

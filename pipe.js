@@ -25,12 +25,12 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
         connecting: false,
         them: null,
         subscribed_keys: u.dict(),
-        we_welcomed: u.dict(),
         remote: true,
 
         // It can Send and Receive messages
         send (args) {
-            log('pipe.send:', args.method, 'welcomed:', this.we_welcomed[args.key])
+            var we_welcomed = args.key && node.resource_at(args.key).we_welcomed[this.id]
+            log('pipe.send:', args.method, 'welcomed:', we_welcomed)
             assert(args.method !== 'hello')
             log('...')
 
@@ -52,9 +52,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                 // Remember that we requested this subscription
                 this.subscribed_keys[args.key].we_requested = args.subscribe
 
-                // And now send them all future events as well
-                node.bind(args.key, this)
-
                 // If this is the first message, let's try to connect the pipe.
                 if ( this.connecting) return
                 if (!this.connection) {
@@ -70,19 +67,16 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
             } else if (args.method === 'forget') {
                 // Record forgotten keys
                 delete this.subscribed_keys[args.key].we_requested
-                delete this.we_welcomed[args.key]
                 node.unbind(args.key, this)
 
             } else if (args.method === 'welcome' && !args.unack_boundary) {
-                // We're making a commitment to them!
-                this.we_welcomed[args.key] = true
 
             // If we haven't welcomed them yet, ignore this message
-            } else if (!this.we_welcomed[args.key]) {
+            } else if (!we_welcomed) {
                 // Oh shit, I think this is a bug.  Cause if they welcomed us,
                 // we wanna send them shit too... but maybe we need to start
                 // by welcoming them.
-                log('gooooo away', this.we_welcomed[args.key])
+                log('gooooo away', we_welcomed)
                 return
             }
 
@@ -99,6 +93,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                 log('FAILED to send, because pipe not yet connected..')
         },
         recv (args) {
+            var we_welcomed = args.key && node.resource_at(args.key).we_welcomed[this.id]
             log(`pipe.RECV:`,
                 node.pid + '-' + (this.them || '?'),
                 args.method,
@@ -116,13 +111,14 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
             }
 
             if (args.method === 'welcome'
-                && !this.we_welcomed[args.key]
+                && !we_welcomed
                 /*&& !this.subscribed_keys[args.key].we_requested*/) {
                 // Then we need to welcome them too
                 var resource = node.resource_at(args.key)
                 var versions = resource.mergeable.generate_braid(x => false)
                 var fissures = Object.values(resource.fissures)
                 this.send({method: 'welcome', key: args.key, versions, fissures})
+                resource.we_welcomed[this.id] = {id: this.id, connection: this.connection, them: this.them}
             }
 
             // Remember new subscriptions from them
@@ -189,13 +185,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
         disconnected () {
             for (k in this.subscribed_keys) {
 
-                // We need to FISSURE any key we've sent out a WELCOME for
-                if (this.we_welcomed[k] && this.keep_alive(k))
+                if (this.keep_alive(k))
                     // Tell the node.  It'll make fissures.
                     node.disconnected({key:k, origin: this})
-
-                // Now forget the welcome
-                delete this.we_welcomed[k]
 
                 // Drop all subscriptions not marked keep_alive
                 var s = this.subscribed_keys[k]
@@ -223,7 +215,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
 
         printy_stuff (key) {
             return {id: this.id,
-                    w: !!this.we_welcomed[key],
+                    w: !!node.resource_at(key).we_welcomed[this.id],
                     k_a: this.keep_alive(key),
                     peer: this.them,
                     c: !!this.connection,
