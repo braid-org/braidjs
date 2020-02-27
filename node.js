@@ -1,9 +1,13 @@
 u = require('./utilities.js')
 
-module.exports = require.node = function create_node({id} = {}) {
-    var node = {}
-    node.pid = id || u.random_id()
-    node.resources = {}
+module.exports = require.node = function create_node(node = {}) {
+    if (!node.pid) node.pid = u.random_id()
+    if (!node.resources) node.resources = {}
+    else {
+        for (var key of Object.keys(node.resources)) {
+            node.resources[key] = require('./resource.js')(node.resources[key])
+        }
+    }
 
     node.resource_at = (key) => {
         if (!node.resources[key])
@@ -86,7 +90,8 @@ module.exports = require.node = function create_node({id} = {}) {
                 // to only send an ack after we have received acks from everyone
                 // we forwarded the information to)
 
-                resource.acks_in_process[version].origin.send({
+                let p = resource.acks_in_process[version].origin
+                p.send && p.send({
                     method: 'ack', key, seen:'local', version,
                     joiner_num: resource.joiners[version]
                 })
@@ -124,6 +129,8 @@ module.exports = require.node = function create_node({id} = {}) {
     //  - get(key, cb)
     //  - get({key, origin, ...})
     node.get = (...args) => {
+        node.on && node.on('get', args)
+
         var key, version, parents, subscribe, origin
         // First rewrite the arguments if called as get(key) or get(key, cb)
         if (typeof args[0] === 'string') {
@@ -202,6 +209,7 @@ module.exports = require.node = function create_node({id} = {}) {
 
         // G: ok, here we actually send out the welcome
 
+        resource.we_welcomed[origin.id] = {id: origin.id, connection: origin.connection, them: origin.them}
         origin.send && origin.send({method: 'welcome', key, versions, fissures})
 
         return resource.mergeable.read()
@@ -237,6 +245,8 @@ module.exports = require.node = function create_node({id} = {}) {
         log('set:', {key, version, parents, patches, origin, joiner_num})
         for (p in parents)
             assert(resource.time_dag[p], 'Parent ' + p + ' is not a version!')
+
+        node.on && node.on('set', [{key, patches, version, parents, origin, joiner_num}])
 
         // G: cool, someone is giving us a new version to add to our datastructure.
         // it might seem like we would just go ahead and add it, but instead
@@ -366,6 +376,8 @@ module.exports = require.node = function create_node({id} = {}) {
     }
     
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
+        node.on && node.on('welcome', [{key, versions, fissures, unack_boundary, min_leaves, origin}])
+
         assert(key && versions && fissures,
                'Missing some variables:',
                {key, versions, fissures})
@@ -675,6 +687,8 @@ module.exports = require.node = function create_node({id} = {}) {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
+        node.on && node.on('ack', [{key, valid, seen, version, origin, joiner_num}])
+
         log('node.ack: Acking!!!!', {key, seen, version, origin})
         assert(key && version && origin)
         var resource = node.resource_at(key)
@@ -705,6 +719,8 @@ module.exports = require.node = function create_node({id} = {}) {
     }
     
     node.fissure = ({key, fissure, origin}) => {
+        node.on && node.on('fissure', [{key, fissure, origin}])
+
         assert(key && fissure,
                'Missing some variables',
                {key, fissure})
@@ -740,6 +756,14 @@ module.exports = require.node = function create_node({id} = {}) {
     }
 
     node.disconnected = ({key, name, versions, parents, origin}) => {
+        node.on && node.on('disconnected', [{key, name, versions, parents, origin}])
+
+        // if we haven't sent them a welcome, then no need to create a fissure
+        if (!node.resource_at(key).we_welcomed[origin.id]) return
+
+        // now since we're disconnecting, we reset the we_welcomed flag
+        delete node.resource_at(key).we_welcomed[origin.id]
+
         assert(key && origin)
         // To do:
         //  - make this work for read-only connections
