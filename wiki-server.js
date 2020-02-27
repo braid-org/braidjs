@@ -1,7 +1,8 @@
 
 // load node info from disk (or create new node if there's nothing on disk)
 
-// if there are connections, create fissures for them (since we're just booting up, so we're clearly not connected to anything)
+// if there are connections, create fissures for them (since we're just
+// booting up, so we're clearly not connected to anything)
 
 // setup websocket node server,
 //     - on every relevant edit, append it to disk

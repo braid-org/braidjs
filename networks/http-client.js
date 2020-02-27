@@ -1,5 +1,9 @@
 // Example braid-peer as a web browser client
 
+// To do:
+//  - Copy the code from websocket-client into here, and modify it to fit HTTP
+//  - The code below can all be used as helper functions
+
 module.exports = require['http-client'] = function add_http_client(node) {
     var u = require('./utilities.js')
 

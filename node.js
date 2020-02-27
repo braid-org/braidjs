@@ -903,8 +903,12 @@ module.exports = require.node = function create_node({id} = {}) {
                   joiner_num})
     }        
 
-    var gets_in = u.one_to_many()   // Maps `key' to `pub_funcs' subscribed to our key
-    // var gets_out = u.dict()          // Maps `key' to `func' iff we get()ed `key'
+    // This is not yet used
+    node.current_version = (key) => Object.keys(node.resource_at(key).current_version).join('-')
+
+    var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
+    // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
+    // var pending_gets = u.one_to_many()  // Maps `key' to `pipes' that haven't responded
 
     // Install handlers and bindings
     require('./events.js')(node)
