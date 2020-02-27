@@ -487,7 +487,8 @@ function space_dag_add_version(S, version, splices, is_anc) {
     var si = 0
     var delete_up_to = 0
     
-    var cb = (node, offset, has_nexts, prev, _version, deleted) => {
+    // `node` is a patch
+    var process_patch = (node, offset, has_nexts, prev, _version, deleted) => {
         var s = splices[si]
         if (!s) return false
         
@@ -556,21 +557,21 @@ function space_dag_add_version(S, version, splices, is_anc) {
     var f = is_anc
     var exit_early = {}
     var offset = 0
-    function helper(node, prev, version) {
+    function traverse(node, prev, version) {
         var has_nexts = node.nexts.find(next => f(next.version))
         var deleted = Object.keys(node.deleted_by).some(version => f(version))
-        if (cb(node, offset, has_nexts, prev, version, deleted) == false)
+        if (process_patch(node, offset, has_nexts, prev, version, deleted) == false)
             throw exit_early
         if (!deleted) {
             offset += node.elems.length
         }
         for (var next of node.nexts)
-            if (f(next.version)) helper(next, null, next.version)
-        if (node.next) helper(node.next, node, version)
+            if (f(next.version)) traverse(next, null, next.version)
+        if (node.next) traverse(node.next, node, version)
     }
     try {
         if (!S) debugger
-        helper(S, null, S.version)
+        traverse(S, null, S.version)
     } catch (e) {
         if (e != exit_early) throw e
     }
