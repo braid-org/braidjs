@@ -1,0 +1,119 @@
+<script>
+function require (thing) {
+    thing = thing.split('/')
+    thing = thing[thing.length-1].slice(0,-3)
+    console.assert(require[thing], `Thing ${thing} don't exist on ${Object.keys(require)}!`)
+    return require[thing]
+}
+global = window
+module = {exports: {}}
+</script>
+<script src="./utilities.js"></script>
+<script src="./events.js"></script>
+<script src="./merge-algorithms/sync9.js"></script>
+<script src="./node.js"></script>
+<script src="./pipe.js"></script>
+<script src="./resource.js"></script>
+<script src="./networks/websocket-client.js"></script>
+<script src="https://invisible-college.github.io/universal-sync/diffsync.js"></script>
+
+<body>
+    <textarea id="my_text"></textarea>
+</body>
+
+<script>
+
+sync_editor(my_text)
+
+async function sync_editor(t) {
+    document.body.append(make_html(`<div id="debug_display">debug text to go here..</div>`))
+    document.body.append(make_html(`<textarea id="debug_display2">debug text to go here..</textarea>`))
+
+
+
+
+    var key = '/foo'
+    var prev_text = ''
+    var node = require('./node.js')({id: 'C-' + Math.random().toString(36).slice(2, 12)})
+    require('./networks/websocket-client.js')({node})
+
+    window.my_node = node
+
+    node.ons.push((method, args) => {
+        console.log('RESOURCE: ' + JSON.stringify(node.resource_at(key).space_dag, null, '    '))
+        console.log('ABOUT TO: ' + method + ', ' + JSON.stringify(args))
+    })
+
+    function send_diff(from, to) {
+        node.set(key, null, diff_convert_to_my_format(diff_main(from, to)).map(x =>
+            `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
+        ))
+    }
+
+    function send_cursor_update(start, end) {
+        // node.set(key, null, [`.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`, `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
+
+        node.set(key, null, [`.cursors[${JSON.stringify(node.pid)}] = {"type": "location", "path": ".text[${start}]"}`])
+    }
+
+    var get_num = 0
+    node.get(key, x => {
+        get_num++
+        if (get_num == 1) {
+            console.log('got here!!!1111')
+            // ignore, this is the initial value of the new node, which will be null
+        } else if (get_num == 2) {
+            console.log('got here!!!22222')
+
+            if (!x || typeof(x) != 'object') node.set(key, {cursors: {}, text: t.value})
+            else send_diff(x, t.value + x)
+            send_cursor_update(t.selectionStart, t.selectionEnd)
+
+            t.addEventListener('input', e => {
+
+                // debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
+
+                // debugger
+
+                send_diff(prev_text, t.value)
+            })
+            add_selection_listener(t, send_cursor_update)
+        } else {
+            t.value = prev_text = x.text
+            // t.setSelectionRange(x.cursors[node.pid + '-start'], x.cursors[node.pid + '-end'])
+            t.setSelectionRange(x.cursors[node.pid], x.cursors[node.pid])
+
+            // debug_display.textContent = x.text.slice(0, x.cursors[node.pid + '-start']) + '^' + x.text.slice(x.cursors[node.pid + '-start']) + ' :' + x.cursors[node.pid + '-start']
+            debug_display.textContent = x.text.slice(0, x.cursors[node.pid]) + '^' + x.text.slice(x.cursors[node.pid]) + ' :' + x.cursors[node.pid]
+
+            debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
+        }
+    })
+}
+
+print_network = true
+
+function add_selection_listener(t, cb) {
+    var prev_start = t.selectionStart
+    var prev_end = t.selectionEnd
+    
+    function handler() {
+        if (t.selectionStart != prev_start || t.selectionEnd != prev_end) cb(t.selectionStart, t.selectionEnd)
+        prev_start = t.selectionStart
+        prev_end = t.selectionEnd
+    }
+    
+    t.addEventListener('mousedown', e => setTimeout(handler, 0))
+    t.addEventListener('mouseup', e => setTimeout(handler, 0))
+    t.addEventListener('mousemove', e => setTimeout(handler, 0))
+    t.addEventListener('input', handler)
+    t.addEventListener('keydown', e => setTimeout(handler, 0))
+}
+
+function make_html(html) {
+    var d = document.createElement('div')
+    d.innerHTML = html
+    return d.firstChild
+}
+
+</script>

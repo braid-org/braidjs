@@ -47,10 +47,10 @@ function create_persistent_node(key_base, get_key, set_key, del_key) {
         for (i = old_next - 1; i >= 0; i--) del_key(`${key_base}:${(a_or_b == 'a') ? 'b' : 'a'}:${i}`)
     }
 
-    node.on = (method, args) => {
+    node.ons.push((method, args) => {
         add({method, args})
         if (Math.random() < 0.1) prune()
-    }
+    })
 
     return node
 }

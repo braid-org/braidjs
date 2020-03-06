@@ -11,10 +11,12 @@ module.exports = require.sync9 = function create (resource) {
             return read(resource, version)
         },
 
-        prune: function (has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2) {
-            prune(resource,
-                  has_everyone_whos_seen_a_seen_b,
-                  has_everyone_whos_seen_a_seen_b2)
+        read_raw: function (version) {
+            return read_raw(resource, version)
+        },
+
+        prune: function (has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2, seen_annotations) {
+            prune(resource, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2, seen_annotations)
         },
 
         generate_braid: function(is_anc
@@ -33,7 +35,7 @@ function generate_braid(resource, is_anc) {
     var versions = [{
         version: null,
         parents: {},
-        changes: [` = ${JSON.stringify(read(resource, is_anc))}`]
+        changes: [` = ${JSON.stringify(read_raw(resource, is_anc))}`]
     }]
     Object.keys(resource.time_dag).filter(x => !is_anc(x)).forEach(version => {
         var ancs = resource.ancestors({[version]: true})
@@ -90,7 +92,7 @@ function space_dag_generate_braid(S, resource, version, is_anc) {
     
     function add_result(offset, del, ins) {
         if (typeof(ins) != 'string')
-            ins = ins.map(x => read(x, () => false))
+            ins = ins.map(x => read_raw(x, () => false))
         if (splices.length > 0) {
             var prev = splices[splices.length - 1]
             if (prev[0] + prev[1] == offset) {
@@ -123,10 +125,34 @@ function space_dag_generate_braid(S, resource, version, is_anc) {
 
 
 
-function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2) {
+function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2, seen_annotations) {
     var seen_versions = {}
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
+
+    seen_annotations = seen_annotations || {}
+    see_annotations(x.space_dag)
+    function see_annotations(x, is_lit_override) {
+        if (is_lit_override || is_lit(x)) {
+            if (!is_lit_override && x && typeof(x) == 'object' && x.t == 'lit') x = x.S
+            if (Array.isArray(x)) for (y of x) see_annotations(y, true)
+            else if (x && typeof(x) == 'object') {
+                if (x.type == 'location') seen_annotations[x.id] = true
+                else for (y of Object.values(x)) see_annotations(y, true)
+            }
+        } else if (x.t == 'val') {
+            traverse_space_dag(x.S, () => true, node => {
+                node.elems.forEach(x => see_annotations(x))
+            }, true)
+        } else if (x.t == 'arr') {
+            traverse_space_dag(x.S, () => true, node => {
+                node.elems.forEach(x => see_annotations(x))
+            }, true)
+        } else if (x.t == 'obj') {
+            Object.values(x.S).forEach(x => see_annotations(x))
+        }
+    }
+
     function recurse(x) {
         if (is_lit(x)) return x
         if (x.t == 'val') {
@@ -138,11 +164,11 @@ function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen
             return x
         }
         if (x.t == 'arr') {
-            space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
+            space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions, seen_annotations)
             traverse_space_dag(x.S, () => true, node => {
                 node.elems = node.elems.map(recurse)
             }, true)
-            if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.every(is_lit) && !Object.keys(x.S.deleted_by).length) return {t: 'lit', S: x.S.elems.map(get_lit)}
+            if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.every(is_lit) && !Object.keys(x.S.deleted_by).length && !x.S.annotations) return {t: 'lit', S: x.S.elems.map(get_lit)}
             return x
         }
         if (x.t == 'obj') {
@@ -155,8 +181,8 @@ function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen
             return x
         }
         if (x.t == 'str') {
-            space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions)
-            if (x.S.nexts.length == 0 && !x.S.next && !Object.keys(x.S.deleted_by).length) return x.S.elems
+            space_dag_prune(x.S, has_everyone_whos_seen_a_seen_b, seen_versions, seen_annotations)
+            if (x.S.nexts.length == 0 && !x.S.next && !Object.keys(x.S.deleted_by).length && !x.S.annotations) return x.S.elems
             return x
         }
     }
@@ -199,7 +225,7 @@ function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen
     return delete_us
 }
 
-function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
+function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions, seen_annotations) {
     function set_nnnext(node, next) {
         while (node.next) node = node.next
         node.next = next
@@ -207,6 +233,20 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
     function process_node(node, offset, version, prev) {
         var nexts = node.nexts
         var next = node.next
+
+        var did_something = false
+
+        if (node.annotations) {
+            for (k of Object.keys(node.annotations))
+                if (!seen_annotations[k]) {
+                    delete node.annotations[k]
+                    did_something = true
+                }
+            if (Object.keys(node.annotations).length == 0) {
+                delete node.annotations
+                did_something = true
+            }
+        }
         
         var all_nexts_prunable = nexts.every(x => has_everyone_whos_seen_a_seen_b(version, x.version))
         if (nexts.length > 0 && all_nexts_prunable) {
@@ -243,15 +283,24 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
         }
         
         if (Object.keys(node.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(version, k))) {
-            node.deleted_by = {}
-            node.elems = node.elems.slice(0, 0)
-            delete node.gash
-            return true
+            if (!node.annotations) {
+                node.deleted_by = {}
+                node.elems = node.elems.slice(0, 0)
+                delete node.gash
+                return true
+            } else {
+                if (node.elems.length > 1) {
+                    node.elems = node.elems.slice(0, 1)
+                    did_something = true
+                }
+                Object.assign(seen_versions, node.deleted_by)
+            }
         } else {
             Object.assign(seen_versions, node.deleted_by)
         }
         
         if (next && !next.nexts[0] && (Object.keys(next.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(version, k)) || next.elems.length == 0)) {
+            if (next.annotations) throw 'bad'
             node.next = next.next
             return true
         }
@@ -260,12 +309,22 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
             !(next.elems.length == 0 && !next.end_cap && next.nexts.length > 0) &&
             Object.keys(node.deleted_by).every(x => next.deleted_by[x]) &&
             Object.keys(next.deleted_by).every(x => node.deleted_by[x])) {
+
+            if (next.annotations) {
+                node.annotations = node.annotations || {}
+                Object.entries(next.annotations).forEach(e => {
+                    node.annotations[e[0]] = e[1] + node.elems.length
+                })
+            }
+
             node.elems = node.elems.concat(next.elems)
             node.end_cap = next.end_cap
             node.nexts = next.nexts
             node.next = next.next
             return true
         }
+
+        return did_something
     }
     
     var did_something_ever = false
@@ -285,16 +344,13 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions) {
     return did_something_ever
 }
 
-
-
-
-
 function add_version(resource, version, parents, changes, is_anc) {
     let make_lit = x => (x && typeof(x) == 'object') ? {t: 'lit', S: x} : x
     
     if (!version && Object.keys(resource.time_dag).length == 0) {
         var parse = parse_change(changes[0])
         resource.space_dag = make_lit(parse.val)
+        create_annotations(parse)
         return
     } else if (!version) return
     
@@ -314,9 +370,37 @@ function add_version(resource, version, parents, changes, is_anc) {
             is_anc = _version => ancs[_version]
         }
     }
+
+    function create_annotations(parse) {
+        Object.entries(parse.annotations || {}).forEach(e => {
+            e[1].range = [0, 0]
+            var cur = resolve_path(e[1])
+            traverse_space_dag(cur.S, is_anc, (node, offset) => {
+                if (offset <= e[1].pos && e[1].pos <= offset + node.elems.length) {
+                    node.annotations = node.annotations || {}
+                    node.annotations[e[0]] = e[1].pos - offset
+                    return false
+                }
+            })
+        })
+    }
     
     changes.forEach(change => {
         var parse = parse_change(change)
+        create_annotations(parse)
+        var cur = resolve_path(parse)
+        if (!parse.range) {
+            if (cur.t != 'val') throw 'bad'
+            var len = space_dag_length(cur.S, is_anc)
+            space_dag_add_version(cur.S, version, [[0, len, [make_lit(parse.val)]]], is_anc)
+        } else {
+            if (parse.val instanceof String && cur.t != 'str') throw 'bad'
+            if (parse.val instanceof Array) parse.val = parse.val.map(x => make_lit(x))
+            space_dag_add_version(cur.S, version, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
+        }
+    })
+
+    function resolve_path(parse) {
         var cur = resource.space_dag
         if (!cur || typeof(cur) != 'object' || cur.t == 'lit')
             cur = resource.space_dag = {t: 'val', S: create_space_dag_node(null, [cur])}
@@ -351,11 +435,7 @@ function add_version(resource, version, parents, changes, is_anc) {
                 cur = space_dag_get(prev_S = cur.S, prev_i = key, is_anc)
             } else throw 'bad'
         }
-        if (!parse.range) {
-            if (cur.t != 'val') throw 'bad'
-            var len = space_dag_length(cur.S, is_anc)
-            space_dag_add_version(cur.S, version, [[0, len, [make_lit(parse.val)]]], is_anc)
-        } else {
+        if (parse.range) {
             if (cur.t == 'val') cur = space_dag_get(prev_S = cur.S, prev_i = 0, is_anc)
             if (typeof(cur) == 'string') {
                 cur = {t: 'str', S: create_space_dag_node(null, cur)}
@@ -365,48 +445,80 @@ function add_version(resource, version, parents, changes, is_anc) {
                 cur = {t: 'arr', S: create_space_dag_node(null, cur.S.map(x => make_lit(x)))}
                 space_dag_set(prev_S, prev_i, cur, is_anc)
             }
-            
-
-            
-            
-            if (parse.val instanceof String && cur.t != 'str') throw 'bad'
-            if (parse.val instanceof Array) parse.val = parse.val.map(x => make_lit(x))
-            space_dag_add_version(cur.S, version, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
         }
-    })
+        return cur
+    }
 }
 
 function read(x, is_anc) {
     if (!is_anc) is_anc = () => true
-    if (x && typeof(x) == 'object') {
-        if (!x.t) return read(x.space_dag, is_anc)
-        if (x.t == 'lit') return x.S
-        if (x.t == 'val') return read(space_dag_get(x.S, 0, is_anc), is_anc)
-        if (x.t == 'obj') {
-            var o = {}
-            Object.entries(x.S).forEach(([k, v]) => {
-                o[k] = read(v, is_anc)
-            })
-            return o
-        }
-        if (x.t == 'arr') {
-            var a = []
-            traverse_space_dag(x.S, is_anc, (node) => {
-                node.elems.forEach((e) => {
-                    a.push(read(e, is_anc))
+    var annotations = {}
+    return finalize(read_raw(x, is_anc, annotations))
+    function finalize(x) {
+        if (Array.isArray(x))
+            for (var i = 0; i < x.length; i++) x[i] = finalize(x[i])
+        else if (x && typeof(x) == 'object') {
+            if (x.type == 'location')
+                return annotations[x.id]
+            else {
+                var y = {}
+                Object.entries(x).forEach(e => {
+                    var key = e[0].match(/^_+type$/) ? e[0].slice(1) : e[0]
+                    y[key] = finalize(e[1])
                 })
-            })
-            return a
+                return y
+            }
         }
-        if (x.t == 'str') {
-            var s = []
-            traverse_space_dag(x.S, is_anc, (node) => {
-                s.push(node.elems)
-            })
-            return s.join('')
-        }
-        throw 'bad'
-    } return x
+        return x
+    }
+}
+
+function read_raw(x, is_anc, annotations) {
+    if (!is_anc) is_anc = () => true
+    return rec_read(x)
+    function rec_read(x) {
+        if (x && typeof(x) == 'object') {
+            if (!x.t) return rec_read(x.space_dag, is_anc)
+            if (x.t == 'lit') return JSON.parse(JSON.stringify(x.S))
+            if (x.t == 'val') return rec_read(space_dag_get(x.S, 0, is_anc), is_anc)
+            if (x.t == 'obj') {
+                var o = {}
+                Object.entries(x.S).forEach(([k, v]) => {
+                    o[k] = rec_read(v, is_anc)
+                })
+                return o
+            }
+            if (x.t == 'arr') {
+                var a = []
+                traverse_space_dag(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
+                    if (annotations && node.annotations) Object.entries(node.annotations).forEach(e => {
+                        annotations[e[0]] = a.length + (deleted ? 0 : e[1])
+                    })
+                    if (!deleted) {
+                        node.elems.forEach((e) => {
+                            a.push(rec_read(e, is_anc))
+                        })
+                    }
+                }, true)
+                return a
+            }
+            if (x.t == 'str') {
+                var s = []
+                var len = 0
+                traverse_space_dag(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
+                    if (annotations && node.annotations) Object.entries(node.annotations).forEach(e => {
+                        annotations[e[0]] = len + (deleted ? 0 : e[1])
+                    })
+                    if (!deleted) {
+                        s.push(node.elems)
+                        len += node.elems.length
+                    }
+                }, true)
+                return s.join('')
+            }
+            throw 'bad'
+        } return x
+    }
 }
 
 function create_space_dag_node(version, elems, end_cap) {
@@ -453,22 +565,28 @@ function space_dag_length(S, is_anc) {
 }
 
 function space_dag_break_node(node, x, end_cap, new_next) {
-    function subseq(x, start, stop) {
-        return (x instanceof Array) ?
-            x.slice(start, stop) :
-            x.substring(start, stop)
-    }
-    
-    var tail = create_space_dag_node(null, subseq(node.elems, x), node.end_cap)
+    var tail = create_space_dag_node(null, node.elems.slice(x), node.end_cap)
     Object.assign(tail.deleted_by, node.deleted_by)
     tail.nexts = node.nexts
     tail.next = node.next
     
-    node.elems = subseq(node.elems, 0, x)
+    node.elems = node.elems.slice(0, x)
     node.end_cap = end_cap
     if (end_cap) tail.gash = true
     node.nexts = new_next ? [new_next] : []
     node.next = tail
+
+    var annotations = node.annotations || {}
+    delete node.annotations
+    Object.entries(annotations).forEach(e => {
+        if (e[1] <= x) {
+            node.annotations = node.annotations || {}
+            node.annotations[e[0]] = e[1]
+        } else {
+            tail.annotations = tail.annotations || {}
+            tail.annotations[e[0]] = e[1] - x
+        }
+    })
     
     return tail
 }
@@ -583,9 +701,9 @@ function traverse_space_dag(S, f, cb, view_deleted, tail_cb) {
     var offset = 0
     function helper(node, prev, version) {
         var has_nexts = node.nexts.find(next => f(next.version))
-        if (view_deleted ||
-            !Object.keys(node.deleted_by).some(version => f(version))) {
-            if (cb(node, offset, has_nexts, prev, version) == false)
+        var deleted = Object.keys(node.deleted_by).some(version => f(version))
+        if (view_deleted || !deleted) {
+            if (cb(node, offset, has_nexts, prev, version, deleted) == false)
                 throw exit_early
             offset += node.elems.length
         }
@@ -601,7 +719,6 @@ function traverse_space_dag(S, f, cb, view_deleted, tail_cb) {
     }
 }
 
-
 function parse_change(change) {
     var ret = { keys : [] }
     var re = /\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|'(\\'|[^'])*'|"(\\"|[^"])*")\]|\s*=\s*([\s\S]*)/g
@@ -616,10 +733,29 @@ function parse_change(change) {
             ]
         else if (m[2])
             ret.keys.push(JSON.parse(m[2]))
-        else if (m[7])
+        else if (m[7]) {
             ret.val = JSON.parse(m[7])
+            rec(ret.val)
+            function rec(x) {
+                if (x && typeof(x) == 'object') {
+                    if (x instanceof Array) {
+                        for (var i = 0; i < x.length; i++) rec(x[i])
+                    } else {
+                        if (Object.keys(x).find(k => k == 'type' && x[k] == 'location')) {
+                            x.id = Math.random().toString(36).slice(2)
+
+                            ret.annotations = ret.annotations || {}
+                            var path = parse_change(x.path).keys
+                            ret.annotations[x.id] = {
+                                keys: path.slice(0, path.length - 1),
+                                pos: path[path.length - 1]
+                            }
+                        } else for (let k of Object.keys(x)) rec(x[k])
+                    }
+                }
+            }
+        }
     }
-    
     return ret
 }
 

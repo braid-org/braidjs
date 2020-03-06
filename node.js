@@ -3,6 +3,7 @@ u = require('./utilities.js')
 module.exports = require.node = function create_node(node = {}) {
     if (!node.pid) node.pid = u.random_id()
     if (!node.resources) node.resources = {}
+    if (!node.ons) node.ons = []
     else {
         for (var key of Object.keys(node.resources)) {
             node.resources[key] = require('./resource.js')(node.resources[key])
@@ -129,7 +130,7 @@ module.exports = require.node = function create_node(node = {}) {
     //  - get(key, cb)
     //  - get({key, origin, ...})
     node.get = (...args) => {
-        node.on && node.on('get', args)
+        node.ons.forEach(on => on('get', args))
 
         var key, version, parents, subscribe, origin
         // First rewrite the arguments if called as get(key) or get(key, cb)
@@ -246,7 +247,7 @@ module.exports = require.node = function create_node(node = {}) {
         for (p in parents)
             assert(resource.time_dag[p], 'Parent ' + p + ' is not a version!')
 
-        node.on && node.on('set', [{key, patches, version, parents, origin, joiner_num}])
+        node.ons.forEach(on => on('set', [{key, patches, version, parents, origin, joiner_num}]))
 
         // G: cool, someone is giving us a new version to add to our datastructure.
         // it might seem like we would just go ahead and add it, but instead
@@ -376,7 +377,9 @@ module.exports = require.node = function create_node(node = {}) {
     }
     
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
-        node.on && node.on('welcome', [{key, versions, fissures, unack_boundary, min_leaves, origin}])
+        node.ons.forEach(on => on('welcome', [{key, versions, fissures, unack_boundary, min_leaves, origin}]))
+
+        var initial_welcome = !unack_boundary
 
         assert(key && versions && fissures,
                'Missing some variables:',
@@ -669,6 +672,20 @@ module.exports = require.node = function create_node(node = {}) {
                                key, versions: new_versions, unack_boundary, min_leaves,
                                fissures: new_fissures})
             })
+        } else if (initial_welcome) {
+            // this code is here for the moment to support the use case
+            // where someone does node.get('/foo', () => do_stuff),
+            // and they basically want to be notified once the server
+            // has sent a response, which might not happen if the server's
+            // data is empty, because the way the get callback works
+            // is that it is a special pipe listening for welcome and set messages,
+            // so we give it a welcome here
+            node.bindings(key).forEach(pipe => {
+                if (pipe.send && !pipe.remote && (pipe.id !== origin.id))
+                    pipe.send({method: 'welcome',
+                               key, versions: new_versions, unack_boundary, min_leaves,
+                               fissures: new_fissures})
+            })
         }
 
         // G: now we finally add the fissures we decided we need to create
@@ -687,7 +704,7 @@ module.exports = require.node = function create_node(node = {}) {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
-        node.on && node.on('ack', [{key, valid, seen, version, origin, joiner_num}])
+        node.ons.forEach(on => on('ack', [{key, valid, seen, version, origin, joiner_num}]))
 
         log('node.ack: Acking!!!!', {key, seen, version, origin})
         assert(key && version && origin)
@@ -719,7 +736,7 @@ module.exports = require.node = function create_node(node = {}) {
     }
     
     node.fissure = ({key, fissure, origin}) => {
-        node.on && node.on('fissure', [{key, fissure, origin}])
+        node.ons.forEach(on => on('fissure', [{key, fissure, origin}]))
 
         assert(key && fissure,
                'Missing some variables',
@@ -756,7 +773,7 @@ module.exports = require.node = function create_node(node = {}) {
     }
 
     node.disconnected = ({key, name, versions, parents, origin}) => {
-        node.on && node.on('disconnected', [{key, name, versions, parents, origin}])
+        node.ons.forEach(on => on('disconnected', [{key, name, versions, parents, origin}]))
 
         // if we haven't sent them a welcome, then no need to create a fissure
         if (!node.resource_at(key).we_welcomed[origin.id]) return
@@ -901,16 +918,18 @@ module.exports = require.node = function create_node(node = {}) {
             if (!a) a = 'null'
             return a && b && !frozen[a] && !frozen[b] && (tags[a].tag == tags[b].tag)
         }
-        resource.mergeable.prune(q, q)
+        var seen_annotations = {}
+        resource.mergeable.prune(q, q, seen_annotations)
 
+        // todo: this code can maybe be moved into the resource.mergeable.prune function
         var leaves = Object.keys(resource.current_version)
         var acked_boundary = Object.keys(resource.acked_boundary)
         var fiss = Object.keys(resource.fissures)
-        if (leaves.length == 1 && acked_boundary.length == 1 && leaves[0] == acked_boundary[0] && fiss.length == 0) {
+        if (leaves.length == 1 && acked_boundary.length == 1 && leaves[0] == acked_boundary[0] && fiss.length == 0 && !Object.keys(seen_annotations).length) {
             resource.time_dag = {
                 [leaves[0]]: {}
             }
-            var val = resource.mergeable.read()
+            var val = resource.mergeable.read_raw()
             resource.space_dag = (val && typeof(val) == 'object') ? {t: 'lit', S: val} : val
         }
     }
