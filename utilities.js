@@ -8,7 +8,7 @@ is_browser = typeof process !== 'object' || typeof global !== 'object'
 // dict() is an alternative to {}.  It creates a clean hash table without any
 // pre-existing keys, like .constructor or .prototype that are built into
 // Javascript Objects.
-var dict = () => Object.create({})
+var dict = () => Object.create(null)
 
 module.exports = require.utilities = {
     dict: dict,
