@@ -379,8 +379,6 @@ module.exports = require.node = function create_node(node = {}) {
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
         node.ons.forEach(on => on('welcome', [{key, versions, fissures, unack_boundary, min_leaves, origin}]))
 
-        var initial_welcome = !unack_boundary
-
         assert(key && versions && fissures,
                'Missing some variables:',
                {key, versions, fissures})
@@ -665,23 +663,13 @@ module.exports = require.node = function create_node(node = {}) {
         // since there's nothing new to hear about)
         
         assert(unack_boundary && min_leaves && fissures && new_versions)
-        if (new_versions.length > 0 || new_fissures.length > 0) {
+        if (new_versions.length > 0 || new_fissures.length > 0 || !resource.weve_been_welcomed) {
+            // Now record that we've seen a welcome
+            resource.weve_been_welcomed = true
+
+            // And tell everyone about it!
             node.bindings(key).forEach(pipe => {
                 if (pipe.send && (pipe.id !== origin.id))
-                    pipe.send({method: 'welcome',
-                               key, versions: new_versions, unack_boundary, min_leaves,
-                               fissures: new_fissures})
-            })
-        } else if (initial_welcome) {
-            // this code is here for the moment to support the use case
-            // where someone does node.get('/foo', () => do_stuff),
-            // and they basically want to be notified once the server
-            // has sent a response, which might not happen if the server's
-            // data is empty, because the way the get callback works
-            // is that it is a special pipe listening for welcome and set messages,
-            // so we give it a welcome here
-            node.bindings(key).forEach(pipe => {
-                if (pipe.send && !pipe.remote && (pipe.id !== origin.id))
                     pipe.send({method: 'welcome',
                                key, versions: new_versions, unack_boundary, min_leaves,
                                fissures: new_fissures})
@@ -695,6 +683,7 @@ module.exports = require.node = function create_node(node = {}) {
         // people to understand them)
 
         gen_fissures.forEach(f => node.fissure({key, fissure:f}))
+
     }
     
     node.forget = ({key, origin}) => {

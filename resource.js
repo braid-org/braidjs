@@ -41,6 +41,9 @@ module.exports = require.resource = function create_resource(resource = {}) {
     // Peers that we have sent a welcome message to
     if (!resource.we_welcomed) resource.we_welcomed = {}
 
+    // Have we been welcomed yet?  (Has the data loaded?)
+    if (!resource.weve_been_welcomed) resource.weve_been_welcomed = false
+
     // Disconnections that have occurred in the network without a forget()
     if (!resource.fissures) resource.fissures = {}
 
