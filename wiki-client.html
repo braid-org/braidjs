@@ -60,10 +60,12 @@ async function sync_editor(t) {
     node.get(key, x => {
         get_num++
         if (get_num == 1) {
-            console.log('got here!!!1111')
+            console.log('got here!!!1111 false='+node.resource_at(key).weve_been_welcomed)
+            console.assert(node.resource_at(key).weve_been_welcomed === false)
             // ignore, this is the initial value of the new node, which will be null
         } else if (get_num == 2) {
-            console.log('got here!!!22222')
+            console.log('got here!!!22222, true='+node.resource_at(key).weve_been_welcomed)
+            console.assert(node.resource_at(key).weve_been_welcomed === true)
 
             if (!x || typeof(x) != 'object') node.set(key, {cursors: {}, text: t.value})
             else send_diff(x, t.value + x)
@@ -79,6 +81,7 @@ async function sync_editor(t) {
             })
             add_selection_listener(t, send_cursor_update)
         } else {
+            console.assert(node.resource_at(key).weve_been_welcomed === true)
             t.value = prev_text = x.text
             // t.setSelectionRange(x.cursors[node.pid + '-start'], x.cursors[node.pid + '-end'])
             t.setSelectionRange(x.cursors[node.pid], x.cursors[node.pid])
