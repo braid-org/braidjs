@@ -51,7 +51,9 @@ async function sync_editor(t) {
     }
 
     function send_cursor_update(start, end) {
-        // node.set(key, null, [`.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`, `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
+        node.set(key, null, [
+            `.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
+            `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
 
         node.set(key, null, [`.cursors[${JSON.stringify(node.pid)}] = {"type": "location", "path": ".text[${start}]"}`])
     }
@@ -60,34 +62,41 @@ async function sync_editor(t) {
     node.get(key, x => {
         get_num++
         if (get_num == 1) {
-            console.log('got here!!!1111 false='+node.resource_at(key).weve_been_welcomed)
+            console.log('got here!!!1111')
             console.assert(node.resource_at(key).weve_been_welcomed === false)
             // ignore, this is the initial value of the new node, which will be null
         } else if (get_num == 2) {
-            console.log('got here!!!22222, true='+node.resource_at(key).weve_been_welcomed)
+            console.log('got here!!!22222')
             console.assert(node.resource_at(key).weve_been_welcomed === true)
 
-            if (!x || typeof(x) != 'object') node.set(key, {cursors: {}, text: t.value})
+            // Initialize the object if it doesn't have a value yet
+            if (!x || typeof(x) !== 'object') node.set(key, {cursors: {}, text: t.value})
+
+            // Or if it does, then prepend it with our text, and send that
             else send_diff(x, t.value + x)
+
+            // Initialize our cursor to it
             send_cursor_update(t.selectionStart, t.selectionEnd)
 
+            // And start sending all future updates
             t.addEventListener('input', e => {
-
                 // debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
-
-                // debugger
-
                 send_diff(prev_text, t.value)
             })
             add_selection_listener(t, send_cursor_update)
         } else {
             console.assert(node.resource_at(key).weve_been_welcomed === true)
             t.value = prev_text = x.text
+
             // t.setSelectionRange(x.cursors[node.pid + '-start'], x.cursors[node.pid + '-end'])
             t.setSelectionRange(x.cursors[node.pid], x.cursors[node.pid])
 
-            // debug_display.textContent = x.text.slice(0, x.cursors[node.pid + '-start']) + '^' + x.text.slice(x.cursors[node.pid + '-start']) + ' :' + x.cursors[node.pid + '-start']
-            debug_display.textContent = x.text.slice(0, x.cursors[node.pid]) + '^' + x.text.slice(x.cursors[node.pid]) + ' :' + x.cursors[node.pid]
+            // debug_display.textContent = x.text.slice(0, x.cursors[node.pid + '-start'])
+            //    + '^' + x.text.slice(x.cursors[node.pid + '-start'])
+            //    + ' :' + x.cursors[node.pid + '-start']
+
+            debug_display.textContent = x.text.slice(0, x.cursors[node.pid])
+                + '^' + x.text.slice(x.cursors[node.pid]) + ' :' + x.cursors[node.pid]
 
             debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
         }
