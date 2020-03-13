@@ -363,9 +363,9 @@ function add_version(resource, version, parents, changes, is_anc) {
     resource.current_version[version] = true
     
     if (!is_anc) {
-        if (parents == resource.current_version) {
+        if (parents == resource.current_version)
             is_anc = (_version) => _version != version
-        } else {
+        else {
             var ancs = resource.ancestors(parents)
             is_anc = _version => ancs[_version]
         }

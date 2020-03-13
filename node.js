@@ -143,7 +143,8 @@ module.exports = require.node = function create_node(node = {}) {
                       ? {send(args) {
                           if (args.method === 'set'
                               || args.method === 'welcome') {
-                              //console.trace('got msg of', args)
+                              // Let's also ensure this doesn't run until
+                              // (weve_been_welcomed || zero get handlers are registered)
                               cb(node.resource_at(key).mergeable.read())}}}
                       : default_pipe)
         }
@@ -905,6 +906,7 @@ module.exports = require.node = function create_node(node = {}) {
             }
         })
         var q = (a, b) => {
+            // This code assumes there is a God
             if (!a) a = 'null'
             return a && b && !frozen[a] && !frozen[b] && (tags[a].tag == tags[b].tag)
         }
@@ -912,6 +914,7 @@ module.exports = require.node = function create_node(node = {}) {
         resource.mergeable.prune(q, q, seen_annotations)
 
         // todo: this code can maybe be moved into the resource.mergeable.prune function
+        //       (this code also assumes there is a God)
         var leaves = Object.keys(resource.current_version)
         var acked_boundary = Object.keys(resource.acked_boundary)
         var fiss = Object.keys(resource.fissures)
@@ -936,7 +939,6 @@ module.exports = require.node = function create_node(node = {}) {
                   joiner_num})
     }        
 
-    // This is not yet used
     node.current_version = (key) => Object.keys(node.resource_at(key).current_version).join('-')
 
     var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
