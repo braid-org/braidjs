@@ -11,6 +11,8 @@ module.exports = require.node = function create_node(node = {}) {
     }
 
     node.resource_at = (key) => {
+        if (typeof key !== 'string')
+            throw (JSON.stringify(key) + ' is not a key!')
         if (!node.resources[key])
             node.resources[key] = require('./resource.js')()
 
@@ -683,7 +685,6 @@ module.exports = require.node = function create_node(node = {}) {
         // people to understand them)
 
         gen_fissures.forEach(f => node.fissure({key, fissure:f}))
-
     }
     
     node.forget = ({key, origin}) => {
