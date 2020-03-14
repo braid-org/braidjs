@@ -142,7 +142,8 @@ module.exports = require.node = function create_node(node = {}) {
             origin = (cb
                       ? {send(args) {
                           if (args.method === 'set'
-                              || args.method === 'welcome') {
+                              || args.method === 'welcome'
+                              && node.resource_at(key).weve_been_welcomed) {
                               // Let's also ensure this doesn't run until
                               // (weve_been_welcomed || zero get handlers are registered)
                               cb(node.resource_at(key).mergeable.read())}}}
@@ -227,7 +228,7 @@ module.exports = require.node = function create_node(node = {}) {
     node.set = (...args) => {
         var key, patches, version, parents, origin, joiner_num
 
-        // First rewrite the arguments if called as get(key, ...)
+        // First rewrite the arguments if called as set(key, ...)
         if (typeof args[0] === 'string') {
             key = args[0]
             patches = args[2]
