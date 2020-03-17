@@ -177,7 +177,9 @@ module.exports = require.node = function create_node(node = {}) {
                 node.bindings(key).length, 'pipes!')
             // This one is getting called afterward
             node.bindings(key).forEach(pipe => {
-                pipe.send && pipe.send({method:'get', key, version, parents, subscribe, origin})
+                pipe.send && pipe.send({
+                    method:'get', key, version, parents, subscribe, origin
+                })
             })
         }
 
@@ -940,7 +942,7 @@ module.exports = require.node = function create_node(node = {}) {
                   joiner_num})
     }        
 
-    node.current_version = (key) => Object.keys(node.resource_at(key).current_version).join('-')
+    node.current_version = (key) => Object.keys(node.resource_at(key).current_version).join('-') || null
 
     var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
     // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
