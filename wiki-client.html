@@ -98,10 +98,6 @@ async function sync_editor(t) {
         get_num++
         if (get_num == 1) {
             console.log('got here!!!1111')
-            console.assert(node.resource_at(key).weve_been_welcomed === false)
-            // ignore, this is the initial value of the new node, which will be null
-        } else if (get_num == 2) {
-            console.log('got here!!!22222')
             console.assert(node.resource_at(key).weve_been_welcomed === true)
 
             // Initialize the object if it doesn't have a value yet
