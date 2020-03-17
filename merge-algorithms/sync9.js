@@ -300,7 +300,14 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions, seen
         }
         
         if (next && !next.nexts[0] && (Object.keys(next.deleted_by).some(k => has_everyone_whos_seen_a_seen_b(version, k)) || next.elems.length == 0)) {
-            if (next.annotations) throw 'bad'
+
+            if (next.annotations) {
+                node.annotations = node.annotations || {}
+                Object.entries(next.annotations).forEach(e => {
+                    node.annotations[e[0]] = node.elems.length
+                })
+            }
+
             node.next = next.next
             return true
         }
@@ -375,13 +382,15 @@ function add_version(resource, version, parents, changes, is_anc) {
         Object.entries(parse.annotations || {}).forEach(e => {
             e[1].range = [0, 0]
             var cur = resolve_path(e[1])
-            traverse_space_dag(cur.S, is_anc, (node, offset) => {
+            function helper(node, offset) {
                 if (offset <= e[1].pos && e[1].pos <= offset + node.elems.length) {
                     node.annotations = node.annotations || {}
                     node.annotations[e[0]] = e[1].pos - offset
                     return false
                 }
-            })
+            }
+            if (e[1].pos == 0) helper(cur.S, 0)
+            else traverse_space_dag(cur.S, is_anc, helper)
         })
     }
     

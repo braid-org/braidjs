@@ -30,7 +30,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
         // It can Send and Receive messages
         send (args) {
             var we_welcomed = args.key && node.resource_at(args.key).we_welcomed[this.id]
-            log('pipe.send:', args.method, 'welcomed:', we_welcomed)
+            log('pipe.send:', args.method, 'welcomed:', !!we_welcomed)
             assert(args.method !== 'hello')
             log('...')
 
@@ -134,13 +134,14 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
 
                 // Record their subscription
                 this.subscribed_keys[args.key].they_requested = args.subscribe
-
-                log('pipe.recv: New remote!', this.id,
-                    'Now we have', node.remotes(args.key).length)
             }
 
             args.origin = this
             node[args.method](args)
+
+            if (args.method === 'get') {
+                log('pipe.recv: New remote!', this.id, 'Now we have', node.remotes(args.key).length)
+            }
         },
 
         // It can Connect and Disconnect

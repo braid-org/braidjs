@@ -212,7 +212,7 @@ module.exports = require.node = function create_node(node = {}) {
 
         // G: ok, here we actually send out the welcome
 
-        resource.we_welcomed[origin.id] = {id: origin.id, connection: origin.connection, them: origin.them}
+        if (origin.remote) resource.we_welcomed[origin.id] = {id: origin.id, connection: origin.connection, them: origin.them}
         origin.send && origin.send({method: 'welcome', key, versions, fissures})
 
         return resource.mergeable.read()
@@ -765,8 +765,8 @@ module.exports = require.node = function create_node(node = {}) {
     node.disconnected = ({key, name, versions, parents, origin}) => {
         node.ons.forEach(on => on('disconnected', [{key, name, versions, parents, origin}]))
 
-        // if we haven't sent them a welcome, then no need to create a fissure
-        if (!node.resource_at(key).we_welcomed[origin.id]) return
+        // if we haven't sent them a welcome (or they are not remote), then no need to create a fissure
+        if (!origin.remote || !node.resource_at(key).we_welcomed[origin.id]) return
 
         // now since we're disconnecting, we reset the we_welcomed flag
         delete node.resource_at(key).we_welcomed[origin.id]

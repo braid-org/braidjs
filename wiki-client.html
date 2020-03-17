@@ -40,26 +40,61 @@ async function sync_editor(t) {
     window.my_node = node
 
     node.ons.push((method, args) => {
-        console.log('RESOURCE: ' + JSON.stringify(node.resource_at(key).space_dag, null, '    '))
+        //console.log('RESOURCE: ' + JSON.stringify(node.resource_at(key).space_dag, null, '    '))
         console.log('ABOUT TO: ' + method + ', ' + JSON.stringify(args))
     })
 
+    var setting = 0
+
     function send_diff(from, to) {
+        setting++
         node.set(key, null, diff_convert_to_my_format(diff_main(from, to)).map(x =>
             `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
         ))
+        setting--
+
+        update_debug_display()
     }
 
     function send_cursor_update(start, end) {
-        node.set(key, null, [
-            `.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
-            `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
+        // node.set(key, null, [
+        //     `.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
+        //     `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
 
+        setting++
         node.set(key, null, [`.cursors[${JSON.stringify(node.pid)}] = {"type": "location", "path": ".text[${start}]"}`])
+        setting--
+
+        update_debug_display()
+    }
+
+    function update_debug_display() {
+        var x = node.resource_at(key).mergeable.read()
+
+        debug_display.innerHTML = ''
+        for (var i = 0; i < x.text.length; i++) {
+            Object.entries(x.cursors).forEach(e => {
+                if (e[1] == i) {
+                    debug_display.append(make_html(`<span style="color:${e[0] == node.pid ? 'green' : 'red'}">^</span>`))
+                }
+            })
+            var s = make_html(`<span></span>`)
+            s.textContent = x.text[i]
+            debug_display.append(s)
+        }
+        Object.entries(x.cursors).forEach(e => {
+            if (e[1] == i) {
+                debug_display.append(make_html(`<span style="color:${e[0] == node.pid ? 'green' : 'red'}">^</span>`))
+            }
+        })
+
+        debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
     }
 
     var get_num = 0
     node.get(key, x => {
+        if (setting) return
+
         get_num++
         if (get_num == 1) {
             console.log('got here!!!1111')
@@ -73,7 +108,10 @@ async function sync_editor(t) {
             if (!x || typeof(x) !== 'object') node.set(key, {cursors: {}, text: t.value})
 
             // Or if it does, then prepend it with our text, and send that
-            else send_diff(x, t.value + x)
+            else {
+                prev_text = t.value = t.value + x.text
+                send_diff(x.text, t.value)
+            }
 
             // Initialize our cursor to it
             send_cursor_update(t.selectionStart, t.selectionEnd)
@@ -82,11 +120,12 @@ async function sync_editor(t) {
             t.addEventListener('input', e => {
                 // debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
                 send_diff(prev_text, t.value)
+                prev_text = t.value
             })
             add_selection_listener(t, send_cursor_update)
         } else {
             console.assert(node.resource_at(key).weve_been_welcomed === true)
-            t.value = prev_text = x.text
+            prev_text = t.value = x.text
 
             // t.setSelectionRange(x.cursors[node.pid + '-start'], x.cursors[node.pid + '-end'])
             t.setSelectionRange(x.cursors[node.pid], x.cursors[node.pid])
@@ -95,10 +134,7 @@ async function sync_editor(t) {
             //    + '^' + x.text.slice(x.cursors[node.pid + '-start'])
             //    + ' :' + x.cursors[node.pid + '-start']
 
-            debug_display.textContent = x.text.slice(0, x.cursors[node.pid])
-                + '^' + x.text.slice(x.cursors[node.pid]) + ' :' + x.cursors[node.pid]
-
-            debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
+            update_debug_display()
         }
     })
 }
