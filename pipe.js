@@ -18,7 +18,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
     // The Pipe Object!
     var pipe = {
 
-        // A pipe holds four variables:
+        // A pipe holds some state:
         id: id,
         type: type,
         connection: null,
@@ -145,9 +145,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
             args.origin = this
             node[args.method](args)
 
-            if (args.method === 'get') {
-                log('pipe.recv: New remote!', this.id, 'Now we have', node.remotes(args.key).length)
-            }
+            if (args.method === 'get')
+                log('pipe.recv: New remote!', this.id,
+                    'Now we have', node.remotes(args.key).length)
+
         },
 
         // It can Connect and Disconnect
