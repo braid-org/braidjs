@@ -64,15 +64,19 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                     // get when the connection completes
                     return
                 }
-            } else if (args.method === 'forget') {
+            }
+
+            else if (args.method === 'forget') {
                 // Record forgotten keys
                 delete this.subscribed_keys[args.key].we_requested
                 node.unbind(args.key, this)
+            }
 
-            } else if (args.method === 'welcome' && !args.unack_boundary) {
+            else if (args.method === 'welcome' && !args.unack_boundary) {
+                // If we haven't welcomed them yet, ignore this message
+            }
 
-            // If we haven't welcomed them yet, ignore this message
-            } else if (!we_welcomed) {
+            else if (!we_welcomed) {
                 // Oh shit, I think this is a bug.  Cause if they welcomed us,
                 // we wanna send them shit too... but maybe we need to start
                 // by welcoming them.
@@ -118,7 +122,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                 var versions = resource.mergeable.generate_braid(x => false)
                 var fissures = Object.values(resource.fissures)
                 this.send({method: 'welcome', key: args.key, versions, fissures})
-                resource.we_welcomed[this.id] = {id: this.id, connection: this.connection, them: this.them}
+                resource.we_welcomed[this.id] = {id: this.id,
+                                                 connection: this.connection,
+                                                 them: this.them}
             }
 
             // Remember new subscriptions from them
