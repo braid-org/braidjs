@@ -1,16 +1,12 @@
-<script type=coffee>  # -*- mode: javascript; c-basic-offset: 2 -*-
-# dom.BODY = () ->
-#   console.log('Rendering BODY with', get('/chat'), "loading #{bus.loading()}")
-#   DIV null,
-#     H2('messages')
-#     for msg in bus.fetch('/chat').val
-#       DIV(msg)
-
+<script type=coffee>
+get = bus.fetch
+set = bus.save
+key = '/chat'
 dom.BODY = =>
-  chat = get('/chat')
+  chat = get(key)
   submit = =>
     n = chat.val.length
-    node.set('/chat', null,
+    node.set(key, null,
              "[#{n}:#{n}] = " + JSON.stringify([get('local').new_text || '']))
     bus.save({key: 'local', new_text: ''})
 
@@ -19,6 +15,7 @@ dom.BODY = =>
     for msg in chat.val
       DIV msg
     TEXTAREA
+      id:  'the input!'
       key: 'the input!'
       value: get('local').new_text
       onChange: (e) =>
@@ -27,54 +24,15 @@ dom.BODY = =>
     BUTTON
       onClick: submit
       'Send'
+dom.BODY.up = -> document.getElementById('the input!').focus()
+
+bus('/*').to_fetch = (key, t) => node.get(key, (val) => t.done({key, val}))
+bus('/*').to_save  = (obj, t) => node.set(obj.key, obj.val)
 
 </script>
 
 <script src="https://stateb.us/client6.js" globals=false server=none></script>
 
-<script>
-var get = bus.fetch
-var set = bus.save
-
-// bus.honk = true
-
-dom.tODY = () => {
-    var chat = get('/chat')
-    var submit = () => {
-        var n = chat.val.length
-        node.set('/chat', null,
-                 `[${n}:${n}] = ` + JSON.stringify([get('local').new_text || '']))
-        bus.save({key: 'local', new_text: ''})
-    }
-    return (
-        DIV (
-            H2('messages'),
-            chat.val.map(
-                msg => DIV(msg)),
-            TEXTAREA({
-                key: 'the input!',
-                value: get('local').new_text,
-                onChange: (e) => set({
-                    key: 'local',
-                    new_text: e.target.value
-                }),
-                onKeyDown: (e) => {if (e.keyCode === 13) setTimeout(submit)}
-            }),
-            BUTTON({onClick: submit}, 'Send')
-    ))
-}
-    
-bus('/*').to_fetch = (key, t) => {
-    node.get(key, (val) => {
-        t.done({key, val})
-    })
-}
-
-bus('/*').to_save  = (obj, t) => node.set(obj.key, obj.val)
-
-</script>
-
-    
 
 <script src="./require.js"></script>
 <script src="./utilities.js"></script>
@@ -90,19 +48,8 @@ bus('/*').to_save  = (obj, t) => node.set(obj.key, obj.val)
 // Create a node
 var id = 'C-' + Math.random().toString(36).substr(10)
 node = require('./node.js')({id})
+node.default('/chat/*', (key) => ['Top post for '+key])
+node.default('/chat', ['Top post!'])
 require('./networks/websocket-client.js')({node})
-
-//bus.fetch('/chat', (o) => {console.log('my callback! it is running with', o)})
-
-// Configure the node
-// node.get('/chat', (x) => {
-//   console.log('New value of /chat', x)
-//   //bus.save({key: '/chat', val: x})
-// })
-
-// bus.fetch('/chat', (x) => {
-//     console.log('bus.fetch: new value of /chat', x)
-// })
-
 print_network = true
 </script>

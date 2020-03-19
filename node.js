@@ -141,11 +141,20 @@ module.exports = require.node = function create_node(node = {}) {
             var cb = args[1]
             origin = (cb
                       ? {send(args) {
-                          if (args.method === 'set'
-                              || args.method === 'welcome'
-                              && node.resource_at(key).weve_been_welcomed) {
+                          // We have new data with every 'set' or 'welcome message
+                          if ((args.method === 'set' || args.method === 'welcome')
+                              && (node.resource_at(key).weve_been_welcomed
+                                  // But we only wanna return once we have
+                                  // applied any relevant default.  We know
+                                  // the default has been applied because
+                                  // there will be at least one version.
+                                  && !(default_val_for(key) && !node.current_version(key)))) {
                               // Let's also ensure this doesn't run until
                               // (weve_been_welcomed || zero get handlers are registered)
+
+                              // And if there is a .default out there, then
+                              // make sure the state has at least one version
+                              // before calling.
                               cb(node.resource_at(key).mergeable.read())}}}
                       : default_pipe)
         }
@@ -689,6 +698,10 @@ module.exports = require.node = function create_node(node = {}) {
         // people to understand them)
 
         gen_fissures.forEach(f => node.fissure({key, fissure:f}))
+
+        // Now that we processed the welcome, set defaults if we have one
+        if (default_val_for(key) && !node.current_version(key))
+            node.set(key, default_val_for(key))
     }
     
     node.forget = ({key, origin}) => {
@@ -942,7 +955,39 @@ module.exports = require.node = function create_node(node = {}) {
                   joiner_num})
     }        
 
-    node.current_version = (key) => Object.keys(node.resource_at(key).current_version).join('-') || null
+    node.current_version = (key) =>
+        Object.keys(node.resource_at(key).current_version).join('-') || null
+
+    node.default = (key, val) => {
+        var is_wildcard = key[key.length-1] === '*'
+        var v = val
+        if (is_wildcard) {
+            // Wildcard vals must be functions
+            if (typeof val !== 'function')
+                v = () => val
+            node.default_patterns[key.substr(0,key.length-1)] = v
+        }
+        else
+            node.defaults[key] = val
+    }
+    node.defaults = u.dict()
+    node.default_patterns = []
+    function default_val_for (key) {
+        console.log('default: Getting default for', key)
+        if (key in node.defaults) {
+            console.log('Default('+key+') is', node.defaults[key])
+            return node.defaults[key]
+        }
+
+        console.log('default: Looking in patterns')
+        for (pattern in node.default_patterns)
+            if (pattern === key.substr(0, pattern.length)) {
+                console.log('Default('+key+') is', node.default_patterns[pattern])
+                return node.default_patterns[pattern](key)
+            }
+
+        console.log('default: Giving up')
+    }
 
     var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
     // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
