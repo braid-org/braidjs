@@ -1,4 +1,4 @@
-var db = new (require('better-sqlite3'))('db.txt')
+var db = new (require('better-sqlite3'))('db.sqlite')
 db.pragma('journal_mode = WAL')
 db.prepare('create table if not exists store (key text primary key, val text)').run()
 
@@ -11,11 +11,11 @@ function create_persistent_node(key_base, get_key, set_key, del_key) {
         if (d.resources) {
             node = require('./node.js')({node: d})
 
-            Object.entries(node.resources).forEach(r => {
-                Object.values(r[1].we_welcomed).forEach(p => {
-                    node.bind(r[0], p)
-                })
-            })
+            Object.entries(node.resources).forEach(resource =>
+                Object.values(resource[1].we_welcomed).forEach(pipe =>
+                    node.bind(resource[0], pipe)
+                )
+            )
 
         } else {
             if (!node) node = require('./node.js')()
@@ -24,11 +24,11 @@ function create_persistent_node(key_base, get_key, set_key, del_key) {
     }
     if (!node) node = require('./node.js')()
 
-    Object.entries(node.resources).forEach(r => {
-        Object.values(r[1].we_welcomed).forEach(p => {
-            node.disconnected({key: r[0], origin: p})
-        })
-    })
+    Object.entries(node.resources).forEach(resource =>
+        Object.values(resource[1].we_welcomed).forEach(pipe =>
+            node.disconnected({key: resource[0], origin: pipe})
+        )
+    )
 
     function add(x) {
         set_key(`${key_base}:${a_or_b}:${next++}`, JSON.stringify(x))
@@ -44,7 +44,8 @@ function create_persistent_node(key_base, get_key, set_key, del_key) {
         add(node)
         set_key(key_base, a_or_b)
 
-        for (i = old_next - 1; i >= 0; i--) del_key(`${key_base}:${(a_or_b == 'a') ? 'b' : 'a'}:${i}`)
+        for (i = old_next - 1; i >= 0; i--)
+            del_key(`${key_base}:${(a_or_b == 'a') ? 'b' : 'a'}:${i}`)
     }
 
     node.ons.push((method, args) => {
