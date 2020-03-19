@@ -958,7 +958,16 @@ module.exports = require.node = function create_node(node = {}) {
     node.current_version = (key) =>
         Object.keys(node.resource_at(key).current_version).join('-') || null
 
-    node.default = []
+    node.default = u.dict()
+    node.default_patterns = []
+    function default_val_for (key) {
+        if (key in node.default)
+            return node.default[key]
+
+        for (pattern in node.default_patterns)
+            if (pattern === key.substr(0, pattern.length))
+                return node.default_patterns[pattern](key)
+    }
 
     var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
     // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
