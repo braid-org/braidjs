@@ -141,11 +141,20 @@ module.exports = require.node = function create_node(node = {}) {
             var cb = args[1]
             origin = (cb
                       ? {send(args) {
-                          if (args.method === 'set'
-                              || args.method === 'welcome'
-                              && node.resource_at(key).weve_been_welcomed) {
+                          // We have new data with every 'set' or 'welcome message
+                          if ((args.method === 'set' || args.method === 'welcome')
+                              && (node.resource_at(key).weve_been_welcomed
+                                  // But we only wanna return once we have
+                                  // applied any relevant default.  We know
+                                  // the default has been applied because
+                                  // there will be at least one version.
+                                  && !(node.default[key] && !node.current_version(key)))) {
                               // Let's also ensure this doesn't run until
                               // (weve_been_welcomed || zero get handlers are registered)
+
+                              // And if there is a .default out there, then
+                              // make sure the state has at least one version
+                              // before calling.
                               cb(node.resource_at(key).mergeable.read())}}}
                       : default_pipe)
         }
@@ -689,6 +698,10 @@ module.exports = require.node = function create_node(node = {}) {
         // people to understand them)
 
         gen_fissures.forEach(f => node.fissure({key, fissure:f}))
+
+        // Now that we processed the welcome, set defaults if we have one
+        if (key in node.default && !node.current_version(key))
+            node.set(key, node.default[key])
     }
     
     node.forget = ({key, origin}) => {
@@ -944,6 +957,8 @@ module.exports = require.node = function create_node(node = {}) {
 
     node.current_version = (key) =>
         Object.keys(node.resource_at(key).current_version).join('-') || null
+
+    node.default = []
 
     var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
     // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
