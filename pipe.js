@@ -20,7 +20,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
 
         // A pipe holds some state:
         id: id,
-        type: type,
+        type: type, // Only used for debugging
         connection: null,
         connecting: false,
         them: null,
@@ -122,6 +122,12 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                 var versions = resource.mergeable.generate_braid(x => false)
                 var fissures = Object.values(resource.fissures)
                 this.send({method: 'welcome', key: args.key, versions, fissures})
+
+                // Now we store a subset of this pipe in a place that will
+                // eventually be saved to disk.  When a node comes up after a
+                // crash, it'll need to create and send fissures for everyone
+                // it's welcomed.  So right here we store the info necessary
+                // to fissure.
                 resource.we_welcomed[this.id] = {id: this.id,
                                                  connection: this.connection,
                                                  them: this.them}
