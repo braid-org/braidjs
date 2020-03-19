@@ -3,12 +3,12 @@ u = require('./utilities.js')
 module.exports = require.node = function create_node(node = {}) {
     if (!node.pid) node.pid = u.random_id()
     if (!node.resources) node.resources = {}
-    if (!node.ons) node.ons = []
     else {
         for (var key of Object.keys(node.resources)) {
             node.resources[key] = require('./resource.js')(node.resources[key])
         }
     }
+    if (!node.ons) node.ons = []
 
     node.resource_at = (key) => {
         if (typeof key !== 'string')

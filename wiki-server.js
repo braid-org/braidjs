@@ -1,3 +1,4 @@
+
 var db = new (require('better-sqlite3'))('db.txt')
 db.pragma('journal_mode = WAL')
 db.prepare('create table if not exists store (key text primary key, val text)').run()
@@ -9,14 +10,15 @@ function create_persistent_node(key_base, get_key, set_key, del_key) {
     for (var next = 0; d = get_key(`${key_base}:${a_or_b}:${next}`); next++) {
         d = JSON.parse(d)
         if (d.resources) {
-            node = require('./node.js')({node: d})
+            delete d.ons
+            node = require('./node.js')(d)
 
             Object.entries(node.resources).forEach(r => {
                 Object.values(r[1].we_welcomed).forEach(p => {
+                    p.remote = true
                     node.bind(r[0], p)
                 })
             })
-
         } else {
             if (!node) node = require('./node.js')()
             node[d.method](...d.args)
