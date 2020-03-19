@@ -148,7 +148,7 @@ module.exports = require.node = function create_node(node = {}) {
                                   // applied any relevant default.  We know
                                   // the default has been applied because
                                   // there will be at least one version.
-                                  && !(node.default[key] && !node.current_version(key)))) {
+                                  && !(default_val_for(key) && !node.current_version(key)))) {
                               // Let's also ensure this doesn't run until
                               // (weve_been_welcomed || zero get handlers are registered)
 
@@ -700,8 +700,8 @@ module.exports = require.node = function create_node(node = {}) {
         gen_fissures.forEach(f => node.fissure({key, fissure:f}))
 
         // Now that we processed the welcome, set defaults if we have one
-        if (key in node.default && !node.current_version(key))
-            node.set(key, node.default[key])
+        if (default_val_for(key) && !node.current_version(key))
+            node.set(key, default_val_for(key))
     }
     
     node.forget = ({key, origin}) => {
@@ -958,15 +958,35 @@ module.exports = require.node = function create_node(node = {}) {
     node.current_version = (key) =>
         Object.keys(node.resource_at(key).current_version).join('-') || null
 
-    node.default = u.dict()
+    node.default = (key, val) => {
+        var is_wildcard = key[key.length-1] === '*'
+        var v = val
+        if (is_wildcard) {
+            // Wildcard vals must be functions
+            if (typeof val !== 'function')
+                v = () => val
+            node.default_patterns[key.substr(0,key.length-1)] = v
+        }
+        else
+            node.defaults[key] = val
+    }
+    node.defaults = u.dict()
     node.default_patterns = []
     function default_val_for (key) {
-        if (key in node.default)
-            return node.default[key]
+        console.log('default: Getting default for', key)
+        if (key in node.defaults) {
+            console.log('Default('+key+') is', node.defaults[key])
+            return node.defaults[key]
+        }
 
+        console.log('default: Looking in patterns')
         for (pattern in node.default_patterns)
-            if (pattern === key.substr(0, pattern.length))
+            if (pattern === key.substr(0, pattern.length)) {
+                console.log('Default('+key+') is', node.default_patterns[pattern])
                 return node.default_patterns[pattern](key)
+            }
+
+        console.log('default: Giving up')
     }
 
     var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
