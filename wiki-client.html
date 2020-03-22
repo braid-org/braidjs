@@ -238,7 +238,7 @@ async function sync_editor(t) {
     var key = channel
     var prev_text = ''
     var node = require('./node.js')({id: 'C-' + Math.random().toString(36).slice(2, 12)})
-    require('./networks/websocket-client.js')({node})
+    require('./networks/websocket-client.js')({node, url: 'ws://invisible.college:1492/'})
 
     window.my_node = node
 
