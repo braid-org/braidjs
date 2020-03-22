@@ -1,14 +1,4 @@
-
-<script>
-function require (thing) {
-    thing = thing.split('/')
-    thing = thing[thing.length-1].slice(0,-3)
-    console.assert(require[thing], `Thing ${thing} don't exist on ${Object.keys(require)}!`)
-    return require[thing]
-}
-global = window
-module = {exports: {}}
-</script>
+<script src="./require.js"></script>
 <script src="./utilities.js"></script>
 <script src="./events.js"></script>
 <script src="./merge-algorithms/sync9.js"></script>
@@ -63,6 +53,16 @@ edit.onclick = toggle_editor
 edit.innerText = 'edit'
 document.body.append(edit)
 
+var stats = document.createElement('div')
+stats.style.position = 'fixed'
+stats.style.top = '0px'
+stats.style.right = '0px'
+stats.style.padding = '30px'
+stats.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+stats.onclick = toggle_editor
+stats.innerText = '_'
+document.body.append(stats)
+
 var differ = document.createElement('div')
 differ.style.position = 'fixed'
 differ.style.bottom = '0px'
@@ -90,7 +90,7 @@ function update_markdown() {
 update_markdown()
 
 var is_safe = window.location.href.match(/^https?:\/\/wiki\./)
-var channel = is_safe ? '/wiki' + window.location.pathname : window.location.pathname
+var page_key = is_safe ? '/wiki' + window.location.pathname : window.location.pathname
 
 var vert = true, editing = false
 function render () {
@@ -106,7 +106,13 @@ function render () {
         t.style.height = '100%'
         output.style.width = editing ? '55vw' : null
     }
+
+    if (window.node)
+        stats.innerText = 'Size: ' + data_size()
 }
+
+function data_size() { return Object.keys(node.resource_at(page_key).space_dag).length }
+
 var first_time = true
 function toggle_editor () {
     editing = !editing
@@ -235,12 +241,9 @@ t.addEventListener('input', e => {
 
 sync_editor(t)
 async function sync_editor(t) {
-    var key = channel
     var prev_text = ''
-    var node = require('./node.js')({id: 'C-' + Math.random().toString(36).slice(2, 12)})
-    require('./networks/websocket-client.js')({node, url: 'ws://invisible.college:1492/'})
-
-    window.my_node = node
+    window.node = require('./node.js')({id: 'C-' + Math.random().toString(36).slice(2, 12)})
+    require('./networks/websocket-client.js')({node, url: 'wss://invisible.college:1492/'})
 
     node.ons.push((method, args) => {
         //console.log('RESOURCE: ' + JSON.stringify(node.resource_at(key).space_dag, null, '    '))
@@ -251,7 +254,7 @@ async function sync_editor(t) {
 
     function send_diff(from, to) {
         setting++
-        node.set(key, null, diff_convert_to_my_format(diff_main(from, to)).map(x =>
+        node.set(page_key, null, diff_convert_to_my_format(diff_main(from, to)).map(x =>
             `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
         ))
         setting--
@@ -263,21 +266,21 @@ async function sync_editor(t) {
         //     `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
 
         setting++
-        node.set(key, null, [`.cursors[${JSON.stringify(node.pid)}] = {"type": "location", "path": ".text[${start}]"}`])
+        node.set(page_key, null, [`.cursors[${JSON.stringify(node.pid)}] = {"type": "location", "path": ".text[${start}]"}`])
         setting--
     }
 
     var get_num = 0
-    node.get(key, x => {
+    node.get(page_key, x => {
         if (setting) return
 
         get_num++
         if (get_num == 1) {
             console.log('got here!!!1111')
-            console.assert(node.resource_at(key).weve_been_welcomed === true)
+            console.assert(node.resource_at(page_key).weve_been_welcomed === true)
 
             // Initialize the object if it doesn't have a value yet
-            if (!x || typeof(x) !== 'object') node.set(key, {cursors: {}, text: t.value})
+            if (!x || typeof(x) !== 'object') node.set(page_key, {cursors: {}, text: t.value})
 
             // Or if it does, then prepend it with our text, and send that
             else {
@@ -295,8 +298,10 @@ async function sync_editor(t) {
                 prev_text = t.value
             })
             add_selection_listener(t, send_cursor_update)
+
+            stats.innerText = 'Size: ' + data_size()
         } else {
-            console.assert(node.resource_at(key).weve_been_welcomed === true)
+            console.assert(node.resource_at(page_key).weve_been_welcomed === true)
             prev_text = t.value = x.text
             update_markdown_later()
 
