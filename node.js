@@ -973,20 +973,16 @@ module.exports = require.node = function create_node(node = {}) {
     node.defaults = u.dict()
     node.default_patterns = []
     function default_val_for (key) {
-        console.log('default: Getting default for', key)
         if (key in node.defaults) {
             console.log('Default('+key+') is', node.defaults[key])
             return node.defaults[key]
         }
 
-        console.log('default: Looking in patterns')
         for (pattern in node.default_patterns)
             if (pattern === key.substr(0, pattern.length)) {
                 console.log('Default('+key+') is', node.default_patterns[pattern])
                 return node.default_patterns[pattern](key)
             }
-
-        console.log('default: Giving up')
     }
 
     var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
