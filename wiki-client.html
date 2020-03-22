@@ -111,7 +111,7 @@ function render () {
         stats.innerText = 'Size: ' + data_size()
 }
 
-function data_size() { return Object.keys(node.resource_at(page_key).space_dag).length }
+function data_size() { return Object.keys(node.resource_at(page_key).time_dag).length }
 
 var first_time = true
 function toggle_editor () {
