@@ -13,10 +13,10 @@ function create_persistent_node(key_base, get_key, set_key, del_key) {
             node = require('./node.js')(d)
 
             Object.entries(node.resources).forEach(resource =>
-                Object.values(resource[1].we_welcomed).forEach(pipe =>
+                Object.values(resource[1].we_welcomed).forEach(pipe => {
                     pipe.remote = true
                     node.bind(resource[0], pipe)
-                )
+                })
             )
 
         } else {

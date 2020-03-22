@@ -1,3 +1,4 @@
+
 <script>
 function require (thing) {
     thing = thing.split('/')
@@ -16,23 +17,225 @@ module = {exports: {}}
 <script src="./resource.js"></script>
 <script src="./networks/websocket-client.js"></script>
 <script src="https://invisible-college.github.io/universal-sync/diffsync.js"></script>
+<script src="https://invisible.college/js/marked.min.js"></script>
+<link rel="stylesheet" href="https://invisible.college/css/github-markdown.css">
 
-<body>
-    <textarea id="my_text"></textarea>
-</body>
-
+<body></body>
 <script>
 
-sync_editor(my_text)
+document.body.style.border = '3px solid transparent'
+var real_errorrr_happened = false
+window.onerror = function (e) {
+    real_errorrr_happened = true
+    document.body.style.border = '4px red solid'
+}
 
+var output = document.createElement('div')
+output.className = 'pad'
+output.style.maxWidth = '900px'
+document.body.append(output)
+
+var bottom_pad = document.createElement('div')
+bottom_pad.style.height = '50vh'
+bottom_pad.style.display = 'none'
+document.body.append(bottom_pad)
+
+var t = document.createElement('textarea')
+t.style.position = 'fixed'
+t.style.bottom = '0px'
+t.style.right = '0px'
+t.style.width = '100%'
+t.style.height = '50vh'
+t.style.display = 'none'
+t.style.fontSize = '15px'
+t.style.fontFamily = 'helvetica, monaco, lucida grande, avenir'
+document.body.append(t)
+
+var edit = document.createElement('div')
+edit.style.position = 'fixed'
+edit.style.bottom = '0px'
+edit.style.right = '0px'
+edit.style.padding = '30px'
+edit.style.cursor = 'pointer'
+edit.style.textDecoration = 'underline'
+edit.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+edit.onclick = toggle_editor
+edit.innerText = 'edit'
+document.body.append(edit)
+
+var differ = document.createElement('div')
+differ.style.position = 'fixed'
+differ.style.bottom = '0px'
+differ.style.right = '30px'
+differ.style.fontSize = '10px'
+differ.style.cursor = 'pointer'
+differ.style.textDecoration = 'underline'
+differ.style.backgroundColor = 'rgba(100, 100, 100, .2)'
+differ.onclick = (e) => {showing_diff=!showing_diff; update_markdown()}
+differ.innerText = 'show diffs'
+//document.body.append(differ)
+
+var timer
+var render_delay = 100
+function update_markdown_later() {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(update_markdown, render_delay)
+}
+function update_markdown() {
+    timer = null
+    var source = showing_diff ? html_diffed(last_version||'', t.value) : t.value
+    output.innerHTML = marked(source, {sanitize: !is_safe})
+    document.body.className = 'nopad'
+}
+update_markdown()
+
+var is_safe = window.location.href.match(/^https?:\/\/wiki\./)
+var channel = is_safe ? '/wiki' + window.location.pathname : window.location.pathname
+
+var vert = true, editing = false
+function render () {
+    t.style.display = editing ? null : 'none'
+    bottom_pad.style.display = (editing && vert) ? null : 'none'
+
+    if (vert) {
+        t.style.width = '100%'
+        t.style.height = '50vh'
+        output.style.width = null
+    } else {
+        t.style.width = '45vw'
+        t.style.height = '100%'
+        output.style.width = editing ? '55vw' : null
+    }
+}
+var first_time = true
+function toggle_editor () {
+    editing = !editing
+    render()
+    if (editing) t.focus()
+    if (editing && first_time) {
+        first_time = false
+        t.setSelectionRange(0,0)
+        t.scrollTop = 0
+    }
+    update_markdown()
+}
+
+document.body.onkeydown = function (e) {
+    var mods = 0
+    for (k in {ctrlKey:1, shiftKey:1, altKey:1, metaKey:1})
+        if (e[k]) mods += 1
+
+    if (e.keyCode == 27
+        //|| (mods >= 2 && e.keyCode == 32)
+        ) {
+        e.stopPropagation()
+        toggle_editor()
+    }
+}
+
+window.onresize = function () {
+    var w = window.innerWidth, h = window.innerHeight
+    if (w < 1200 !== vert) {
+        vert = !vert
+        render()
+    }
+}
+onresize()
+render()
+
+function handle_pasted_images (el, cb) {
+    el.addEventListener("paste", function(e) {
+        // 1. Let's look for an image in the clipboard data
+        if (!e.clipboardData || !e.clipboardData.items) return
+        var items = e.clipboardData.items
+        var blob
+        for (var i=0; i<items.length; i++) {
+            if (items[i].type.indexOf("image") === -1) continue
+            blob = items[i].getAsFile()
+        }
+        if (!blob) return
+
+        // 2. Now we have the pasted image as a blob.  Let's convert it to a data: url
+        var reader = new FileReader()
+        reader.addEventListener('load', ()=> {cb(reader.result)}, false)
+        reader.readAsDataURL(blob)
+    }, false)
+}
+handle_pasted_images(window, x => {
+    insert_at_cursor(t, '<img src="'+x+'">')
+})
+
+function insert_at_cursor (textarea, string) {
+    // IE support
+    if (document.selection) {
+        textarea.focus()
+        sel = document.selection.createRange()
+        sel.text = string
+    }
+    // Mozilla and others
+    else if (textarea.selectionStart || textarea.selectionStart == '0') {
+        var startPos = textarea.selectionStart
+        var endPos = textarea.selectionEnd
+        textarea.value = textarea.value.substring(0, startPos)
+            + string
+            + textarea.value.substring(endPos, textarea.value.length)
+    } else
+        textarea.value += string;
+}
+
+var last_version
+var showing_diff = false
+addEventListener('keypress', function (e) {
+    if (e.ctrlKey && e.key === 's') {
+        last_version = t.value
+        event.preventDefault()
+        update_markdown()
+    }
+})
+
+color = (s, c) =>
+    s.split('\n\n').map(x => '<span style="background-color: '+ c +'">'+ x +'</span>').join('\n\n')
+
+green = (s) => color (s, '#cfc')
+red   = (s) => color (s, '#fcc')
+function html_diffed (Old, New) {
+    var diff = diff_main(Old, New)
+    var html = diff.map(
+        (x) => x[0] == 1 ? green(x[1])
+            : x[0] == -1 ? red(x[1])
+            : x[1]
+    ).join('')
+    //console.log(JSON.stringify(marked(html, {sanitize:false})))
+    return html
+}
+
+
+var ting = null
+function scroll () {
+    // We only scroll to the ting once -- if it's fresh
+    if (ting || location.hash.length === 0) return
+
+    ting = document.getElementById(location.hash.substr(1))
+    ting && ting.scrollIntoView()
+}
+for (i=0; i<50; i++)
+    setTimeout(scroll, i / 5.0 * 1000)
+
+
+
+
+
+
+
+
+
+t.addEventListener('input', e => {
+    update_markdown_later()
+})
+
+sync_editor(t)
 async function sync_editor(t) {
-    document.body.append(make_html(`<div id="debug_display">debug text to go here..</div>`))
-    document.body.append(make_html(`<textarea id="debug_display2">debug text to go here..</textarea>`))
-
-
-
-
-    var key = '/foo'
+    var key = channel
     var prev_text = ''
     var node = require('./node.js')({id: 'C-' + Math.random().toString(36).slice(2, 12)})
     require('./networks/websocket-client.js')({node})
@@ -52,8 +255,6 @@ async function sync_editor(t) {
             `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
         ))
         setting--
-
-        update_debug_display()
     }
 
     function send_cursor_update(start, end) {
@@ -64,31 +265,6 @@ async function sync_editor(t) {
         setting++
         node.set(key, null, [`.cursors[${JSON.stringify(node.pid)}] = {"type": "location", "path": ".text[${start}]"}`])
         setting--
-
-        update_debug_display()
-    }
-
-    function update_debug_display() {
-        var x = node.resource_at(key).mergeable.read()
-
-        debug_display.innerHTML = ''
-        for (var i = 0; i < x.text.length; i++) {
-            Object.entries(x.cursors).forEach(e => {
-                if (e[1] == i) {
-                    debug_display.append(make_html(`<span style="color:${e[0] == node.pid ? 'green' : 'red'}">^</span>`))
-                }
-            })
-            var s = make_html(`<span></span>`)
-            s.textContent = x.text[i]
-            debug_display.append(s)
-        }
-        Object.entries(x.cursors).forEach(e => {
-            if (e[1] == i) {
-                debug_display.append(make_html(`<span style="color:${e[0] == node.pid ? 'green' : 'red'}">^</span>`))
-            }
-        })
-
-        debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
     }
 
     var get_num = 0
@@ -106,6 +282,7 @@ async function sync_editor(t) {
             // Or if it does, then prepend it with our text, and send that
             else {
                 prev_text = t.value = t.value + x.text
+                update_markdown_later()
                 send_diff(x.text, t.value)
             }
 
@@ -114,7 +291,6 @@ async function sync_editor(t) {
 
             // And start sending all future updates
             t.addEventListener('input', e => {
-                // debug_display2.value = JSON.stringify(node.resource_at(key), null, '    ')
                 send_diff(prev_text, t.value)
                 prev_text = t.value
             })
@@ -122,6 +298,7 @@ async function sync_editor(t) {
         } else {
             console.assert(node.resource_at(key).weve_been_welcomed === true)
             prev_text = t.value = x.text
+            update_markdown_later()
 
             // t.setSelectionRange(x.cursors[node.pid + '-start'], x.cursors[node.pid + '-end'])
             t.setSelectionRange(x.cursors[node.pid], x.cursors[node.pid])
@@ -129,13 +306,9 @@ async function sync_editor(t) {
             // debug_display.textContent = x.text.slice(0, x.cursors[node.pid + '-start'])
             //    + '^' + x.text.slice(x.cursors[node.pid + '-start'])
             //    + ' :' + x.cursors[node.pid + '-start']
-
-            update_debug_display()
         }
     })
 }
-
-print_network = true
 
 function add_selection_listener(t, cb) {
     var prev_start = t.selectionStart
@@ -152,12 +325,6 @@ function add_selection_listener(t, cb) {
     t.addEventListener('mousemove', e => setTimeout(handler, 0))
     t.addEventListener('input', handler)
     t.addEventListener('keydown', e => setTimeout(handler, 0))
-}
-
-function make_html(html) {
-    var d = document.createElement('div')
-    d.innerHTML = html
-    return d.firstChild
 }
 
 </script>
