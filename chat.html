@@ -48,8 +48,10 @@ bus('/*').to_save  = (obj, t) => node.set(obj.key, obj.val)
 // Create a node
 var id = 'C-' + Math.random().toString(36).substr(10)
 node = require('./node.js')({id})
+
 node.default('/chat/*', (key) => ['Top post for '+key])
 node.default('/chat', ['Top post!'])
+
 require('./networks/websocket-client.js')({node})
 print_network = true
 </script>
