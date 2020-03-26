@@ -296,10 +296,10 @@ async function sync_editor(t) {
             t.addEventListener('input', e => {
                 send_diff(prev_text, t.value)
                 prev_text = t.value
+
+                stats.innerText = 'Size: ' + data_size()
             })
             add_selection_listener(t, send_cursor_update)
-
-            stats.innerText = 'Size: ' + data_size()
         } else {
             console.assert(node.resource_at(page_key).weve_been_welcomed === true)
             prev_text = t.value = x.text
@@ -312,6 +312,8 @@ async function sync_editor(t) {
             //    + '^' + x.text.slice(x.cursors[node.pid + '-start'])
             //    + ' :' + x.cursors[node.pid + '-start']
         }
+
+        stats.innerText = 'Size: ' + data_size()
     })
 }
 
