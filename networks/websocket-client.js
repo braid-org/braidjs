@@ -9,8 +9,16 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     var enabled = true
     var sock
 
+    function create_websocket() {
+        if (typeof(debug_WS) != 'undefined') {
+            return new debug_WS(node.pid)
+        } else {
+            return new WebSocket(url + '.braid-websocket')
+        }
+    }
+
     var connect = () => {
-        sock           = new WebSocket(url + '.braid-websocket')
+        sock           = create_websocket()
         sock.onopen    = ()  => pipe.connected()
         sock.onmessage = msg => {
             nlog('ws:',
@@ -19,13 +27,17 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
                  JSON.parse(msg.data).method.toUpperCase().padEnd(7),
                  '   ',
                  msg.data.substr(0,w))
-            
             pipe.recv(JSON.parse(msg.data))
         }
         sock.onclose   = ()  => {
             pipe.disconnected()
-            if (enabled) setTimeout(connect, 5000)
+            if (enabled) {
+                if (typeof(g_debug_WS_messages_delayed) != 'undefined')
+                    g_debug_WS_messages_delayed.push(connect)
+                else setTimeout(connect, 5000)
+            }
         }
+        sock.onerror = () => {}
     }
     var pipe = require('../pipe.js')({
         id: node.pid,
@@ -39,7 +51,6 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
                  msg.method.toUpperCase().padEnd(7),
                  '   ',
                  JSON.stringify(msg).substr(0,w))
-
             sock.send(JSON.stringify(msg))
         }
     })

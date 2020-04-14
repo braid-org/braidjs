@@ -8,6 +8,9 @@
 <script src="./networks/websocket-client.js"></script>
 <script src="https://invisible-college.github.io/universal-sync/diffsync.js"></script>
 <script src="https://invisible.college/js/marked.min.js"></script>
+
+<script src="https://dglittle.github.io/cdn/random002.js"></script>
+
 <link rel="stylesheet" href="https://invisible.college/css/github-markdown.css">
 
 <body></body>
@@ -243,7 +246,8 @@ sync_editor(t)
 async function sync_editor(t) {
     var prev_text = ''
     window.node = require('./node.js')({id: 'C-' + Math.random().toString(36).slice(2, 12)})
-    require('./networks/websocket-client.js')({node, url: 'wss://invisible.college:1492/'})
+    // require('./networks/websocket-client.js')({node, url: 'wss://invisible.college:1492/'})
+    require('./networks/websocket-client.js')({node})
 
     node.ons.push((method, args) => {
         //console.log('RESOURCE: ' + JSON.stringify(node.resource_at(key).space_dag, null, '    '))
@@ -271,7 +275,7 @@ async function sync_editor(t) {
     }
 
     var get_num = 0
-    node.get(page_key, x => {
+    var cb = x => {
         if (setting) return
 
         get_num++
@@ -314,7 +318,20 @@ async function sync_editor(t) {
         }
 
         stats.innerText = 'Size: ' + data_size()
+    }
+
+    node.get(page_key, cb)
+
+    window.addEventListener('beforeunload', function () {
+        //node.forget(page_key, cb)
     })
+
+    stats.onclick = () => {
+        var floater = make_html(`<div style="position:fixed;left:100px;top:100px;"></div>`)
+        document.body.append(floater)
+        console.log('drawing resource..')
+        floater.append(draw_resource(node.resource_at(page_key)))
+    }
 }
 
 function add_selection_listener(t, cb) {
@@ -333,5 +350,350 @@ function add_selection_listener(t, cb) {
     t.addEventListener('input', handler)
     t.addEventListener('keydown', e => setTimeout(handler, 0))
 }
+
+var tau = Math.PI * 2
+
+function draw_resource(res) {
+    var c = make_html(`<canvas></canvas>`)
+    c.width = window.innerWidth * devicePixelRatio * 4
+    c.height = window.innerHeight * devicePixelRatio
+    c.style.width = c.width / devicePixelRatio + 'px'
+    c.style.height = c.height / devicePixelRatio + 'px'
+    var g = c.getContext('2d')
+
+    g.fillStyle = 'black'
+    draw_text(c, g, 'fissures', 0, 10)
+    g.fillStyle = 'lightgrey'
+    g.fillRect(0, 20, 200, 200)
+    draw_fissure_dag(c, g, res.fissures, 0, 20, 200, 200, 10)
+    
+    g.fillStyle = 'black'
+    draw_text(c, g, 'time dag', 0, 250)
+    g.fillStyle = 'lightgrey'
+    g.fillRect(0, 260, 200, 200)
+    draw_time_dag(c, g, res, 0, 260, 200, 200, 10)
+    
+    g.fillStyle = 'black'
+    draw_text(c, g, 'space dag', 250, 10)
+    
+    var x = res.space_dag.S.elems[0]
+    x = x.S.text.S.elems[0].S
+    draw_space_dag(c, g, x, 250, 30)
+
+    return c
+}
+
+function draw_text(c, g, text, x, y, color, x_align, y_align, font) {
+    g.font = font || '15px Arial'
+    if (color) g.fillStyle = color
+    g.textAlign = x_align || 'left'
+    g.textBaseline = y_align || 'middle'
+    g.fillText(text, x, y)
+}
+
+function draw_fissure_dag(c, g, fissures, x, y, w, h, r) {
+    var fs = {}
+    Object.values(fissures).forEach(f => {
+        var ff = fs[f.conn]
+        if (!ff) {
+            var rand = create_rand(f.conn)
+            ff = fs[f.conn] = {
+                id: f.conn,
+                color: '#' + rand().toString(16).slice(2, 8),
+                radius: r * (1 + rand()),
+                parents: {}
+            }
+        }
+        if (f.a < f.b) ff.has_side_a = true
+        if (f.b < f.a) ff.has_side_b = true
+        
+        Object.keys(f.parents).forEach(p => {
+            if (!fissures[p]) {
+                ff.has_issue = true
+                return
+            }
+            ff.parents[fissures[p].conn] = true
+        })
+    })
+    
+    function get_layer(k) {
+        if (fs[k].layer) return fs[k].layer
+        return fs[k].layer = Object.keys(fs[k].parents).reduce((x, p) => {
+            return Math.max(x, get_layer(p) + 1)
+        }, 0)
+    }
+    Object.keys(fs).forEach(get_layer)
+    
+    var layer_members = {}
+    var num_layers = 0
+    Object.values(fs).forEach(f => {
+        layer_members[f.layer] = layer_members[f.layer] || []
+        layer_members[f.layer].push(f.id)
+        
+        if (f.layer >= num_layers) num_layers = f.layer + 1
+    })
+    
+    Object.values(layer_members).forEach(layer => {
+        layer.sort().forEach((k, i) => {
+            fs[k].layer_i = i
+        })
+    })
+
+    function get_node_pos(f) {
+        var layer_count = layer_members[f.layer].length
+        return [
+            lerp(0, x + r, layer_count, x + w - r, f.layer_i + 0.5),
+            y + r + (f.layer * r*4)
+        ]
+    }
+
+    Object.values(fs).forEach(f => {
+        var a = get_node_pos(f)
+        g.beginPath()
+        Object.keys(f.parents).map(x => fs[x]).forEach(p => {
+            var b = get_node_pos(p)
+            g.moveTo(a[0], a[1])
+            g.lineTo(b[0], b[1])
+        })
+        g.lineWidth = 3
+        g.strokeStyle = 'lightblue'
+        g.stroke()
+    })
+    
+    Object.values(fs).forEach(f => {
+        var node_pos = get_node_pos(f)
+        
+        var color = f.color
+        var rr = f.radius
+        
+        g.beginPath()
+        g.arc(node_pos[0], node_pos[1], rr, 0, tau)
+        g.fillStyle = f.has_issue ? 'red' : 'white'
+        g.fill()
+        
+        g.beginPath()
+        if (f.has_side_a) {
+            g.arc(node_pos[0], node_pos[1], rr, tau/4, tau*3/4)
+        }
+        if (f.has_side_b) {
+            g.arc(node_pos[0], node_pos[1], rr, tau*3/4, tau/4)
+        }
+        g.strokeStyle = color
+        g.lineWidth = 2
+        g.stroke()
+    })
+}
+
+function draw_time_dag(c, g, res, x, y, w, h, r) {
+    g.lineWidth = 3
+    
+    var vs = {}
+    function get_layer(v) {
+        if (!vs[v]) vs[v] = {vid: v}
+        if (vs[v].layer) return vs[v].layer
+        return vs[v].layer = Object.keys(res.time_dag[v]).reduce((x, p) => {
+            return Math.max(x, get_layer(p) + 1)
+        }, 0)
+    }
+    Object.keys(res.time_dag).forEach(get_layer)
+    
+    var layer_members = {}
+    var num_layers = 0
+    Object.values(vs).forEach(v => {
+        layer_members[v.layer] = layer_members[v.layer] || []
+        layer_members[v.layer].push(v.vid)
+        
+        if (v.layer >= num_layers) num_layers = v.layer + 1
+    })
+    
+    Object.values(layer_members).forEach(layer => {
+        layer.sort().forEach((v, i) => {
+            vs[v].layer_i = i
+        })
+    })
+
+    function get_node_pos(v) {
+        var layer_count = layer_members[v.layer].length
+        return [
+            lerp(0, x + r, layer_count + 1, x + w - r, v.layer_i + 1),
+            y + r + (v.layer * r*3)
+        ]
+    }
+
+    Object.entries(vs).forEach(e => {
+        var a_pos = get_node_pos(e[1])
+        g.beginPath()
+        Object.keys(res.time_dag[e[0]]).forEach(p => {
+            g.moveTo(a_pos[0], a_pos[1])
+            
+            var b_pos = get_node_pos(vs[p])
+            g.lineTo(b_pos[0], b_pos[1])
+        })
+        g.strokeStyle = 'lightblue'
+        g.stroke()
+    })
+    
+    var fully_acked = {}
+    function mark_fully_acked_rec(v) {
+        if (!fully_acked[v]) {
+            fully_acked[v] = true
+            Object.keys(res.time_dag[v]).forEach(mark_fully_acked_rec)
+        }
+    }
+    Object.keys(res.acked_boundary).forEach(mark_fully_acked_rec)
+
+    Object.entries(vs).forEach(e => {
+        var node_pos = get_node_pos(e[1])
+        
+        g.beginPath()
+        g.arc(node_pos[0], node_pos[1], r, 0, tau)
+        g.fillStyle = 'white'
+        g.fill()
+        
+        if (res.acks_in_process[e[0]]) {
+            var current_count = Math.max(0, peer.phase_one[e[0]].count)
+            var max_count = 0
+            var search_i = fi
+            try {
+                let x = null
+                while (x = frames[search_i].peers[pi].keys.my_key.phase_one[e[0]]) {
+                    max_count = x.count
+                    search_i--
+                }
+            } catch (e) {}
+            
+            var percent_done = (max_count - current_count) / max_count
+            if (percent_done > 0) {
+                g.beginPath()
+                g.arc(node_pos[0], node_pos[1], r, 0, tau/2, true)
+                if (percent_done == 1) {
+                    g.arc(node_pos[0], node_pos[1], r, tau/2, 0, true)
+                } else if (percent_done < 0.5) {
+                    var x = lerp(0, r, 0.5, 0, percent_done)
+                    var C = (r*r - x*x) / (2*x)
+                    var angle = Math.atan2(r, C)
+                    g.arc(node_pos[0], node_pos[1] + C, C + x, tau*3/4 - angle, tau*3/4 + angle)
+                } else if (percent_done > 0.5) {
+                    var x = lerp(0.5, 0, 1, r, percent_done)
+                    var C = (r*r - x*x) / (2*x)
+                    var angle = Math.atan2(r, C)
+                    g.arc(node_pos[0], node_pos[1] - C, C + x, tau/4 - angle, tau/4 + angle)
+                } else {
+                    g.arc(node_pos[0], node_pos[1] + C, C + x, 0, tau)
+                }
+                g.fillStyle = 'lightblue'
+                g.fill()
+            }
+        }
+        
+        g.beginPath()
+        g.arc(node_pos[0], node_pos[1], r, 0, tau)
+        if (fully_acked[e[0]]) {
+            g.fillStyle = 'blue'
+            g.fill()
+        } else {
+            g.strokeStyle = 'blue'
+            g.stroke()
+        }
+        
+        draw_text(c, g, e[0].slice(0, 3), node_pos[0] + r, node_pos[1] + r, 'grey', 'left', 'top')
+    })
+    
+    Object.keys(res.unack_boundary).forEach(v => {
+        g.beginPath()
+        g.fillStyle = 'white'
+        var node_pos = get_node_pos(vs[v])
+        g.arc(node_pos[0], node_pos[1], r * 0.5, 0, Math.PI*2)
+        g.fill()
+    })
+    
+    Object.values(res.fissures).forEach(f => {
+        Object.keys(f.versions).forEach(v => {
+            if (!res.time_dag[v]) return
+            g.beginPath()
+            
+            var rand = create_rand(f.conn)
+            g.strokeStyle = '#' + rand().toString(16).slice(2, 8)
+            
+            var node_pos = get_node_pos(vs[v])
+            //var rr = r * 1.45
+            var rr = r * (1 + rand())
+            
+            g.lineWidth = 2
+            if (f.a < f.b) {
+                
+
+
+                // work here
+                g.arc(node_pos[0], node_pos[1], rr, tau/4, tau*3/4)
+                
+                
+                
+                // g.moveTo(node_pos[0] - rr, node_pos[1] - rr)
+                // g.lineTo(node_pos[0] + rr, node_pos[1] - rr)
+                // g.lineTo(node_pos[0] + rr, node_pos[1] + rr)
+                // g.lineTo(node_pos[0] - rr, node_pos[1] + rr)
+            } else {
+                
+                g.arc(node_pos[0], node_pos[1], rr, tau/4, tau*3/4, true)
+                
+                
+                // var rrr = Math.sqrt(2) * rr
+                // g.moveTo(node_pos[0] - rrr, node_pos[1])
+                // g.lineTo(node_pos[0], node_pos[1] - rrr)
+                // g.lineTo(node_pos[0] + rrr, node_pos[1])
+                // g.lineTo(node_pos[0], node_pos[1] + rrr)
+                // g.closePath()
+            }
+            g.stroke()
+        })
+    })
+    
+}
+
+function draw_space_dag(c, g, S, x, y) {
+    function helper(node, y, px, py) {
+        g.beginPath()
+        g.moveTo(x, y)
+        g.lineTo(px, py)
+        g.lineWidth = 1
+        g.strokeStyle = 'lightblue'
+        g.stroke()
+
+        var begin_x
+        var end_x
+
+        draw_text(c, g, node.version ? node.version.slice(0, 3) : '_', x, y + 25, 'grey', 'left', 'middle')
+        
+        var my_text = node.elems + (node.end_cap ? '*' : '')
+        
+        draw_text(c, g, my_text, x, y, Object.keys(node.deleted_by).length > 0 ? 'red' : 'blue', 'left', 'middle', '20px Arial')
+        
+        var width = g.measureText(my_text).width
+        x += width
+
+        var px = x
+        x += 10
+        for (var n of node.nexts) helper(n, y + 40, px, y)
+        if (node.next) helper(node.next, y, px, y)
+    }
+    if (typeof(S) == 'string') helper(sync9_create_space_dag_node('lit', S))
+    else helper(S, y, x, y)
+}
+
+function make_html(html) {
+    var d = document.createElement('div')
+    d.innerHTML = html
+    return d.firstChild
+}
+
+function lerp(t0, v0, t1, v1, t) { return (t - t0) * (v1 - v0) / (t1 - t0) + v0 }
+function add(a, b) { return a.map((x, i) => x + b[i]) }
+function sub(a, b) { return a.map((x, i) => x - b[i]) }
+function perp(a) { return [-a[1], a[0]] }
+function lenSq(a) { return a.reduce((a, b) => a + b*b, 0) }
+function len(a) { return Math.sqrt(lenSq(a)) }
+function mul(a, b) { return a.map(x => x * b) }
+function norm(a) { return mul(a, 1/len(a)) }
 
 </script>
