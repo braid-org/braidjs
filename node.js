@@ -8,7 +8,9 @@ module.exports = require.node = function create_node(node = {}) {
             node.resources[key] = require('./resource.js')(node.resources[key])
         }
     }
-    if (!node.ons) node.ons = []
+    if (!node.ons || node.ons.every(x => !x)) node.ons = []
+    if (!node.on_errors || node.on_errors.every(x => !x)) node.on_errors = []
+    // node.fissure_lifetime -- if set, prune will prune fissures older than this
 
     node.resource_at = (key) => {
         if (typeof key !== 'string')
@@ -140,7 +142,7 @@ module.exports = require.node = function create_node(node = {}) {
             key = args[0]
             var cb = args[1]
             origin = (cb
-                      ? {send(args) {
+                      ? {id: u.random_id(), send(args) {
                           // We have new data with every 'set' or 'welcome message
                           if ((args.method === 'set' || args.method === 'welcome')
                               && (node.resource_at(key).weve_been_welcomed
@@ -157,6 +159,7 @@ module.exports = require.node = function create_node(node = {}) {
                               // before calling.
                               cb(node.resource_at(key).mergeable.read())}}}
                       : default_pipe)
+            if (cb) cb.pipe = origin
         }
         else {
             // Else each parameter is passed explicitly
@@ -176,12 +179,12 @@ module.exports = require.node = function create_node(node = {}) {
         var resource = node.resource_at(key)
 
         // Now record this subscription to the bus
-        gets_in.add(key, origin.id)
+        node.gets_in.add(key, origin.id)
         // ...and bind the origin pipe to future sets
         node.bind(key, origin)
 
         // If this is the first subscription, fire the .on_get handlers
-        if (gets_in.count(key) === 1) {
+        if (node.gets_in.count(key) === 1) {
             log('node.get:', node.pid, 'firing .on_get for',
                 node.bindings(key).length, 'pipes!')
             // This one is getting called afterward
@@ -225,12 +228,16 @@ module.exports = require.node = function create_node(node = {}) {
 
         // G: ok, here we actually send out the welcome
 
-        if (origin.remote) resource.we_welcomed[origin.id] = {id: origin.id, connection: origin.connection, them: origin.them}
+        if (origin.remote) resource.we_welcomed[origin.id] = {id: origin.id, connection: origin.connection, them: origin.them, remote: origin.remote}
         origin.send && origin.send({method: 'welcome', key, versions, fissures})
 
         return resource.mergeable.read()
     }
     
+    node.error = ({key, type, in_response_to, origin}) => {
+        node.on_errors.forEach(f => f(key, origin))
+    }
+
     // Can be called as:
     //  - set(key, val)                     // Set key to val
     //  - set(key, null, '= "foo"')         // Patch with a patch
@@ -259,8 +266,22 @@ module.exports = require.node = function create_node(node = {}) {
         if (!version) version = u.random_id()
         if (!parents) parents = {...resource.current_version}
         log('set:', {key, version, parents, patches, origin, joiner_num})
-        for (p in parents)
-            assert(resource.time_dag[p], 'Parent ' + p + ' is not a version!')
+
+        for (p in parents) {
+            if (!resource.time_dag[p]) {
+                origin.send && origin.send({
+                    method: 'error',
+                    key,
+                    type: 'cannot merge: missing parents',
+                    in_response_to: {
+                        method: 'set',
+                        key, patches, version, parents, joiner_num
+                    }
+                })
+                node.on_errors.forEach(f => f(key, origin))
+                return                    
+            }
+        }
 
         node.ons.forEach(on => on('set', [{key, patches, version, parents, origin, joiner_num}]))
 
@@ -389,6 +410,8 @@ module.exports = require.node = function create_node(node = {}) {
 
 
         check_ack_count(key, resource, version)
+
+        return version
     }
     
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
@@ -420,7 +443,7 @@ module.exports = require.node = function create_node(node = {}) {
         if (v && !v.version) {
             // G: so we get rid of this "background" version..
 
-            versions.shift()
+            var null_version = versions.shift()
 
             // G: ..but we only add it to our datastructure if we don't
             // already have a "background" version (namely any version information at all)
@@ -464,12 +487,42 @@ module.exports = require.node = function create_node(node = {}) {
         // which we really do want to add (they are new to us, and they
         // are not repeats of some version we had in the past, but pruned away)
 
-        versions.forEach(v => {
+        for (var v of versions) {
             if (versions_T[v.version]) {
                 new_versions.push(v)
+
+                var bad = false
+                if (Object.keys(v.parents).length == 0) {
+                    let a = JSON.parse(null_version.changes[0].match(/^\s*=\s*([\s\S]*)/)[1])
+                    let b = resource.mergeable.read_raw({})
+                    bad = !u.deep_equals(a, b)
+                } else for (p in v.parents) {
+                    bad = !resource.time_dag[p]
+                    if (bad) break
+                }
+                if (bad) return send_error()
+
                 resource.mergeable.add_version(v.version, v.parents, v.changes)
             }
-        })
+        }
+
+        function send_error() {
+            versions.unshift(null_version)
+            origin.send && origin.send({
+                method: 'error',
+                key,
+                type: 'cannot merge: missing necessary versions',
+                in_response_to: {
+                    method: 'welcome',
+                    key, versions, fissures, unack_boundary, min_leaves
+                }
+            })
+            node.on_errors.forEach(f => f(key, origin))
+        }
+
+        // let's also check to make sure we have the min_leaves and unack_boundary,
+        // if they are specified..
+        if ((min_leaves && Object.keys(min_leaves).some(k => !resource.time_dag[k])) || (unack_boundary && Object.keys(unack_boundary).some(k => !resource.time_dag[k]))) return send_error()
         
         // G: next we process the incoming fissures, and like before,
         // we only want to add new ones, and there's also this gen_fissures
@@ -509,7 +562,8 @@ module.exports = require.node = function create_node(node = {}) {
                     b:        f.a,
                     conn:     f.conn,
                     versions: f.versions,
-                    parents:  {}
+                    parents:  {},
+                    tiem:     Date.now()
                 })
             }
         })
@@ -704,10 +758,41 @@ module.exports = require.node = function create_node(node = {}) {
             node.set(key, default_val_for(key))
     }
     
-    node.forget = ({key, origin}) => {
+    // Can be called as:
+    //  - forget(key, cb), with the same cb passed to get(key, cb)
+    //  - forget({key, origin})
+    node.forget = (...args) => {
+        node.ons.forEach(on => on('forget', args))
+
+        var key, origin, cb
+        if (typeof(args[0]) === 'string') {
+            key = args[0]
+            cb = args[1]
+            origin = cb.pipe
+        } else {
+            ({key, origin} = args[0])
+        }
+
         assert(key)
+
+        var resource = node.resource_at(key)
+        delete resource.we_welcomed[origin.id]
+        node.unbind(key, origin)
+        node.gets_in.delete(key, origin.id)
+
+        // todo: what are the correct conditions to send the forget?
+        // for now, we just support the hub-spoke model, where only clients
+        // send forget.
+        // here is what the todo said before:
         // TODO: if this is the last subscription, send forget to all gets_out
-        // origin.send({method: 'forget', key})
+        // origin.send({method: 'forget', key})        
+        if (cb) {
+            node.bindings(key).forEach(pipe => {
+                pipe.send && pipe.send({
+                    method:'forget', key, origin
+                })
+            })
+        }
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
@@ -774,13 +859,18 @@ module.exports = require.node = function create_node(node = {}) {
                                   conn:     fissure.conn,
                                   versions: fissure.versions,
                                   parents:  {},
+                                  time:     Date.now()
                               }
                              })
         }
     }
 
-    node.disconnected = ({key, name, versions, parents, origin}) => {
-        node.ons.forEach(on => on('disconnected', [{key, name, versions, parents, origin}]))
+    node.disconnected = ({key, name, versions, parents, time, origin}) => {
+        if (time == null) time = Date.now()
+        node.ons.forEach(on => on('disconnected', [{key, name, versions, parents, time, origin}]))
+
+        // unbind them (but only if they are bound)
+        if (node.bindings(key).some(p => p.id == origin.id)) node.unbind(key, origin)
 
         // if we haven't sent them a welcome (or they are not remote), then no need to create a fissure
         if (!origin.remote || !node.resource_at(key).we_welcomed[origin.id]) return
@@ -804,8 +894,9 @@ module.exports = require.node = function create_node(node = {}) {
             var [a, b, conn] = name.split(/:/)
             fissure = {
                 a, b, conn,
-                versions: versions,
-                parents: parents
+                versions,
+                parents,
+                time
             }
         } else {
             // Create fissure from scratch
@@ -832,10 +923,10 @@ module.exports = require.node = function create_node(node = {}) {
                 b: origin.them,
                 conn: origin.connection,
                 versions,
-                parents
+                parents,
+                time
             }
 
-            node.unbind(key, origin)
             // delete resource.subscriptions[origin.id]
         }
 
@@ -847,6 +938,15 @@ module.exports = require.node = function create_node(node = {}) {
     }
 
     node.prune = (resource) => {
+        if (node.fissure_lifetime != null) {
+            var now = Date.now()
+            Object.entries(resource.fissures).forEach(([k, f]) => {
+                if (f.time == null) f.time = now
+                if (f.time <= now - node.fissure_lifetime)
+                    delete resource.fissures[k]
+            })
+        }
+
         var unremovable = {}
         Object.entries(resource.fissures).forEach(x => {
             if (!resource.fissures[x[1].b + ':' + x[1].a + ':' + x[1].conn]) {
@@ -922,15 +1022,32 @@ module.exports = require.node = function create_node(node = {}) {
             }
         })
         var q = (a, b) => {
-            // This code assumes there is a God
+            // This code assumes there is a God (a single first version adder)
             if (!a) a = 'null'
             return a && b && !frozen[a] && !frozen[b] && (tags[a].tag == tags[b].tag)
         }
         var seen_annotations = {}
         resource.mergeable.prune(q, q, seen_annotations)
 
+        // here we change the name of all the versions which are not frozen,
+        // meaning they might have changed,
+        // so we want to give them different names to avoid the confusion of
+        // thinking that they possess the same information as before
+        var name_changes = {}
+        Object.keys(resource.time_dag).forEach(v => {
+            if (!frozen[v]) {
+                var m = v.match(/^\*[^\-]*\-(.*)/)
+                if (m) {
+                    name_changes[v] = '*' + Math.random().toString(36).slice(2) + '-' + m[1]
+                } else {
+                    name_changes[v] = '*' + Math.random().toString(36).slice(2) + '-' + v
+                }
+            }
+        })
+        resource.mergeable.change_names(name_changes)
+
         // todo: this code can maybe be moved into the resource.mergeable.prune function
-        //       (this code also assumes there is a God)
+        //       (this code also assumes there is a God (a single first version adder))
         var leaves = Object.keys(resource.current_version)
         var acked_boundary = Object.keys(resource.acked_boundary)
         var fiss = Object.keys(resource.fissures)
@@ -985,7 +1102,7 @@ module.exports = require.node = function create_node(node = {}) {
             }
     }
 
-    var gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
+    node.gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
     // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
     // var pending_gets = u.one_to_many()  // Maps `key' to `pipes' that haven't responded
 

@@ -19,6 +19,10 @@ module.exports = require.sync9 = function create (resource) {
             prune(resource, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen_b2, seen_annotations)
         },
 
+        change_names: function (name_changes) {
+            change_names(resource, name_changes)
+        },
+
         generate_braid: function(is_anc
                                    /*from_parents, to_parents*/) {
             return generate_braid(resource, is_anc)
@@ -351,6 +355,50 @@ function space_dag_prune(S, has_everyone_whos_seen_a_seen_b, seen_versions, seen
     return did_something_ever
 }
 
+function change_names(resource, name_changes) {
+    resource.time_dag = Object.assign({},
+        ...Object.entries(resource.time_dag).map(([v, ps]) =>
+            ({[name_changes[v] || v]: Object.assign({},
+                ...Object.keys(ps).map(v =>
+                    ({[name_changes[v] || v]: true})))})))
+
+    var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
+
+    function recurse(x) {
+        if (is_lit(x)) return
+        else if (x.t == 'val') {
+            space_dag_change_names(x.S, name_changes)
+            traverse_space_dag(x.S, () => true, node => {
+                node.elems.forEach(recurse)
+            }, true)
+        } else if (x.t == 'arr') {
+            space_dag_change_names(x.S, name_changes)
+            traverse_space_dag(x.S, () => true, node => {
+                node.elems.forEach(recurse)
+            }, true)
+        } else if (x.t == 'obj') {
+            Object.values(x.S).forEach(recurse)
+        } else if (x.t == 'str') {
+            space_dag_change_names(x.S, name_changes)
+        }
+    }
+    recurse(resource.space_dag)
+}
+
+function space_dag_change_names(S, name_changes) {
+    traverse_space_dag(S, () => true, node => {
+        var new_v = name_changes[node.version]
+        if (new_v) node.version = new_v
+        Object.keys(node.deleted_by).forEach(v => {
+            var new_v = name_changes[v]
+            if (new_v) {
+                delete node.deleted_by[v]
+                node.deleted_by[new_v] = true
+            }
+        })
+    }, true)
+}
+
 function add_version(resource, version, parents, changes, is_anc) {
     let make_lit = x => (x && typeof(x) == 'object') ? {t: 'lit', S: x} : x
     
@@ -487,7 +535,15 @@ function read(x, is_anc) {
 
 function read_raw(x, is_anc, annotations) {
     if (!is_anc) is_anc = () => true
-    return rec_read(x)
+    else if (typeof(is_anc) == 'string') {
+        var ancs = x.ancestors({[is_anc]: true})
+        is_anc = v => ancs[v]
+    } else if (typeof(is_anc) == 'object') {
+        var ancs = x.ancestors(is_anc)
+        is_anc = v => ancs[v]
+    }
+
+    return finalize(rec_read(x))
     function rec_read(x) {
         if (x && typeof(x) == 'object') {
             if (!x.t) return rec_read(x.space_dag, is_anc)
@@ -530,6 +586,14 @@ function read_raw(x, is_anc, annotations) {
             }
             throw 'bad'
         } return x
+    }
+    function finalize(x) {
+        if (Array.isArray(x)) x.forEach(x => finalize(x))
+        else if (x && typeof(x) == 'object') {
+            if (!annotations && x.type == 'location') delete x.id
+            else Object.values(x).forEach(x => finalize(x))
+        }
+        return x
     }
 }
 

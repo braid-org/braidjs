@@ -40,9 +40,9 @@ module.exports = require.utilities = {
 assert = function () {
     if (!arguments[0]) {
         console.trace.apply(console, ['-Assert-', ...[...arguments].slice(1)])
-        if (this.process)
-            process.exit()
-        else
+        // if (this.process)
+        //     process.exit()
+        // else
             throw 'Bad'
     }
 }
@@ -59,8 +59,7 @@ nlog = function () {
 }
 
 function deep_equals(a, b) {
-    if (typeof(a) != 'object' || typeof(b) != 'object') return a == b
-    if (a == null) return b == null
+    if (typeof(a) != 'object' || typeof(b) != 'object' || a == null || b == null) return a == b
     if (Array.isArray(a)) {
         if (!Array.isArray(b)) return false
         if (a.length != b.length) return false
