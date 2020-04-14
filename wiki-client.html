@@ -111,10 +111,12 @@ function render () {
     }
 
     if (window.node)
-        stats.innerText = 'Size: ' + data_size()
+        stats.innerText = 'Time is length: ' + data_size()
 }
 
-function data_size() { return Object.keys(node.resource_at(page_key).time_dag).length }
+function data_size() {
+    return Object.keys(node.resource_at(page_key).time_dag).length
+}
 
 var first_time = true
 function toggle_editor () {
@@ -301,7 +303,7 @@ async function sync_editor(t) {
                 send_diff(prev_text, t.value)
                 prev_text = t.value
 
-                stats.innerText = 'Size: ' + data_size()
+                stats.innerText = 'Time is length: ' + data_size()
             })
             add_selection_listener(t, send_cursor_update)
         } else {
