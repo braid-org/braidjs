@@ -1,16 +1,13 @@
 
+require('./utilities.js')
+
+var page_key = '/foo'
+
 g_debug_WS_messages = []
 g_debug_WS_messages_delayed = []
 debug_WS_process_messages = function () {
-
-    // console.log('server open?: ' + !!debug_WSS.the_one)
-
     while (g_debug_WS_messages.length) {
-        var f = g_debug_WS_messages.shift()
-
-        // console.log('f ===> ', f)
-
-        f()
+        g_debug_WS_messages.shift()()
     }
     g_debug_WS_messages = g_debug_WS_messages_delayed
     g_debug_WS_messages_delayed = []
@@ -48,17 +45,23 @@ debug_WS = function (id) {
         is_open: true,
         send(msg) {
 
-            // console.log(`C-${self.id} SEND: ` + JSON.parse(msg).method)
-            // if (!self.is_open) console.log('NOT OPEN!')
+            // var m = JSON.parse(msg)
+            // console.log(`C-${self.id} SEND: ` + m.method + ' ' + (m.seen || ''))
+            // if (m.versions) console.log('versions: ', m.versions)
+            // if (m.patches) console.log('version: ', m.version, m.parents, m.patches)
+
             // console.log(`C-${self.id} SEND: ` + JSON.stringify(JSON.parse(msg), null, '    '))
 
             this.on_messages.forEach(f =>
                 g_debug_WS_messages.push(() => {
 
-                    // console.log(`S RECV from:C-${self.id} : ` + JSON.parse(msg).method)
+                    // console.log(`S RECV from:C-${self.id} : ` + m.method + ' ' + (m.seen || ''))
+                    // if (m.versions) console.log('versions: ', m.versions)
+                    // if (m.patches) console.log('version: ', m.version, m.parents, m.patches)
+
                     // if (!self.is_open) console.log('NOT OPEN!')
                     // console.log(`S RECV from:C-${self.id} : ` + JSON.stringify(JSON.parse(msg), null, '    '))
-
+        
                     f(msg)
                 }))
         },
@@ -92,16 +95,22 @@ debug_WS = function (id) {
                     },
                     send(msg) {
 
-                        // console.log(`S SEND to:C-${self.id} : ` + JSON.parse(msg).method)
-                        // if (!self.is_open) console.log('NOT OPEN!')
-                        // console.log(`S SEND to:C-${self.id} : ` + JSON.stringify(JSON.parse(msg), null, '    '))
+                        // var m = JSON.parse(msg)
+                        // console.log(`S SEND to:C-${self.id} : ` + m.method + ' ' + (m.seen || ''))
+                        // if (m.versions) console.log('versions: ', m.versions)
+                        // if (m.patches) console.log('version: ', m.version, m.parents, m.patches)
 
+                        // console.log(`S SEND to:C-${self.id} : ` + JSON.stringify(JSON.parse(msg), null, '    '))
+    
                         g_debug_WS_messages.push(() => {
 
-                            // console.log(`C-${self.id} receiving: ` + JSON.parse(msg).method)
+                            // console.log(`C-${self.id} RECV: ` + m.method + ' ' + (m.seen || ''))
+                            // if (m.versions) console.log('versions: ', m.versions)
+                            // if (m.patches) console.log('version: ', m.version, m.parents, m.patches)
+
                             // if (!self.is_open) console.log('NOT OPEN!')
                             // console.log(`C-${self.id} RECV: ` + JSON.stringify(JSON.parse(msg), null, '    '))
-
+        
                             self.onmessage({data: msg})
                         })
                     }
@@ -115,12 +124,10 @@ debug_WS = function (id) {
     return self
 }
 
-require('./random002.js')
 var ds = require('./diffsync.js')
 const { PerformanceObserver, performance } = require('perf_hooks');
 
 async function main() {
-
     // var a = '' + require('fs').readFileSync('actions.json')
     // a = JSON.parse(a)
     // run_experiment_from_actions(a)
@@ -134,17 +141,17 @@ async function main() {
     var longest_seed = null
     var N = 200
     for (var i = 0; i < N; i++) {
-        var seed = '12233345_a:' + i
-
-        // N = 1
-        // seed = '122333_a:9571'
+        var seed = '__ab__7:' + i
 
         console.log('seed: ' + seed)
         var st = performance.now()
+
         var r = await run_experiment(seed)
-            if (!r.ok && r.t < best_t) {
+
+        if (!r.ok && r.t < best_t) {
             best_t = r.t
             best_seed = seed
+            require('fs').writeFileSync('actions.json', JSON.stringify(r.actions, null, '    '))
         }
         var t = performance.now() - st
         if (t > longest) {
@@ -162,45 +169,15 @@ async function main() {
 }
 
 async function run_experiment(rand_seed) {
-    Math.randomSeed2(rand_seed)
+    Math.randomSeed(rand_seed)
 
     g_debug_WS_messages = []
     g_debug_WS_messages_delayed = []
     debug_WSS.the_one = null
 
-    // var db_prefix = 'db_test.sqlite'
-    // try { require('child_process').execSync(`rm ${db_prefix}*`) } catch (e) {}
-
-    // var db = new (require('better-sqlite3'))(db_prefix)
-    // db.pragma('journal_mode = WAL')
-    // db.prepare('create table if not exists store (key text primary key, val text)').run()
-
-    var db = {
-        data: {},
-        prepare(s) {
-            if (s == 'select * from store where key = ?') {
-                return {
-                    get([key]) {
-                        if (db.data[key]) return {val: db.data[key]}
-                    }
-                }
-            } else if (s == 'replace into store (key, val) values (?, ?)') {
-                return {
-                    run([key, data]) {
-                        db.data[key] = data
-                    }
-                }
-            } else if (s == 'delete from store where key = ?') {
-                return {
-                    run([key]) {
-                        delete db.data[key]
-                    }
-                }
-            }
-        }
-    }
-
     var trials = 200
+
+    var db = create_db()
     var server = null
     var clients = []
 
@@ -280,84 +257,39 @@ async function run_experiment(rand_seed) {
 
             debug_WS_process_messages()
 
-            log_stuff && console.log('server: ' + (server ? server.get() : 'down'))
+            log_stuff && console.log(`server: ${server ? `"${server.get()}"` : 'down'}`)
             log_stuff && clients.forEach(c => console.log(`${c.id} client ${c.is_open ? ':' : 'X'} "${c.get()}"`))
-
 
             // if (true) {
             //     console.log('SERVER: ' + (server ? server.get_more() : 'down'))
             //     clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_more()}`))
             // }
 
-
-
-
-
             if (server && clients.some(c => c.is_open)) {
-                let text = clients.find(c => c.is_open).get()
+                let text = server.get()
                 if (clients.some(c => c.is_open && c.get() != text)) {
-
-                    require('fs').writeFileSync('actions.json', JSON.stringify(actions, null, '    '))
-
                     console.log('NOT THE SAME!')
-                    return {ok: false, t}
+                    return {ok: false, t, actions}
                 }
             }
         } catch (e) {
-
-            // require('fs').writeFileSync('actions.json', JSON.stringify(actions, null, '    '))
-
             console.log('EXCEPTION', e)
-            return {ok: false, t}
+            return {ok: false, t, actions}
         }
         //actions.push({time: performance.now() - st})
     }
 
-    // require('fs').writeFileSync('actions.json', JSON.stringify(actions, null, '    '))
-
-    return {ok: true}
+    return {ok: true, actions}
 }
 
 async function run_experiment_from_actions(actions) {
-    Math.randomSeed2('hi')
+    Math.randomSeed('just needed to make set_state available')
 
     g_debug_WS_messages = []
     g_debug_WS_messages_delayed = []
     debug_WSS.the_one = null
 
-    // var db_prefix = 'db_test.sqlite'
-    // try { require('child_process').execSync(`rm ${db_prefix}*`) } catch (e) {}
-
-    // var db = new (require('better-sqlite3'))(db_prefix)
-    // db.pragma('journal_mode = WAL')
-    // db.prepare('create table if not exists store (key text primary key, val text)').run()
-
-    var db = {
-        data: {},
-        prepare(s) {
-            if (s == 'select * from store where key = ?') {
-                return {
-                    get([key]) {
-                        if (db.data[key]) return {val: db.data[key]}
-                    }
-                }
-            } else if (s == 'replace into store (key, val) values (?, ?)') {
-                return {
-                    run([key, data]) {
-                        db.data[key] = data
-                    }
-                }
-            } else if (s == 'delete from store where key = ?') {
-                return {
-                    run([key]) {
-                        delete db.data[key]
-                    }
-                }
-            }
-        }
-    }
-
-    var trials = 59
+    var db = create_db()
     var server = null
     var clients = []
 
@@ -368,15 +300,6 @@ async function run_experiment_from_actions(actions) {
         Date.now = () => t
 
         // console.log('a.action = ' + a.action)
-
-
-        // work here
-        // if (t == 6) {
-        //     console.log(server.get_more())
-        //     console.log('braid:', g_current_server_node.resource_at('/foo').mergeable.generate_braid(() => false))
-        //     break
-        // }
-
 
         try {
             log_stuff && console.log('----------------------------- trial ' + t)
@@ -438,7 +361,7 @@ async function run_experiment_from_actions(actions) {
 
             debug_WS_process_messages()
 
-            log_stuff && console.log('server: ' + (server ? server.get() : 'down'))
+            log_stuff && console.log(`server: ${server ? `"${server.get()}"` : 'down'}`)
             log_stuff && clients.forEach(c => console.log(`${c.id} client ${c.is_open ? ':' : 'X'} "${c.get()}"`))
 
 
@@ -446,14 +369,15 @@ async function run_experiment_from_actions(actions) {
                 console.log('SERVER: ' + (typeof(g_current_server) != 'undefined' ? g_current_server.get_time() : 'not started'))
                 clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_time()}`))
 
-                // console.log('null versions:')
-                // console.log('SERVER: ' + (g_current_server ? g_current_server.get_null() : 'not started'))
-                // clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_null()}`))
+                // clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_more()}`))
+
+                console.log('null versions:')
+                console.log('SERVER: ' + (g_current_server ? g_current_server.get_null() : 'not started'))
+                clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_null()}`))
             }
 
-
             if (server && clients.some(c => c.is_open)) {
-                let text = clients.find(c => c.is_open).get()
+                let text = server.get()
                 if (clients.some(c => c.is_open && c.get() != text)) {
                     console.log('NOT THE SAME!')
                     return {ok: false, t}
@@ -470,78 +394,17 @@ async function run_experiment_from_actions(actions) {
 
 main()
 
+function create_db() {
+    return {
+        data: {},
+        get(key) { return this.data[key] },
+        set(key, val) { this.data[key] = val },
+        del(key) { delete this.data[key] }
+    }    
+}
+
 function create_server(db) {
-    function create_persistent_node(key_base, get_key, set_key, del_key) {
-        var a_or_b = get_key(key_base) || 'a'
-    
-        var d, node = null
-        for (var next = 0; d = get_key(`${key_base}:${a_or_b}:${next}`); next++) {
-            d = JSON.parse(d)
-
-
-            // console.log('d = ', JSON.stringify(d, null, '    '))
-
-
-            if (d.resources) {
-                node = require('./node.js')(d)
-    
-                Object.entries(node.resources).forEach(resource =>
-                    Object.values(resource[1].we_welcomed).forEach(pipe => {
-                        pipe.remote = true
-                        node.bind(resource[0], pipe)
-                        node.gets_in.add(resource[0], pipe.id)
-                    })
-                )
-    
-            } else {
-                if (!node) node = require('./node.js')()
-                node[d.method](...d.args)
-            }
-        }
-        if (!node) node = require('./node.js')()
-
-        function add(x) {
-            set_key(`${key_base}:${a_or_b}:${next++}`, JSON.stringify(x))
-        }
-    
-        function prune() {
-            a_or_b = (a_or_b == 'a') ? 'b' : 'a'
-            for (var i = 0; get_key(`${key_base}:${a_or_b}:${i}`); i++) {}
-            for (i = i - 1; i >= 0; i--) del_key(`${key_base}:${a_or_b}:${i}`)
-    
-            var old_next = next
-            next = 0
-            add(node)
-            set_key(key_base, a_or_b)
-    
-            for (i = old_next - 1; i >= 0; i--)
-                del_key(`${key_base}:${(a_or_b == 'a') ? 'b' : 'a'}:${i}`)
-        }
-
-        node.ons.push((method, args) => {
-            if (Math.random() < 0.1) prune()
-            add({method, args})
-        })
-    
-        Object.entries(node.resources).forEach(([key, r]) =>
-            Object.values(r.we_welcomed).forEach(pipe => {
-                node.disconnected({key, origin: pipe})
-            })
-        )
-
-        prune()
-        node.persistent_prune = prune
-        return node
-    }
-    
-    var node = create_persistent_node('HIHI', key => {
-        var x = db.prepare('select * from store where key = ?').get([key])
-        return x && x.val
-    }, (key, data) => {
-        db.prepare('replace into store (key, val) values (?, ?)').run([key, data])
-    }, key => {
-        db.prepare('delete from store where key = ?').run([key])
-    })
+    var node = require('./store.js')(require('./node.js')(), db)
 
     node.on_errors.push((key, origin) => {
         // console.log('SERVER ON ERROR')
@@ -549,61 +412,22 @@ function create_server(db) {
     })
 
     node.fissure_lifetime = 1 // 4
-    node.persistent_prune()
+    node.compress()
     
     var wss = require('./networks/websocket-server.js')(node)
 
-
-    // work here
-    g_current_server_node = node
-
-
-
     return g_current_server = {
         get() {
-            //return node.resource_at('/foo').mergeable.read()
-            return JSON.stringify(node.resource_at('/foo').mergeable.read()) + ' fissures: ' + Object.keys(node.resource_at('/foo').fissures).length
-        },
-        get_more() {
-            return JSON.stringify(node.resource_at('/foo'), null, '    ')
-        },
-        get_fiss() {
-            return JSON.stringify(node.resource_at('/foo').fissures, null, '    ')
-        },
-        get_time() {
-            return JSON.stringify(node.resource_at('/foo').time_dag, null, '    ')
-        },
-        get_null() {
-            return JSON.stringify(node.resource_at('/foo').mergeable.read_raw({}), null, '    ')
+            var o = node.resource_at(page_key).mergeable.read()
+            return o && o.text
         },
         close() {
             wss.dead = true
             wss.close()
-        }
-    }
-}
-
-function create_client() {
-    var page_key = '/foo'
-    var update_markdown_later = () => {}
-    var data_size = () => {}
-    var my_on_input = () => {}
-    var my_on_sel = () => {}
-    var t = {value: '', selectionStart: 0, selectionEnd: 0,
-        addEventListener: (_, cb) => {
-            my_on_input = cb
         },
-        setSelectionRange: () => {}
-    }
-    var stats = {innerText: ''}
-    function add_selection_listener(_, cb) {
-        my_on_sel = cb
-    }
-    var self = {
-        id: null,
-        is_open: true,
-        get: () => {
-            return t.value
+
+        get2() {
+            return JSON.stringify(node.resource_at(page_key).mergeable.read()) + ' fissures: ' + Object.keys(node.resource_at(page_key).fissures).length
         },
         get_more() {
             return JSON.stringify(node.resource_at(page_key), null, '    ')
@@ -616,116 +440,49 @@ function create_client() {
         },
         get_null() {
             return JSON.stringify(node.resource_at(page_key).mergeable.read_raw({}), null, '    ')
-        },
-        set: (x, del, ins) => {
-            //if (x + del > t.value.length) throw 'bad'
-
-            t.value = t.value.slice(0, x) + ins + t.value.slice(x + del)
-            my_on_input()
-
-            // work here
-            if (x + ins.length <= t.value.length)
-                my_on_sel(x + ins.length, x + ins.length)
-            else
-                my_on_sel(t.value.length, t.value.length)
-        },
-        close: (send_forget) => {
-            if (send_forget) {
-                node.forget(page_key, cb)
-            }
-            ws_client.disable()
-            self.is_open = false
-        },
-        open: () => {
-            ws_client.enable()
-            self.is_open = true
         }
     }
+}
 
-    ///////////////////////////
+function create_client() {
+    var node = require('./node.js')()
+    node.default(page_key, {cursors: {[node.pid + '-start']: 0, [node.pid + '-end']: 0}, text: ''})
+    var ws_client = require('./networks/websocket-client.js')({node})
 
-    var prev_text = ''
-    var node = require('./node.js')({id: 'C-' + Math.random().toString(36).slice(2, 12)})
-    // require('./networks/websocket-client.js')({node, url: 'wss://invisible.college:1492/'})
-    var ws_client = require('./networks/websocket-client.js')({node, reconnect_timeout: 10})
-
-    self.id = node.pid
-
-    node.ons.push((method, args) => {
-        //console.log('RESOURCE: ' + JSON.stringify(node.resource_at(key).space_dag, null, '    '))
-        //console.log('ABOUT TO: ' + method + ', ' + JSON.stringify(args))
-    })
-
-    var setting = 0
+    var ready = false
+    var text = ''
+    var selectionStart = 0
+    var selectionEnd = 0
 
     function send_diff(from, to) {
-        setting++
         var v = node.set(page_key, null, ds.diff_convert_to_my_format(ds.diff_main(from, to)).map(x =>
             `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
         ))
-        setting--
     }
 
     function send_cursor_update(start, end) {
-        // node.set(key, null, [
-        //     `.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
-        //     `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
-
-        setting++
-        var v = node.set(page_key, null, [`.cursors[${JSON.stringify(node.pid)}] = {"type": "location", "path": ".text[${start}]"}`])
-        setting--
+        node.set(page_key, null, [
+            `.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
+            `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
     }
 
-    var get_num = 0
     var cb = x => {
-        if (setting) return
-
-        get_num++
-        if (get_num == 1) {
-            console.assert(node.resource_at(page_key).weve_been_welcomed === true)
-
-            // Initialize the object if it doesn't have a value yet
-            if (!x || typeof(x) !== 'object') {
-                let v = node.set(page_key, {cursors: {}, text: t.value})
-
-            // Or if it does, then prepend it with our text, and send that
-            } else {
-                prev_text = t.value = t.value + x.text
-                update_markdown_later()
-                send_diff(x.text, t.value)
-            }
-
-            // Initialize our cursor to it
-            send_cursor_update(t.selectionStart, t.selectionEnd)
-
-            // And start sending all future updates
-            t.addEventListener('input', e => {
-                send_diff(prev_text, t.value)
-                prev_text = t.value
-
-                stats.innerText = 'Size: ' + data_size()
-            })
-            add_selection_listener(t, send_cursor_update)
-        } else {
-            console.assert(node.resource_at(page_key).weve_been_welcomed === true)
-            prev_text = t.value = x.text
-            update_markdown_later()
-
-            // t.setSelectionRange(x.cursors[node.pid + '-start'], x.cursors[node.pid + '-end'])
-            t.setSelectionRange(x.cursors[node.pid], x.cursors[node.pid])
-
-            // debug_display.textContent = x.text.slice(0, x.cursors[node.pid + '-start'])
-            //    + '^' + x.text.slice(x.cursors[node.pid + '-start'])
-            //    + ' :' + x.cursors[node.pid + '-start']
+        ready = true
+        text = x.text
+        if (x.cursors[node.pid + '-start'] != null) {
+            selectionStart = x.cursors[node.pid + '-start']
+            selectionEnd = x.cursors[node.pid + '-end']
         }
-
-        stats.innerText = 'Size: ' + data_size()
     }
+    node.get(page_key, cb)
 
     node.on_errors.push((key, origin) => {
         // console.log('CLIENT ON ERROR')
 
-        prev_text = t.value = ''
+        text = ''
+        selectionStart = 0
+        selectionEnd = 0
+
         delete node.resources[key]
         node.unbind(key, origin)
 
@@ -739,9 +496,46 @@ function create_client() {
         })
     })
 
-    node.get(page_key, cb)
+    var self
+    return self = {
+        id: node.pid,
+        is_open: true,
+        get: () => {
+            return text
+        },
+        set: (x, del, ins) => {
+            if (!ready) {
+                // console.log(`not ready: ignoring ${x}, ${del}, ${ins}`)
+                return
+            }
+            var new_text = text.slice(0, x) + ins + text.slice(x + del)
+            send_diff(text, new_text)
+            if (x + ins.length <= new_text.length)
+                send_cursor_update(x + ins.length, x + ins.length)
+            else
+                send_cursor_update(new_text.length, new_text.length)
+        },
+        close: (send_forget) => {
+            if (send_forget) node.forget(page_key, cb)
+            ws_client.disable()
+            self.is_open = false
+        },
+        open: () => {
+            ws_client.enable()
+            self.is_open = true
+        },
 
-    ///////////////////////////
-
-    return self
+        get_more() {
+            return JSON.stringify(node.resource_at(page_key), null, '    ')
+        },
+        get_fiss() {
+            return JSON.stringify(node.resource_at(page_key).fissures, null, '    ')
+        },
+        get_time() {
+            return JSON.stringify(node.resource_at(page_key).time_dag, null, '    ')
+        },
+        get_null() {
+            return JSON.stringify(node.resource_at(page_key).mergeable.read_raw({}), null, '    ')
+        }
+    }    
 }

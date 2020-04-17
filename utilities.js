@@ -87,24 +87,39 @@ function deep_equals(a, b) {
 //
 {
     // These two functions are added by Glittle.
-    Math.create_rand = function create_rand(seed) {
+    Math.create_rand = function (seed) {
         if (typeof(seed) == 'string') {
             var t = new MersenneTwister(0)
             var a = []
             for (var i = 0; i < seed.length; i++)
                 a[i] = seed.charCodeAt(i)
             t.init_by_array(a, a.length)
+        } else if (Array.isArray(seed)) {
+            var t = new MersenneTwister(0)
+            t.init_by_array(seed, seed.length)
         } else if (typeof(seed) == 'number') {
             var t = new MersenneTwister(seed)
         } else {
             var t = new MersenneTwister()
         }
-        return () => t.random()
+        function func() {
+            return t.random()
+        }
+        func.get_state = () => {
+            var a = t.mt.slice(0)
+            a.push(t.mti)
+            return JSON.stringify(a)
+        }
+        func.set_state = s => {
+            var a = JSON.parse(s)
+            t.mt = a.slice(0, a.length - 1)
+            t.mti = a[a.length - 1]
+        }
+        return func
     }
-
+      
     Math.randomSeed = function (seed) {
-        var r = create_rand(seed)
-        Math.random = () => r()
+        Math.random = Math.create_rand(seed)
     }
     // Those previous two functions added by Glittle
 

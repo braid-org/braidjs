@@ -1,16 +1,26 @@
 u = require('./utilities.js')
 
-module.exports = require.node = function create_node(node = {}) {
-    if (!node.pid) node.pid = u.random_id()
-    if (!node.resources) node.resources = {}
-    else {
+module.exports = require.node = function create_node(node_data = {}) {
+    var node = {}
+    node.init = (node_data) => {
+        node.pid = node_data.pid || u.random_id()
+        node.resources = node_data.resources || {}
         for (var key of Object.keys(node.resources)) {
             node.resources[key] = require('./resource.js')(node.resources[key])
         }
+        if (node_data.fissure_lifetime != null) node.fissure_lifetime = node_data.fissure_lifetime
+
+        node.defaults = Object.assign(u.dict(), node.defaults || {})
+        node.default_patterns = node.default_patterns || []
+
+        node.ons = []
+        node.on_errors = []
+    
+        node.gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
+        // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
+        // var pending_gets = u.one_to_many()  // Maps `key' to `pipes' that haven't responded    
     }
-    if (!node.ons || node.ons.every(x => !x)) node.ons = []
-    if (!node.on_errors || node.on_errors.every(x => !x)) node.on_errors = []
-    // node.fissure_lifetime -- if set, prune will prune fissures older than this
+    node.init(node_data)
 
     node.resource_at = (key) => {
         if (typeof key !== 'string')
@@ -493,9 +503,7 @@ module.exports = require.node = function create_node(node = {}) {
 
                 var bad = false
                 if (Object.keys(v.parents).length == 0) {
-                    let a = JSON.parse(null_version.changes[0].match(/^\s*=\s*([\s\S]*)/)[1])
-                    let b = resource.mergeable.read_raw({})
-                    bad = !u.deep_equals(a, b)
+                    bad = new_versions[0].version
                 } else for (p in v.parents) {
                     bad = !resource.time_dag[p]
                     if (bad) break
@@ -981,6 +989,7 @@ module.exports = require.node = function create_node(node = {}) {
         
         var tags = {'null': {tags: {}}}
         var frozen = {}
+        var maintain = {}
         Object.keys(resource.time_dag).forEach(version => {
             tags[version] = {tags: {}}
         })
@@ -996,6 +1005,7 @@ module.exports = require.node = function create_node(node = {}) {
                 if (!resource.time_dag[v]) return
                 tag(v, v)
                 frozen[v] = true
+                maintain[v] = true
                 Object.keys(resource.time_dag[v]).forEach(v => {
                     tag(v, v)
                     frozen[v] = true
@@ -1007,6 +1017,7 @@ module.exports = require.node = function create_node(node = {}) {
             if (!acked[x] || resource.acked_boundary[x]) {
                 tag(x, x)
                 frozen[x] = true
+                maintain[x] = true
                 Object.keys(resource.time_dag[x]).forEach(v => {
                     tag(v, v)
                     frozen[v] = true
@@ -1035,12 +1046,12 @@ module.exports = require.node = function create_node(node = {}) {
         // thinking that they possess the same information as before
         var name_changes = {}
         Object.keys(resource.time_dag).forEach(v => {
-            if (!frozen[v]) {
-                var m = v.match(/^\*[^\-]*\-(.*)/)
+            if (!maintain[v]) {
+                var m = v.match(/^([^\-]+)\-/)
                 if (m) {
-                    name_changes[v] = '*' + Math.random().toString(36).slice(2) + '-' + m[1]
+                    name_changes[v] = m[1] + '-' + Math.random().toString(36).slice(2)
                 } else {
-                    name_changes[v] = '*' + Math.random().toString(36).slice(2) + '-' + v
+                    name_changes[v] = v + '-' + Math.random().toString(36).slice(2)
                 }
             }
         })
@@ -1087,24 +1098,18 @@ module.exports = require.node = function create_node(node = {}) {
         else
             node.defaults[key] = val
     }
-    node.defaults = u.dict()
-    node.default_patterns = []
     function default_val_for (key) {
         if (key in node.defaults) {
-            console.log('Default('+key+') is', node.defaults[key])
+            // console.log('Default('+key+') is', node.defaults[key])
             return node.defaults[key]
         }
 
         for (pattern in node.default_patterns)
             if (pattern === key.substr(0, pattern.length)) {
-                console.log('Default('+key+') is', node.default_patterns[pattern])
+                // console.log('Default('+key+') is', node.default_patterns[pattern])
                 return node.default_patterns[pattern](key)
             }
     }
-
-    node.gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
-    // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
-    // var pending_gets = u.one_to_many()  // Maps `key' to `pipes' that haven't responded
 
     // Install handlers and bindings
     require('./events.js')(node)

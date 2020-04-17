@@ -232,14 +232,6 @@ function scroll () {
 for (i=0; i<50; i++)
     setTimeout(scroll, i / 5.0 * 1000)
 
-
-
-
-
-
-
-
-
 t.addEventListener('input', e => {
     update_markdown_later()
 })
@@ -247,92 +239,85 @@ t.addEventListener('input', e => {
 sync_editor(t)
 async function sync_editor(t) {
     var prev_text = ''
-    window.node = require('./node.js')({id: 'C-' + Math.random().toString(36).slice(2, 12)})
-    // require('./networks/websocket-client.js')({node, url: 'wss://invisible.college:1492/'})
-    require('./networks/websocket-client.js')({node})
+    window.node = require('./node.js')({pid: 'C-' + Math.random().toString(36).slice(2, 12)})
+    window.node.default(page_key, {cursors: {[window.node.pid + '-start']: 0, [window.node.pid + '-end']: 0}, text: ''})
+    // var ws_client = require('./networks/websocket-client.js')({node: window.node, url: 'wss://invisible.college:1492/'})
+    var ws_client = require('./networks/websocket-client.js')({node: window.node})
 
-    node.ons.push((method, args) => {
-        //console.log('RESOURCE: ' + JSON.stringify(node.resource_at(key).space_dag, null, '    '))
-        console.log('ABOUT TO: ' + method + ', ' + JSON.stringify(args))
-    })
-
+    var ready = false
     var setting = 0
-
     function send_diff(from, to) {
+        if (!ready) return
         setting++
-        node.set(page_key, null, diff_convert_to_my_format(diff_main(from, to)).map(x =>
+        window.node.set(page_key, null, diff_convert_to_my_format(diff_main(from, to)).map(x =>
             `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
         ))
         setting--
     }
 
     function send_cursor_update(start, end) {
-        // node.set(key, null, [
-        //     `.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
-        //     `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
-
+        if (!ready) return
         setting++
-        node.set(page_key, null, [`.cursors[${JSON.stringify(node.pid)}] = {"type": "location", "path": ".text[${start}]"}`])
+        window.node.set(page_key, null, [
+            `.cursors[${JSON.stringify(window.node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
+            `.cursors[${JSON.stringify(window.node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
         setting--
     }
 
-    var get_num = 0
     var cb = x => {
+        ready = true
         if (setting) return
-
-        get_num++
-        if (get_num == 1) {
-            console.log('got here!!!1111')
-            console.assert(node.resource_at(page_key).weve_been_welcomed === true)
-
-            // Initialize the object if it doesn't have a value yet
-            if (!x || typeof(x) !== 'object') node.set(page_key, {cursors: {}, text: t.value})
-
-            // Or if it does, then prepend it with our text, and send that
-            else {
-                prev_text = t.value = t.value + x.text
-                update_markdown_later()
-                send_diff(x.text, t.value)
-            }
-
-            // Initialize our cursor to it
-            send_cursor_update(t.selectionStart, t.selectionEnd)
-
-            // And start sending all future updates
-            t.addEventListener('input', e => {
-                send_diff(prev_text, t.value)
-                prev_text = t.value
-
-                stats.innerText = 'Time is length: ' + data_size()
-            })
-            add_selection_listener(t, send_cursor_update)
+        console.assert(window.node.resource_at(page_key).weve_been_welcomed === true)
+        prev_text = t.value = x.text
+        if (x.cursors[window.node.pid + '-start'] != null) {
+            t.setSelectionRange(x.cursors[window.node.pid + '-start'], x.cursors[window.node.pid + '-end'])
         } else {
-            console.assert(node.resource_at(page_key).weve_been_welcomed === true)
-            prev_text = t.value = x.text
-            update_markdown_later()
-
-            // t.setSelectionRange(x.cursors[node.pid + '-start'], x.cursors[node.pid + '-end'])
-            t.setSelectionRange(x.cursors[node.pid], x.cursors[node.pid])
-
-            // debug_display.textContent = x.text.slice(0, x.cursors[node.pid + '-start'])
-            //    + '^' + x.text.slice(x.cursors[node.pid + '-start'])
-            //    + ' :' + x.cursors[node.pid + '-start']
+            t.setSelectionRange(0, 0)
         }
-
+        update_markdown_later()
         stats.innerText = 'Size: ' + data_size()
     }
+    window.node.get(page_key, cb)
 
-    node.get(page_key, cb)
+    window.node.on_errors.push((key, origin) => {
+        // console.log('CLIENT ON ERROR')
+
+        prev_text = t.value = ''
+        t.setSelectionRange(0, 0)
+
+        delete window.node.resources[key]
+        window.node.unbind(key, origin)
+
+        var subscribe = ws_client.pipe.subscribed_keys[key].we_requested
+        delete ws_client.pipe.subscribed_keys[key].we_requested
+
+        ws_client.pipe.send({
+            key,
+            subscribe,
+            method: 'get'
+        })
+    })
+
+    t.addEventListener('input', e => {
+        var selectionStart = t.selectionStart
+        var selectionEnd = t.selectionEnd
+        send_diff(prev_text, t.value)
+        send_cursor_update(selectionStart, selectionEnd)
+        prev_text = t.value
+
+        stats.innerText = 'Time is length: ' + data_size()
+    })
+    add_selection_listener(t, send_cursor_update)
 
     window.addEventListener('beforeunload', function () {
-        //node.forget(page_key, cb)
+        window.node.forget(page_key, cb)
     })
 
     stats.onclick = () => {
         var floater = make_html(`<div style="position:fixed;left:100px;top:100px;"></div>`)
         document.body.append(floater)
         console.log('drawing resource..')
-        floater.append(draw_resource(node.resource_at(page_key)))
+        floater.append(draw_resource(window.node.resource_at(page_key)))
     }
 }
 
