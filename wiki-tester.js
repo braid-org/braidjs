@@ -2,6 +2,7 @@
 require('./utilities.js')
 
 var page_key = '/foo'
+g_current_server = null
 
 g_debug_WS_messages = []
 g_debug_WS_messages_delayed = []
@@ -140,8 +141,14 @@ async function main() {
     var longest = 0
     var longest_seed = null
     var N = 200
+
     for (var i = 0; i < N; i++) {
-        var seed = '__ab__7:' + i
+        var seed = '__abb__19:' + i
+
+
+        // N = 1
+        // seed = '__ab__7:56'
+
 
         console.log('seed: ' + seed)
         var st = performance.now()
@@ -213,20 +220,16 @@ async function run_experiment(rand_seed) {
                         actions.push({action: 're-opening client', id: c.id, rand: Math.random.get_state()})
                         c.open()
                     } else if (c.is_open && Math.random() < 0.4) {
-                        if (Math.random() < 0.9) {
+                        if (Math.random() < 0.5) {
                             log_stuff && console.log('> closing client (temporarily)')
                             actions.push({action: 'closing client (temporarily)', id: c.id, rand: Math.random.get_state()})
-                            c.close(false)
+                            c.close(false, false)
                         } else {
-                            if (Math.random() < 0.5) {
-                                log_stuff && console.log('> killing client with forget')
-                                actions.push({action: 'killing client with forget', id: c.id, rand: Math.random.get_state()})
-                                c.close(true)
-                            } else {
-                                log_stuff && console.log('> killing client w/o forget')
-                                actions.push({action: 'killing client w/o forget', id: c.id, rand: Math.random.get_state()})
-                                c.close(false)
-                            }
+                            var send_forget = Math.random() < 0.333
+                            var send_deletes = send_forget || Math.random() < 0.5
+                            log_stuff && console.log('> killing client' + (send_deletes ? ', sending deletes' : '') + (send_forget ? ', sending forget' : ''))
+                            actions.push({action: 'killing client', send_forget, send_deletes, id: c.id, rand: Math.random.get_state()})
+                            c.close(send_deletes, send_forget)
                             clients.splice(ci, 1)
                         }
                     } else if (c.is_open) {
@@ -260,10 +263,13 @@ async function run_experiment(rand_seed) {
             log_stuff && console.log(`server: ${server ? `"${server.get()}"` : 'down'}`)
             log_stuff && clients.forEach(c => console.log(`${c.id} client ${c.is_open ? ':' : 'X'} "${c.get()}"`))
 
-            // if (true) {
-            //     console.log('SERVER: ' + (server ? server.get_more() : 'down'))
-            //     clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_more()}`))
-            // }
+            if (true) {
+                // console.log('SERVER: ' + (server ? server.get_more() : 'down'))
+                // clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_more()}`))
+
+                // console.log('SERVER: ' + (g_current_server ? g_current_server.get_null() : 'not started'))
+                // clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_null()}`))
+            }
 
             if (server && clients.some(c => c.is_open)) {
                 let text = server.get()
@@ -271,14 +277,28 @@ async function run_experiment(rand_seed) {
                     console.log('NOT THE SAME!')
                     return {ok: false, t, actions}
                 }
+
+                // work here
+                let o = server.node.resource_at(page_key).mergeable.read()
+                if (!o || !o.cursors || Object.keys(o.cursors).length > clients.length) {
+                    console.log('TOO MANY CURSORS!')
+                    return {ok: false, t, actions}
+                }
             }
+
+
+            // work here
+            if (server) {
+                server.node.prune(server.node.resource_at(page_key))
+            }
+
+
         } catch (e) {
             console.log('EXCEPTION', e)
             return {ok: false, t, actions}
         }
         //actions.push({time: performance.now() - st})
     }
-
     return {ok: true, actions}
 }
 
@@ -329,17 +349,11 @@ async function run_experiment_from_actions(actions) {
                         var c = clients.find(c => c.id == a.id)
                         Math.random.set_state(a.rand)
                         c.close(false)
-                    } else if (a.action == 'killing client with forget') {
-                        log_stuff && console.log('> killing client with forget')
+                    } else if (a.action == 'killing client') {
+                        log_stuff && console.log('> killing client' + (a.send_deletes ? ', sending deletes' : '') + (a.send_forget ? ', sending forget' : ''))
                         var c = clients.find(c => c.id == a.id)
                         Math.random.set_state(a.rand)
-                        c.close(true)
-                        clients.splice(clients.findIndex(c => c.id == a.id), 1)
-                    } else if (a.action == 'killing client w/o forget') {
-                        log_stuff && console.log('> killing client w/o forget')
-                        var c = clients.find(c => c.id == a.id)
-                        Math.random.set_state(a.rand)
-                        c.close(false)
+                        c.close(a.send_deletes, a.send_forget)
                         clients.splice(clients.findIndex(c => c.id == a.id), 1)
                     } else if (a.action == 'editing') {
                         for (let inner_a of a.inner_actions) {
@@ -366,14 +380,44 @@ async function run_experiment_from_actions(actions) {
 
 
             if (true) {
-                console.log('SERVER: ' + (typeof(g_current_server) != 'undefined' ? g_current_server.get_time() : 'not started'))
-                clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_time()}`))
+
+                console.log('time dags:')
+                function show(s) { console.log(JSON.stringify(s.time_dag, null, '    ')) }
+
+                if (g_current_server) show(g_current_server.node.resource_at(page_key))
+                clients.forEach(c => show(c.node.resource_at(page_key)))
+
+
+                // console.log('fissures:')
+                // function show2(s) { console.log(JSON.stringify(s.fissures, null, '    ')) }
+
+                // if (g_current_server) show2(g_current_server.node.resource_at(page_key))
+                // clients.forEach(c => show2(c.node.resource_at(page_key)))
+
+
+
+                // console.log('full versions:')
+                // function show(s) { console.log(JSON.stringify(s, null, '    ')) }
+
+                // if (g_current_server) show(g_current_server.node.resource_at(page_key))
+                // clients.forEach(c => show(c.node.resource_at(page_key)))
+
+                // console.log('SERVER: ', (g_current_server ? g_current_server.node.resource_at(page_key).mergeable.read() : 'not started'))
+
+                // console.log('SERVER: ' + (g_current_server ? g_current_server.get_time() : 'not started'))
+                // clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_time()}`))
 
                 // clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_more()}`))
 
-                console.log('null versions:')
-                console.log('SERVER: ' + (g_current_server ? g_current_server.get_null() : 'not started'))
-                clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_null()}`))
+                // console.log('null versions:')
+                // console.log('SERVER: ', (g_current_server ? g_current_server.get_null() : 'not started'))
+                //clients.forEach(c => console.log(`CLIENT ${c.id} = ${c.get_null()}`))
+
+                // if (g_current_server)
+                //     console.log('SERVER: ' + JSON.stringify(g_current_server.node.resource_at(page_key), null, '    '))
+
+                // console.log('fissures:')
+                // console.log('SERVER: ', (g_current_server ? g_current_server.node.resource_at(page_key).fissures : 'not started'))
             }
 
             if (server && clients.some(c => c.is_open)) {
@@ -382,7 +426,25 @@ async function run_experiment_from_actions(actions) {
                     console.log('NOT THE SAME!')
                     return {ok: false, t}
                 }
+
+
+                // work here
+                let o = server.node.resource_at(page_key).mergeable.read()
+                if (!o || !o.cursors || Object.keys(o.cursors).length > clients.length) {
+                    console.log('TOO MANY CURSORS!')
+                    return {ok: false, t, actions}
+                }
+
             }
+
+
+
+            // work here
+            if (server) {
+                server.node.prune(server.node.resource_at(page_key))
+            }
+
+
         } catch (e) {
             console.log('EXCEPTION', e)
             return {ok: false, t}
@@ -417,6 +479,7 @@ function create_server(db) {
     var wss = require('./networks/websocket-server.js')(node)
 
     return g_current_server = {
+        node,
         get() {
             var o = node.resource_at(page_key).mergeable.read()
             return o && o.text
@@ -424,30 +487,16 @@ function create_server(db) {
         close() {
             wss.dead = true
             wss.close()
-        },
-
-        get2() {
-            return JSON.stringify(node.resource_at(page_key).mergeable.read()) + ' fissures: ' + Object.keys(node.resource_at(page_key).fissures).length
-        },
-        get_more() {
-            return JSON.stringify(node.resource_at(page_key), null, '    ')
-        },
-        get_fiss() {
-            return JSON.stringify(node.resource_at(page_key).fissures, null, '    ')
-        },
-        get_time() {
-            return JSON.stringify(node.resource_at(page_key).time_dag, null, '    ')
-        },
-        get_null() {
-            return JSON.stringify(node.resource_at(page_key).mergeable.read_raw({}), null, '    ')
         }
     }
 }
 
 function create_client() {
     var node = require('./node.js')()
-    node.default(page_key, {cursors: {[node.pid + '-start']: 0, [node.pid + '-end']: 0}, text: ''})
+    node.default(page_key, {cursors: {[node.pid]: {start: 0, end: 0, time: Date.now()}}, text: ''})
     var ws_client = require('./networks/websocket-client.js')({node})
+
+    var cursor_lifetime = 1 // 10000
 
     var ready = false
     var text = ''
@@ -461,20 +510,69 @@ function create_client() {
     }
 
     function send_cursor_update(start, end) {
-        node.set(page_key, null, [
-            `.cursors[${JSON.stringify(node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
-            `.cursors[${JSON.stringify(node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
+        node.set(page_key, null, [`.cursors[${JSON.stringify(node.pid)}] = ${JSON.stringify({start: {type: 'location', path: `.text[${start}]`}, end: {type: 'location', path: `.text[${end}]`}, time: Date.now()})}`])
     }
 
     var cb = x => {
         ready = true
         text = x.text
-        if (x.cursors[node.pid + '-start'] != null) {
-            selectionStart = x.cursors[node.pid + '-start']
-            selectionEnd = x.cursors[node.pid + '-end']
+        if (x.cursors[node.pid]) {
+            selectionStart = x.cursors[node.pid].start
+            selectionEnd = x.cursors[node.pid].end
         }
     }
     node.get(page_key, cb)
+
+    node.ons.push((method, args) => {
+        if (method != 'welcome' && method != 'fissure') return
+        if (args[0].key != page_key) return
+
+
+        // work here
+        // console.log('FISS!!', args)
+
+
+        var fs = {}
+        if (method == 'welcome') {
+            for (let f of args[0].fissures)
+                fs[`${f.a}:${f.b}:${f.conn}`] = f
+        } else {
+            let f = args[0].fissure
+            fs[`${f.a}:${f.b}:${f.conn}`] = f
+        }
+
+        var rest = () => {
+            var o = node.resource_at(page_key).mergeable.read()
+            if (!o || !o.cursors) return
+
+            Object.assign(fs, node.resource_at(page_key).fissures)
+    
+            var delete_us = {}
+            Object.values(fs).forEach(f => {
+                if (!fs[`${f.b}:${f.a}:${f.conn}`]) {
+                    if (o.cursors[f.b]) delete_us[f.b] = true
+                }
+            })
+
+            var now = Date.now()
+            Object.entries(o.cursors).forEach(([k, v]) => {
+                if (k != node.pid && v.time <= now - cursor_lifetime) delete_us[k] = true
+            })
+
+
+            // work here
+            // console.log('FISSer..', delete_us, now, o, cursor_lifetime, node.pid)
+
+
+
+            var patches = Object.keys(delete_us).map(k => `delete .cursors[${JSON.stringify(k)}]`)
+            if (patches.length) node.set(page_key, null, patches)
+        }
+        if (method == 'welcome') {
+            if (g_debug_WS_messages) g_debug_WS_messages.push(rest)
+            else setTimeout(rest, 0)
+        } else rest()
+    })
 
     node.on_errors.push((key, origin) => {
         // console.log('CLIENT ON ERROR')
@@ -499,15 +597,13 @@ function create_client() {
     var self
     return self = {
         id: node.pid,
+        node,
         is_open: true,
         get: () => {
             return text
         },
         set: (x, del, ins) => {
-            if (!ready) {
-                // console.log(`not ready: ignoring ${x}, ${del}, ${ins}`)
-                return
-            }
+            if (!ready) return
             var new_text = text.slice(0, x) + ins + text.slice(x + del)
             send_diff(text, new_text)
             if (x + ins.length <= new_text.length)
@@ -515,7 +611,8 @@ function create_client() {
             else
                 send_cursor_update(new_text.length, new_text.length)
         },
-        close: (send_forget) => {
+        close: (send_deletes, send_forget) => {
+            if (ready && send_deletes) node.set(page_key, null, [`delete .cursors[${JSON.stringify(node.pid)}]`])
             if (send_forget) node.forget(page_key, cb)
             ws_client.disable()
             self.is_open = false
@@ -523,19 +620,6 @@ function create_client() {
         open: () => {
             ws_client.enable()
             self.is_open = true
-        },
-
-        get_more() {
-            return JSON.stringify(node.resource_at(page_key), null, '    ')
-        },
-        get_fiss() {
-            return JSON.stringify(node.resource_at(page_key).fissures, null, '    ')
-        },
-        get_time() {
-            return JSON.stringify(node.resource_at(page_key).time_dag, null, '    ')
-        },
-        get_null() {
-            return JSON.stringify(node.resource_at(page_key).mergeable.read_raw({}), null, '    ')
         }
     }    
 }

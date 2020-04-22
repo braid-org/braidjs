@@ -240,6 +240,7 @@ sync_editor(t)
 async function sync_editor(t) {
     var prev_text = ''
     window.node = require('./node.js')({pid: 'C-' + Math.random().toString(36).slice(2, 12)})
+    window.node.fissure_lifetime = 1000*60*60*24*7 // week
     window.node.default(page_key, {cursors: {[window.node.pid + '-start']: 0, [window.node.pid + '-end']: 0}, text: ''})
     // var ws_client = require('./networks/websocket-client.js')({node: window.node, url: 'wss://invisible.college:1492/'})
     var ws_client = require('./networks/websocket-client.js')({node: window.node})
@@ -280,8 +281,6 @@ async function sync_editor(t) {
     window.node.get(page_key, cb)
 
     window.node.on_errors.push((key, origin) => {
-        // console.log('CLIENT ON ERROR')
-
         prev_text = t.value = ''
         t.setSelectionRange(0, 0)
 
@@ -307,18 +306,59 @@ async function sync_editor(t) {
 
         stats.innerText = 'Time is length: ' + data_size()
     })
-    add_selection_listener(t, send_cursor_update)
+    add_selection_listener(t, () => {
+        send_cursor_update()
+    })
 
     window.addEventListener('beforeunload', function () {
+        setting++
+        window.node.set(page_key, null, [
+            `.cursors[${JSON.stringify(window.node.pid + '-start')}] = null`,
+            `.cursors[${JSON.stringify(window.node.pid + '-end')}] = null`])
         window.node.forget(page_key, cb)
+        setting--
     })
 
     stats.onclick = () => {
         var floater = make_html(`<div style="position:fixed;left:100px;top:100px;"></div>`)
         document.body.append(floater)
-        console.log('drawing resource..')
-        floater.append(draw_resource(window.node.resource_at(page_key)))
+
+        if (!vis_visible) {
+            vis_visible = true
+            update_vis()
+        }
     }
+
+    var vis_visible = false
+    var vis_d = make_html(`<div style="position:fixed;left:100px;top:100px;right:100px;bottom:100px"></div>`)
+    vis_d.onclick = () => {
+        vis_visible = false
+        update_vis()
+    }
+    document.body.append(vis_d)
+
+    var c = make_html(`<canvas></canvas>`)
+    c.width = vis_d.offsetWidth * devicePixelRatio
+    c.height = vis_d.offsetHeight * devicePixelRatio
+    c.style.width = c.width / devicePixelRatio + 'px'
+    c.style.height = c.height / devicePixelRatio + 'px'
+    var g = c.getContext('2d')
+    vis_d.append(c)
+
+    function update_vis() {
+        if (!vis_visible) {
+            vis_d.style.display = 'none'
+            return
+        }
+        vis_d.style.display = 'block'
+        draw_resource(c, g, window.node.resource_at(page_key))
+    }
+
+    var prev_timer = 0
+    window.node.ons.push(() => {
+        if (prev_timer) clearTimeout(prev_timer)
+        prev_timer = setTimeout(update_vis, 0)
+    })
 }
 
 function add_selection_listener(t, cb) {
@@ -340,34 +380,29 @@ function add_selection_listener(t, cb) {
 
 var tau = Math.PI * 2
 
-function draw_resource(res) {
-    var c = make_html(`<canvas></canvas>`)
-    c.width = window.innerWidth * devicePixelRatio * 4
-    c.height = window.innerHeight * devicePixelRatio
-    c.style.width = c.width / devicePixelRatio + 'px'
-    c.style.height = c.height / devicePixelRatio + 'px'
-    var g = c.getContext('2d')
+function draw_resource(c, g, res) {
+    g.clearRect(0, 0, c.width, c.height)
+    g.fillStyle = 'rgba(0, 0, 0, 0.1)'
+    g.fillRect(0, 0, c.width, c.height)
 
-    g.fillStyle = 'black'
-    draw_text(c, g, 'fissures', 0, 10)
-    g.fillStyle = 'lightgrey'
-    g.fillRect(0, 20, 200, 200)
-    draw_fissure_dag(c, g, res.fissures, 0, 20, 200, 200, 10)
+    // g.fillStyle = 'black'
+    // draw_text(c, g, 'fissures', 0, 10)
+    // g.fillStyle = 'lightgrey'
+    // g.fillRect(0, 20, 200, 200)
+    // draw_fissure_dag(c, g, res.fissures, 0, 20, 200, 200, 10)
     
     g.fillStyle = 'black'
-    draw_text(c, g, 'time dag', 0, 250)
-    g.fillStyle = 'lightgrey'
-    g.fillRect(0, 260, 200, 200)
-    draw_time_dag(c, g, res, 0, 260, 200, 200, 10)
+    draw_text(c, g, 'time dag', 0, 10)
+    draw_time_dag(c, g, res, 0, 20, 200, 10)
     
     g.fillStyle = 'black'
     draw_text(c, g, 'space dag', 250, 10)
     
     var x = res.space_dag.S.elems[0]
-    x = x.S.text.S.elems[0].S
-    draw_space_dag(c, g, x, 250, 30)
+    if (typeof(x.S.text) == 'string') x = {elems : x.S.text, deleted_by: {}, nexts: []}
+    else x = x.S.text.S.elems[0].S
 
-    return c
+    draw_space_dag(c, g, x, 250, 30)
 }
 
 function draw_text(c, g, text, x, y, color, x_align, y_align, font) {
@@ -471,7 +506,7 @@ function draw_fissure_dag(c, g, fissures, x, y, w, h, r) {
     })
 }
 
-function draw_time_dag(c, g, res, x, y, w, h, r) {
+function draw_time_dag(c, g, res, x, y, w, r) {
     g.lineWidth = 3
     
     var vs = {}
@@ -538,16 +573,8 @@ function draw_time_dag(c, g, res, x, y, w, h, r) {
         g.fill()
         
         if (res.acks_in_process[e[0]]) {
-            var current_count = Math.max(0, peer.phase_one[e[0]].count)
-            var max_count = 0
-            var search_i = fi
-            try {
-                let x = null
-                while (x = frames[search_i].peers[pi].keys.my_key.phase_one[e[0]]) {
-                    max_count = x.count
-                    search_i--
-                }
-            } catch (e) {}
+            var current_count = Math.max(0, res.acks_in_process[e[0]].count)
+            var max_count = current_count + 1
             
             var percent_done = (max_count - current_count) / max_count
             if (percent_done > 0) {
