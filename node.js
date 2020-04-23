@@ -571,7 +571,7 @@ module.exports = require.node = function create_node(node_data = {}) {
                     conn:     f.conn,
                     versions: f.versions,
                     parents:  {},
-                    tiem:     Date.now()
+                    time:     Date.now()
                 })
             }
         })

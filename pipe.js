@@ -197,7 +197,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
             }
         },
         disconnected () {
-            for (k in this.subscribed_keys) {
+            for (var k in this.subscribed_keys) {
 
                 if (this.keep_alive(k))
                     // Tell the node.  It'll make fissures.

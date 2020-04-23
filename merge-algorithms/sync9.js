@@ -176,7 +176,11 @@ function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen
             return x
         }
         if (x.t == 'obj') {
-            Object.entries(x.S).forEach(e => x.S[e[0]] = recurse(e[1]))
+            Object.entries(x.S).forEach(e => {
+                var y = x.S[e[0]] = recurse(e[1])
+                if (is_lit(y) && y && typeof(y) == 'object' && y.S.type == 'deleted')
+                    delete x.S[e[0]]
+            })
             if (Object.values(x.S).every(is_lit)) {
                 var o = {}
                 Object.entries(x.S).forEach(e => o[e[0]] = get_lit(e[1]))
@@ -449,7 +453,7 @@ function add_version(resource, version, parents, changes, is_anc) {
         if (!parse.range) {
             if (cur.t != 'val') throw 'bad'
             var len = space_dag_length(cur.S, is_anc)
-            space_dag_add_version(cur.S, version, [[0, len, [make_lit(parse.val)]]], is_anc)
+            space_dag_add_version(cur.S, version, [[0, len, [parse.delete ? make_lit({type: 'deleted'}) : make_lit(parse.val)]]], is_anc)
         } else {
             if (typeof parse.val === 'string' && cur.t !== 'str')
                 throw `Cannot splice string ${JSON.stringify(parse.val)} into non-string`
@@ -486,7 +490,7 @@ function add_version(resource, version, parents, changes, is_anc) {
             if (cur.t == 'obj') {
                 let x = cur.S[key]
                 if (!x || typeof(x) != 'object' || x.t == 'lit')
-                    x = cur.S[key] = {t: 'val', S: create_space_dag_node(null, [x])}
+                    x = cur.S[key] = {t: 'val', S: create_space_dag_node(null, [x == undefined ? {t: 'lit', S: {type: 'deleted'}} : x])}
                 cur = x
             } else if (i == parse.keys.length - 1 && !parse.range) {
                 parse.range = [key, key + 1]
@@ -523,6 +527,7 @@ function read(x, is_anc) {
             else {
                 var y = {}
                 Object.entries(x).forEach(e => {
+                    if (e[1] && typeof(e[1]) == 'object' && e[1].type == 'deleted') return
                     var key = e[0].match(/^_+type$/) ? e[0].slice(1) : e[0]
                     y[key] = finalize(e[1])
                 })
@@ -551,9 +556,7 @@ function read_raw(x, is_anc, annotations) {
             if (x.t == 'val') return rec_read(space_dag_get(x.S, 0, is_anc), is_anc)
             if (x.t == 'obj') {
                 var o = {}
-                Object.entries(x.S).forEach(([k, v]) => {
-                    o[k] = rec_read(v, is_anc)
-                })
+                Object.entries(x.S).forEach(([k, v]) => o[k] = rec_read(v, is_anc))
                 return o
             }
             if (x.t == 'arr') {
@@ -797,20 +800,22 @@ function traverse_space_dag(S, f, cb, view_deleted, tail_cb) {
 
 function parse_change(change) {
     var ret = { keys : [] }
-    var re = /\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|'(\\'|[^'])*'|"(\\"|[^"])*")\]|\s*=\s*([\s\S]*)/g
+    var re = /^(delete)\s+|\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|'(\\'|[^'])*'|"(\\"|[^"])*")\]|\s*=\s*([\s\S]*)/g
     var m
     while (m = re.exec(change)) {
         if (m[1])
-            ret.keys.push(m[1])
-        else if (m[2] && m[4])
-            ret.range = [
-                JSON.parse(m[3]),
-                JSON.parse(m[4].substr(1))
-            ]
+            ret.delete = true
         else if (m[2])
-            ret.keys.push(JSON.parse(m[2]))
-        else if (m[7]) {
-            ret.val = JSON.parse(m[7])
+            ret.keys.push(m[2])
+        else if (m[3] && m[5])
+            ret.range = [
+                JSON.parse(m[4]),
+                JSON.parse(m[5].substr(1))
+            ]
+        else if (m[3])
+            ret.keys.push(JSON.parse(m[3]))
+        else if (m[8]) {
+            ret.val = JSON.parse(m[8])
             rec(ret.val)
             function rec(x) {
                 if (x && typeof(x) == 'object') {

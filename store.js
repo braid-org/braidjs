@@ -9,12 +9,15 @@
 module.exports = require.store = function create_store(node, options) {
     if (!options) options = {}
     if (options.compress_chance == null) options.compress_chance = 0.1
-    
+
     var a_or_b = options.get('a_or_b') || 'a'
     node.init({})
     var d
     for (var next = 0; d = options.get(`${a_or_b}:${next}`); next++) {
         d = JSON.parse(d)
+        
+        // console.log('d = ' + JSON.stringify(d, null, '    '))
+
         if (d.resources) {
             node.init(d)
 
