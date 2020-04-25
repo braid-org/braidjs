@@ -475,8 +475,8 @@ function create_server(db) {
 
     node.fissure_lifetime = 1 // 4
     node.compress()
-    
-    var wss = require('./networks/websocket-server.js')(node)
+
+    var wss = require('./networks/websocket-server.js')(node, {wss: new debug_WSS()})
 
     return g_current_server = {
         node,
