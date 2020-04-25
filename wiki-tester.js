@@ -125,7 +125,7 @@ debug_WS = function (id) {
     return self
 }
 
-var ds = require('./diffsync.js')
+var ds = require('./diff.js')
 const { PerformanceObserver, performance } = require('perf_hooks');
 
 async function main() {

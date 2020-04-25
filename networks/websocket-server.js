@@ -6,6 +6,7 @@ w = 700
 //     wss: // default is null, will create a 'ws' module WebSocket.Server with the given port
 // }
 module.exports = require['websocket-server'] = function add_websocket_server(node, options) {
+    if (!options) options = {}
     var s = options.wss || new (require('ws')).Server({port: options.port || 3007})
     s.on('connection', function(conn) {
         var pipe = require('../pipe.js')({node, connect, send})
