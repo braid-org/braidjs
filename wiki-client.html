@@ -441,7 +441,7 @@ function draw_fissure_dag(c, g, fissures, x, y, w, h, r) {
     Object.values(fissures).forEach(f => {
         var ff = fs[f.conn]
         if (!ff) {
-            var rand = create_rand(f.conn)
+            var rand = Math.create_rand(f.conn)
             ff = fs[f.conn] = {
                 id: f.conn,
                 color: '#' + rand().toString(16).slice(2, 8),
@@ -649,7 +649,7 @@ function draw_time_dag(c, g, res, x, y, w, r) {
             if (!res.time_dag[v]) return
             g.beginPath()
             
-            var rand = create_rand(f.conn)
+            var rand = Math.create_rand(f.conn)
             g.strokeStyle = '#' + rand().toString(16).slice(2, 8)
             
             var node_pos = get_node_pos(vs[v])
