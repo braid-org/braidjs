@@ -331,9 +331,7 @@ async function sync_editor(t) {
 
         stats.innerText = 'Time is length: ' + data_size()
     })
-    add_selection_listener(t, () => {
-        send_cursor_update()
-    })
+    add_selection_listener(t, send_cursor_update)
 
     window.addEventListener('beforeunload', function () {
         setting++
