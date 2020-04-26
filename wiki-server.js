@@ -4,9 +4,10 @@ var port = 3007
 require('./braid-bundler.js')
 var fs = require('fs')
 var bundle = fs.readFileSync('braid-bundle.js')
+var wiki_client = fs.readFileSync('wiki-client.html')
 var cb = (req, res) => {
     res.writeHead(200)
-    res.end(bundle)
+    res.end(req.url == '/braid-bundle.js' ? bundle : wiki_client)
 }
 
 var server = (fs.existsSync('privkey.pem') && fs.existsSync('fullchain.pem')) ?
