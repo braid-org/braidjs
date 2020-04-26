@@ -101,11 +101,13 @@ function render () {
     }
 
     if (window.node)
-        stats.innerText = 'Time is length: ' + data_size()
+        update_stats()
 }
 
-function data_size() {
-    return Object.keys(node.resource_at(page_key).time_dag).length
+function update_stats() {
+    stats.innerText = 'Time is length: ' + 
+        Object.keys(node.resource_at(page_key).time_dag).length +
+        ' or ' + (JSON.stringify(node).length / t.value.length).toFixed(2) + ' bytes/byte'
 }
 
 var first_time = true
@@ -267,7 +269,7 @@ async function sync_editor(t) {
         else t.setSelectionRange(0, 0)
 
         update_markdown_later()
-        stats.innerText = 'Time is length: ' + data_size()
+        update_stats()
     }
     node.get(page_key, cb)
 
@@ -329,7 +331,7 @@ async function sync_editor(t) {
         send_cursor_update(selectionStart, selectionEnd)
         prev_text = t.value
 
-        stats.innerText = 'Time is length: ' + data_size()
+        update_stats()
     })
     add_selection_listener(t, send_cursor_update)
 
