@@ -1,15 +1,5 @@
-<script src="./require.js"></script>
-<script src="./utilities.js"></script>
-<script src="./events.js"></script>
-<script src="./merge-algorithms/sync9.js"></script>
-<script src="./node.js"></script>
-<script src="./pipe.js"></script>
-<script src="./resource.js"></script>
-<script src="./networks/websocket-client.js"></script>
-<script src="https://invisible-college.github.io/universal-sync/diffsync.js"></script>
+<script src="https://invisible.college:3007/braid-bundle.js"></script>
 <script src="https://invisible.college/js/marked.min.js"></script>
-
-<script src="https://dglittle.github.io/cdn/random002.js"></script>
 
 <link rel="stylesheet" href="https://invisible.college/css/github-markdown.css">
 
@@ -241,18 +231,20 @@ t.addEventListener('input', e => {
 sync_editor(t)
 async function sync_editor(t) {
     var prev_text = ''
-    window.node = require('./node.js')({pid: 'C-' + Math.random().toString(36).slice(2, 12)})
-    window.node.fissure_lifetime = 1000*60*60*24*7 // week
-    window.node.default(page_key, {cursors: {[window.node.pid + '-start']: 0, [window.node.pid + '-end']: 0}, text: ''})
-    // var ws_client = require('./networks/websocket-client.js')({node: window.node, url: 'wss://invisible.college:1492/'})
-    var ws_client = require('./networks/websocket-client.js')({node: window.node})
+    var node = window.node = require('./node.js')({pid: 'C-' + Math.random().toString(36).slice(2, 12)})
+    node.fissure_lifetime = 1000*60*60*24*7 // week
+    node.default(page_key, {cursors: {[node.pid]: {start: 0, end: 0, time: Date.now()}}, text: ''})
+    var ws_client = require('./networks/websocket-client.js')({node, url: 'wss://invisible.college:3007/'})
+    // var ws_client = require('./networks/websocket-client.js')({node})
+
+    var cursor_lifetime = 1000*60*60*24*7 // week
 
     var ready = false
     var setting = 0
     function send_diff(from, to) {
         if (!ready) return
         setting++
-        window.node.set(page_key, null, diff_convert_to_my_format(diff_main(from, to)).map(x =>
+        node.set(page_key, null, diff_convert_to_my_format(diff_main(from, to)).map(x =>
             `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
         ))
         setting--
@@ -261,42 +253,75 @@ async function sync_editor(t) {
     function send_cursor_update(start, end) {
         if (!ready) return
         setting++
-        window.node.set(page_key, null, [
-            `.cursors[${JSON.stringify(window.node.pid + '-start')}] = {"type": "location", "path": ".text[${start}]"}`,
-            `.cursors[${JSON.stringify(window.node.pid + '-end')}] = {"type": "location", "path": ".text[${end}]"}`])
+        node.set(page_key, null, [
+            `.cursors[${JSON.stringify(node.pid)}] = ${JSON.stringify({start: {type: 'location', path: `.text[${start}]`}, end: {type: 'location', path: `.text[${end}]`}, time: Date.now()})}`])
         setting--
     }
 
     var cb = x => {
         ready = true
         if (setting) return
-        console.assert(window.node.resource_at(page_key).weve_been_welcomed === true)
+        console.assert(node.resource_at(page_key).weve_been_welcomed === true)
         prev_text = t.value = x.text
-        if (x.cursors[window.node.pid + '-start'] != null) {
-            t.setSelectionRange(x.cursors[window.node.pid + '-start'], x.cursors[window.node.pid + '-end'])
-        } else {
-            t.setSelectionRange(0, 0)
-        }
+
+        var sel = x.cursors[node.pid]
+        if (sel) t.setSelectionRange(sel.start, sel.end)
+        else t.setSelectionRange(0, 0)
+
         update_markdown_later()
         update_stats()
     }
-    window.node.get(page_key, cb)
+    node.get(page_key, cb)
 
-    window.node.on_errors.push((key, origin) => {
+    node.ons.push((method, args) => {
+        if (method != 'welcome' && method != 'fissure') return
+        if (args[0].key != page_key) return
+
+        var fs = {}
+        if (method == 'welcome') {
+            for (let f of args[0].fissures)
+                fs[`${f.a}:${f.b}:${f.conn}`] = f
+        } else {
+            let f = args[0].fissure
+            fs[`${f.a}:${f.b}:${f.conn}`] = f
+        }
+
+        var rest = () => {
+            var o = node.resource_at(page_key).mergeable.read()
+            if (!o || !o.cursors) return
+
+            Object.assign(fs, node.resource_at(page_key).fissures)
+    
+            var delete_us = {}
+            Object.values(fs).forEach(f => {
+                if (!fs[`${f.b}:${f.a}:${f.conn}`]) {
+                    if (o.cursors[f.b]) delete_us[f.b] = true
+                }
+            })
+
+            var now = Date.now()
+            Object.entries(o.cursors).forEach(([k, v]) => {
+                if (k != node.pid && v.time <= now - cursor_lifetime) delete_us[k] = true
+            })
+
+            var patches = Object.keys(delete_us).map(k => `delete .cursors[${JSON.stringify(k)}]`)
+            if (patches.length) node.set(page_key, null, patches)
+        }
+        if (method == 'welcome') setTimeout(rest, 0)
+        else rest()
+    })    
+
+    node.on_errors.push((key, origin) => {
         prev_text = t.value = ''
         t.setSelectionRange(0, 0)
 
-        delete window.node.resources[key]
-        window.node.unbind(key, origin)
+        delete node.resources[key]
+        node.unbind(key, origin)
 
         var subscribe = ws_client.pipe.subscribed_keys[key].we_requested
         delete ws_client.pipe.subscribed_keys[key].we_requested
 
-        ws_client.pipe.send({
-            key,
-            subscribe,
-            method: 'get'
-        })
+        ws_client.pipe.send({key, subscribe, method: 'get'})
     })
 
     t.addEventListener('input', e => {
@@ -314,10 +339,8 @@ async function sync_editor(t) {
 
     window.addEventListener('beforeunload', function () {
         setting++
-        window.node.set(page_key, null, [
-            `.cursors[${JSON.stringify(window.node.pid + '-start')}] = null`,
-            `.cursors[${JSON.stringify(window.node.pid + '-end')}] = null`])
-        window.node.forget(page_key, cb)
+        if (ready) node.set(page_key, null, [`delete .cursors[${JSON.stringify(node.pid)}]`])
+        node.forget(page_key, cb)
         setting--
     })
 

@@ -125,7 +125,7 @@ debug_WS = function (id) {
     return self
 }
 
-var ds = require('./diffsync.js')
+var ds = require('./diff.js')
 const { PerformanceObserver, performance } = require('perf_hooks');
 
 async function main() {
@@ -475,8 +475,8 @@ function create_server(db) {
 
     node.fissure_lifetime = 1 // 4
     node.compress()
-    
-    var wss = require('./networks/websocket-server.js')(node)
+
+    var wss = require('./networks/websocket-server.js')(node, {wss: new debug_WSS()})
 
     return g_current_server = {
         node,
