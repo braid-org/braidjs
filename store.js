@@ -4,18 +4,20 @@
 //     set(key, data) {},
 //     del(key) {},
 //
-//     compress_chance: 0.1 // <-- default, means every message has 1/10 chance to compress the message list into a single "message"
+//     compress_if_inactive_time: 4000 // <-- default, means it will compress 4 seconds after the last edit, as long as no other edits happen
+//     compress_after_this_many: 10000 // <-- default, means it will compress if there are 10000 uncompressed edits
 // }
 module.exports = require.store = function create_store(node, options) {
     if (!options) options = {}
-    if (options.compress_chance == null) options.compress_chance = 0.1
+    if (options.compress_if_inactive_time == null) options.compress_if_inactive_time = 4000
+    if (options.compress_after_this_many == null) options.compress_after_this_many = 10000
 
     var a_or_b = options.get('a_or_b') || 'a'
     node.init({})
     var d
     for (var next = 0; d = options.get(`${a_or_b}:${next}`); next++) {
         d = JSON.parse(d)
-        
+
         // console.log('d = ' + JSON.stringify(d, null, '    '))
 
         if (d.resources) {
@@ -49,9 +51,12 @@ module.exports = require.store = function create_store(node, options) {
             options.del(`${(a_or_b == 'a') ? 'b' : 'a'}:${i}`)
     }
 
+    var inactive_timer = 0
     node.ons.push((method, args) => {
-        if (Math.random() < options.compress_chance) compress()
         add({method, args})
+
+        clearTimeout(inactive_timer)
+        inactive_timer = setTimeout(compress, next >= options.compress_after_this_many ? 0 : options.compress_if_inactive_time)
     })
 
     Object.entries(node.resources).forEach(([key, r]) =>
