@@ -24,7 +24,10 @@ node.on_errors.push((key, origin) => node.unbind(key, origin))
 node.fissure_lifetime = 1000*60*60*24*7 // week
 node.compress()
 
-require('./networks/websocket-server.js')(node, {wss})
+var ws = require('./networks/websocket-server.js')(node, {wss})
 
-show_debug = true
-print_network = true
+ws.on('connection', function(conn) {
+    conn.on('message', (msg) => {
+        console.log('GOT: ' + msg)
+    })
+})
