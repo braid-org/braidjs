@@ -34,6 +34,16 @@ t.style.fontSize = '15px'
 t.style.fontFamily = 'helvetica, monaco, lucida grande, avenir'
 document.body.append(t)
 
+var c = document.createElement('canvas')
+c.style.position = 'fixed'
+c.style.top = '0px'
+c.style.left = '0px'
+c.style.width = '100%'
+c.style.height = '50vh'
+c.style.display = 'none'
+document.body.append(c)
+var g = c.getContext('2d')
+
 var edit = document.createElement('div')
 edit.style.position = 'fixed'
 edit.style.bottom = '0px'
@@ -85,24 +95,36 @@ update_markdown()
 var is_safe = window.location.href.match(/^https?:\/\/wiki\./)
 var page_key = is_safe ? '/wiki' + window.location.pathname : window.location.pathname
 
-var vert = true, editing = false
+var vert = true, editing = false, visualizing = false, update_vis = null
 function render () {
     t.style.display = editing ? null : 'none'
     bottom_pad.style.display = (editing && vert) ? null : 'none'
+    c.style.display = visualizing ? null : 'none'
 
     if (vert) {
         t.style.width = '100%'
         t.style.height = '50vh'
         output.style.width = null
+        c.style.width = '100%'
+        c.style.height = '50vh'
     } else {
         t.style.width = '45vw'
         t.style.height = '100%'
         output.style.width = editing ? '55vw' : null
+        c.style.width = '55vw'
+        c.style.height = '100%'
     }
 
-    if (window.node)
-        update_stats()
+    c.width = c.offsetWidth * devicePixelRatio
+    c.height = c.offsetHeight * devicePixelRatio
+    update_vis && update_vis()
 }
+
+window.addEventListener('resize', () => {
+    c.width = c.offsetWidth * devicePixelRatio
+    c.height = c.offsetHeight * devicePixelRatio
+    update_vis && update_vis()
+})
 
 function update_stats() {
     stats.innerText = 'Time is length: ' + 
@@ -269,7 +291,6 @@ async function sync_editor(t) {
         else t.setSelectionRange(0, 0)
 
         update_markdown_later()
-        update_stats()
     }
     node.get(page_key, cb)
 
@@ -343,38 +364,15 @@ async function sync_editor(t) {
     })
 
     stats.onclick = () => {
-        var floater = make_html(`<div style="position:fixed;left:100px;top:100px;"></div>`)
-        document.body.append(floater)
-
-        if (!vis_visible) {
-            vis_visible = true
-            update_vis()
-        }
+        visualizing = !visualizing
+        render()
     }
 
-    var vis_visible = false
-    var vis_d = make_html(`<div style="position:fixed;left:100px;top:100px;right:100px;bottom:100px"></div>`)
-    vis_d.onclick = () => {
-        vis_visible = false
-        update_vis()
-    }
-    document.body.append(vis_d)
-
-    var c = make_html(`<canvas></canvas>`)
-    c.width = vis_d.offsetWidth * devicePixelRatio
-    c.height = vis_d.offsetHeight * devicePixelRatio
-    c.style.width = c.width / devicePixelRatio + 'px'
-    c.style.height = c.height / devicePixelRatio + 'px'
-    var g = c.getContext('2d')
-    vis_d.append(c)
-
-    function update_vis() {
-        if (!vis_visible) {
-            vis_d.style.display = 'none'
-            return
+    update_vis = () => {
+        if (visualizing) {
+            draw_resource(c, g, window.node.resource_at(page_key))
         }
-        vis_d.style.display = 'block'
-        draw_resource(c, g, window.node.resource_at(page_key))
+        update_stats()
     }
 
     var prev_timer = 0
@@ -404,8 +402,7 @@ function add_selection_listener(t, cb) {
 var tau = Math.PI * 2
 
 function draw_resource(c, g, res) {
-    g.clearRect(0, 0, c.width, c.height)
-    g.fillStyle = 'rgba(0, 0, 0, 0.1)'
+    g.fillStyle = 'white'
     g.fillRect(0, 0, c.width, c.height)
 
     // g.fillStyle = 'black'
@@ -421,10 +418,15 @@ function draw_resource(c, g, res) {
     g.fillStyle = 'black'
     draw_text(c, g, 'space dag', 250, 10)
     
-    var x = res.space_dag.S.elems[0]
-    if (typeof(x.S.text) == 'string') x = {elems : x.S.text, deleted_by: {}, nexts: []}
-    else x = x.S.text.S.elems[0].S
-
+    var x = {elems : '', deleted_by: {}, nexts: []}
+    if (res.space_dag) {
+        if (res.space_dag.t == 'lit') x = {elems : res.space_dag.S.text, deleted_by: {}, nexts: []}
+        else {
+            x = res.space_dag.S.elems[0]
+            if (typeof(x.S.text) == 'string') x = {elems : x.S.text, deleted_by: {}, nexts: []}
+            else x = x.S.text.S.elems[0].S
+        }
+    }
     draw_space_dag(c, g, x, 250, 30)
 }
 
