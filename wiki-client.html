@@ -422,7 +422,7 @@ function draw_resource(c, g, res) {
     if (res.space_dag) {
         if (res.space_dag.t == 'lit') x = {elems : res.space_dag.S.text, deleted_by: {}, nexts: []}
         else {
-            x = res.space_dag.S.elems[0]
+            x = space_dag_get(res.space_dag.S, 0)
             if (typeof(x.S.text) == 'string') x = {elems : x.S.text, deleted_by: {}, nexts: []}
             else x = x.S.text.S.elems[0].S
         }
