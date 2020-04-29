@@ -82,6 +82,7 @@ debug_WS = function (id) {
                 debug_WSS.the_one.ws_array.splice(debug_WSS.the_one.ws_array.indexOf(self), 1)
         }
     }
+    self.close = self.terminate
     g_debug_WS_messages.push(() => {
         if (debug_WSS.the_one) {
             debug_WSS.the_one.ws_array.push(self)
@@ -143,7 +144,7 @@ async function main() {
     var N = 200
 
     for (var i = 0; i < N; i++) {
-        var seed = '__abb__19:' + i
+        var seed = '__abb__23:' + i
 
 
         // N = 1
@@ -285,14 +286,6 @@ async function run_experiment(rand_seed) {
                     return {ok: false, t, actions}
                 }
             }
-
-
-            // work here
-            if (server) {
-                server.node.prune(server.node.resource_at(page_key))
-            }
-
-
         } catch (e) {
             console.log('EXCEPTION', e)
             return {ok: false, t, actions}
@@ -436,15 +429,6 @@ async function run_experiment_from_actions(actions) {
                 }
 
             }
-
-
-
-            // work here
-            if (server) {
-                server.node.prune(server.node.resource_at(page_key))
-            }
-
-
         } catch (e) {
             console.log('EXCEPTION', e)
             return {ok: false, t}
@@ -466,6 +450,8 @@ function create_db() {
 }
 
 function create_server(db) {
+    db.compress_if_inactive_time = 1000 * 1000
+    db.compress_after_this_many = 100000
     var node = require('./store.js')(require('./node.js')(), db)
 
     node.on_errors.push((key, origin) => {
@@ -527,11 +513,6 @@ function create_client() {
         if (method != 'welcome' && method != 'fissure') return
         if (args[0].key != page_key) return
 
-
-        // work here
-        // console.log('FISS!!', args)
-
-
         var fs = {}
         if (method == 'welcome') {
             for (let f of args[0].fissures)
@@ -558,12 +539,6 @@ function create_client() {
             Object.entries(o.cursors).forEach(([k, v]) => {
                 if (k != node.pid && v.time <= now - cursor_lifetime) delete_us[k] = true
             })
-
-
-            // work here
-            // console.log('FISSer..', delete_us, now, o, cursor_lifetime, node.pid)
-
-
 
             var patches = Object.keys(delete_us).map(k => `delete .cursors[${JSON.stringify(k)}]`)
             if (patches.length) node.set(page_key, null, patches)

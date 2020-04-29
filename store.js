@@ -55,8 +55,13 @@ module.exports = require.store = function create_store(node, options) {
     node.ons.push((method, args) => {
         add({method, args})
 
-        clearTimeout(inactive_timer)
-        inactive_timer = setTimeout(compress, next >= options.compress_after_this_many ? 0 : options.compress_if_inactive_time)
+        if (typeof(g_debug_WS_messages) != 'undefined') {
+            if (next >= options.compress_after_this_many)
+                g_debug_WS_messages.push(compress)
+        } else {
+            clearTimeout(inactive_timer)
+            inactive_timer = setTimeout(compress, next >= options.compress_after_this_many ? 0 : options.compress_if_inactive_time)
+        }
     })
 
     Object.entries(node.resources).forEach(([key, r]) =>

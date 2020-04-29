@@ -987,8 +987,7 @@ module.exports = require.node = function create_node(node_data = {}) {
             }
         })
         
-        var tags = {'null': {tags: {}}}
-        var frozen = {}
+        var tags = {null: {tags: {}}}
         var maintain = {}
         Object.keys(resource.time_dag).forEach(version => {
             tags[version] = {tags: {}}
@@ -1000,42 +999,27 @@ module.exports = require.node = function create_node(node_data = {}) {
                 tags[null].tags[t] = true
             }
         }
-        Object.entries(resource.fissures).forEach(x => {
-            Object.keys(x[1].versions).forEach(v => {
+        Object.values(resource.fissures).forEach(f => {
+            Object.keys(f.versions).forEach(v => {
                 if (!resource.time_dag[v]) return
                 tag(v, v)
-                frozen[v] = true
                 maintain[v] = true
-                Object.keys(resource.time_dag[v]).forEach(v => {
-                    tag(v, v)
-                    frozen[v] = true
-                })
             })
         })
         var acked = resource.ancestors(resource.acked_boundary)
         Object.keys(resource.time_dag).forEach(x => {
             if (!acked[x] || resource.acked_boundary[x]) {
                 tag(x, x)
-                frozen[x] = true
                 maintain[x] = true
-                Object.keys(resource.time_dag[x]).forEach(v => {
-                    tag(v, v)
-                    frozen[v] = true
-                })
             }
         })
-        Object.entries(tags).forEach(x => {
-            var keys = Object.keys(x[1].tags)
-            if (keys.length == 0) {
-                frozen[x[0]] = true
-            } else if (!frozen[x[0]]) {
-                x[1].tag = keys.sort().join(',')
-            }
+        Object.values(tags).forEach(x => {
+            x.tag = Object.keys(x.tags).sort().join(',')
         })
         var q = (a, b) => {
             // This code assumes there is a God (a single first version adder)
             if (!a) a = 'null'
-            return a && b && !frozen[a] && !frozen[b] && (tags[a].tag == tags[b].tag)
+            return a && b && (tags[a].tag == tags[b].tag)
         }
         var seen_annotations = {}
         resource.mergeable.prune(q, q, seen_annotations)
