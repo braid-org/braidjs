@@ -127,7 +127,7 @@ debug_WS = function (id) {
 }
 
 var ds = require('./diff.js')
-const { PerformanceObserver, performance } = require('perf_hooks');
+var performance = require('perf_hooks').performance
 
 async function main() {
     // var a = '' + require('fs').readFileSync('actions.json')
@@ -144,11 +144,11 @@ async function main() {
     var N = 200
 
     for (var i = 0; i < N; i++) {
-        var seed = '__abb__23:' + i
+        var seed = '__abb__37:' + i
 
 
         // N = 1
-        // seed = '__ab__7:56'
+        // seed = '__abb__29:4'
 
 
         console.log('seed: ' + seed)
@@ -292,6 +292,7 @@ async function run_experiment(rand_seed) {
         }
         //actions.push({time: performance.now() - st})
     }
+
     return {ok: true, actions}
 }
 
@@ -380,6 +381,23 @@ async function run_experiment_from_actions(actions) {
                 if (g_current_server) show(g_current_server.node.resource_at(page_key))
                 clients.forEach(c => show(c.node.resource_at(page_key)))
 
+                // console.log('read:')
+                // function show2(s) {
+                //     console.log(JSON.stringify(s.mergeable && s.mergeable.read(), null, '    '))
+                // }
+
+                // if (g_current_server) show2(g_current_server.node.resource_at(page_key))
+                // clients.forEach(c => show2(c.node.resource_at(page_key)))
+
+
+                // console.log('fiss:')
+                // function show3(s) {
+                //     console.log(JSON.stringify(s.fissures, null, '    '))
+                // }
+
+                // if (g_current_server) show3(g_current_server.node.resource_at(page_key))
+                // clients.forEach(c => show3(c.node.resource_at(page_key)))
+
 
                 // console.log('fissures:')
                 // function show2(s) { console.log(JSON.stringify(s.fissures, null, '    ')) }
@@ -441,26 +459,26 @@ async function run_experiment_from_actions(actions) {
 main()
 
 function create_db() {
-    return {
+    return g_db = {
         data: {},
         get(key) { return this.data[key] },
         set(key, val) { this.data[key] = val },
-        del(key) { delete this.data[key] }
-    }    
+        del(key) { delete this.data[key] },
+        list_keys() { return Object.keys(this.data) }
+    }
 }
 
 function create_server(db) {
     db.compress_if_inactive_time = 1000 * 1000
-    db.compress_after_this_many = 100000
-    var node = require('./store.js')(require('./node.js')(), db)
+    db.compress_after_this_many = 10
+
+    var node = require('./node.js')()
+    node.fissure_lifetime = 1 // 4
+    require('./store.js')(node, db)
 
     node.on_errors.push((key, origin) => {
-        // console.log('SERVER ON ERROR')
         node.unbind(key, origin)
     })
-
-    node.fissure_lifetime = 1 // 4
-    node.compress()
 
     var wss = require('./networks/websocket-server.js')(node, {wss: new debug_WSS()})
 
@@ -509,16 +527,16 @@ function create_client() {
     }
     node.get(page_key, cb)
 
-    node.ons.push((method, args) => {
+    node.ons.push((method, arg) => {
         if (method != 'welcome' && method != 'fissure') return
-        if (args[0].key != page_key) return
+        if (arg.key != page_key) return
 
         var fs = {}
         if (method == 'welcome') {
-            for (let f of args[0].fissures)
+            for (let f of arg.fissures)
                 fs[`${f.a}:${f.b}:${f.conn}`] = f
         } else {
-            let f = args[0].fissure
+            let f = arg.fissure
             fs[`${f.a}:${f.b}:${f.conn}`] = f
         }
 
@@ -543,10 +561,8 @@ function create_client() {
             var patches = Object.keys(delete_us).map(k => `delete .cursors[${JSON.stringify(k)}]`)
             if (patches.length) node.set(page_key, null, patches)
         }
-        if (method == 'welcome') {
-            if (g_debug_WS_messages) g_debug_WS_messages.push(rest)
-            else setTimeout(rest, 0)
-        } else rest()
+        if (g_debug_WS_messages) g_debug_WS_messages.push(rest)
+        else setTimeout(rest, 0)
     })
 
     node.on_errors.push((key, origin) => {

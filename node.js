@@ -144,8 +144,6 @@ module.exports = require.node = function create_node(node_data = {}) {
     //  - get(key, cb)
     //  - get({key, origin, ...})
     node.get = (...args) => {
-        node.ons.forEach(on => on('get', args))
-
         var key, version, parents, subscribe, origin
         // First rewrite the arguments if called as get(key) or get(key, cb)
         if (typeof args[0] === 'string') {
@@ -175,6 +173,8 @@ module.exports = require.node = function create_node(node_data = {}) {
             // Else each parameter is passed explicitly
             ({key, version, parents, subscribe, origin} = args[0])
         }
+
+        node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
       
         // Set defaults
         if (!version)
@@ -293,7 +293,7 @@ module.exports = require.node = function create_node(node_data = {}) {
             }
         }
 
-        node.ons.forEach(on => on('set', [{key, patches, version, parents, origin, joiner_num}]))
+        node.ons.forEach(on => on('set', {key, patches, version, parents, origin, joiner_num}))
 
         // G: cool, someone is giving us a new version to add to our datastructure.
         // it might seem like we would just go ahead and add it, but instead
@@ -425,7 +425,7 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
     
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
-        node.ons.forEach(on => on('welcome', [{key, versions, fissures, unack_boundary, min_leaves, origin}]))
+        node.ons.forEach(on => on('welcome', {key, versions, fissures, unack_boundary, min_leaves, origin}))
 
         assert(key && versions && fissures,
                'Missing some variables:',
@@ -571,7 +571,7 @@ module.exports = require.node = function create_node(node_data = {}) {
                     conn:     f.conn,
                     versions: f.versions,
                     parents:  {},
-                    time:     Date.now()
+                    time:     f.time
                 })
             }
         })
@@ -770,8 +770,6 @@ module.exports = require.node = function create_node(node_data = {}) {
     //  - forget(key, cb), with the same cb passed to get(key, cb)
     //  - forget({key, origin})
     node.forget = (...args) => {
-        node.ons.forEach(on => on('forget', args))
-
         var key, origin, cb
         if (typeof(args[0]) === 'string') {
             key = args[0]
@@ -780,6 +778,8 @@ module.exports = require.node = function create_node(node_data = {}) {
         } else {
             ({key, origin} = args[0])
         }
+
+        node.ons.forEach(on => on('forget', {key, origin}))
 
         assert(key)
 
@@ -804,7 +804,7 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
-        node.ons.forEach(on => on('ack', [{key, valid, seen, version, origin, joiner_num}]))
+        node.ons.forEach(on => on('ack', {key, valid, seen, version, origin, joiner_num}))
 
         log('node.ack: Acking!!!!', {key, seen, version, origin})
         assert(key && version && origin)
@@ -836,7 +836,7 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
     
     node.fissure = ({key, fissure, origin}) => {
-        node.ons.forEach(on => on('fissure', [{key, fissure, origin}]))
+        node.ons.forEach(on => on('fissure', {key, fissure, origin}))
 
         assert(key && fissure,
                'Missing some variables',
@@ -867,7 +867,7 @@ module.exports = require.node = function create_node(node_data = {}) {
                                   conn:     fissure.conn,
                                   versions: fissure.versions,
                                   parents:  {},
-                                  time:     Date.now()
+                                  time:     fissure.time
                               }
                              })
         }
@@ -875,7 +875,7 @@ module.exports = require.node = function create_node(node_data = {}) {
 
     node.disconnected = ({key, name, versions, parents, time, origin}) => {
         if (time == null) time = Date.now()
-        node.ons.forEach(on => on('disconnected', [{key, name, versions, parents, time, origin}]))
+        node.ons.forEach(on => on('disconnected', {key, name, versions, parents, time, origin}))
 
         // unbind them (but only if they are bound)
         if (node.bindings(key).some(p => p.id == origin.id)) node.unbind(key, origin)
@@ -946,15 +946,6 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
 
     node.prune = (resource) => {
-        if (node.fissure_lifetime != null) {
-            var now = Date.now()
-            Object.entries(resource.fissures).forEach(([k, f]) => {
-                if (f.time == null) f.time = now
-                if (f.time <= now - node.fissure_lifetime)
-                    delete resource.fissures[k]
-            })
-        }
-
         var unremovable = {}
         Object.entries(resource.fissures).forEach(x => {
             if (!resource.fissures[x[1].b + ':' + x[1].a + ':' + x[1].conn]) {
@@ -986,6 +977,16 @@ module.exports = require.node = function create_node(node_data = {}) {
                 }
             }
         })
+
+        if (node.fissure_lifetime != null) {
+            var now = Date.now()
+            Object.entries(resource.fissures).forEach(([k, f]) => {
+                if (f.time == null) f.time = now
+                if (f.time <= now - node.fissure_lifetime) {
+                    delete resource.fissures[k]
+                }
+            })
+        }
         
         var tags = {null: {tags: {}}}
         var maintain = {}
