@@ -294,16 +294,16 @@ async function sync_editor(t) {
     }
     node.get(page_key, cb)
 
-    node.ons.push((method, args) => {
+    node.ons.push((method, arg) => {
         if (method != 'welcome' && method != 'fissure') return
-        if (args[0].key != page_key) return
+        if (arg.key != page_key) return
 
         var fs = {}
         if (method == 'welcome') {
-            for (let f of args[0].fissures)
+            for (let f of arg.fissures)
                 fs[`${f.a}:${f.b}:${f.conn}`] = f
         } else {
-            let f = args[0].fissure
+            let f = arg.fissure
             fs[`${f.a}:${f.b}:${f.conn}`] = f
         }
 

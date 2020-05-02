@@ -19,10 +19,10 @@ var server = (fs.existsSync('privkey.pem') && fs.existsSync('fullchain.pem')) ?
 server.listen(port)
 var wss = new (require('ws').Server)({server})
 
-var node = require('./sqlite-store.js')(require('./node.js')(), 'db.sqlite')
-node.on_errors.push((key, origin) => node.unbind(key, origin))
+var node = require('./node.js')()
 node.fissure_lifetime = 1000*60*60*24*7 // week
-node.compress()
+require('./sqlite-store.js')(node, 'db.sqlite')
+node.on_errors.push((key, origin) => node.unbind(key, origin))
 
 var ws = require('./networks/websocket-server.js')(node, {wss})
 

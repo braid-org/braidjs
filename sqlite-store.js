@@ -21,6 +21,9 @@ module.exports = require['sqlite-store'] = function create_sqlite_store(node, fi
         },
         del(key) {
             db.prepare(`delete from ${options.table_name} where key = ?`).run([key])
-        }        
+        },
+        list_keys() {
+            return db.prepare(`select key from ${options.table_name}`).all().map(x => x.key)
+        }
     }))
 }
