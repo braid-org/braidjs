@@ -199,8 +199,18 @@ module.exports = require.node = function create_node(node_data = {}) {
                 node.bindings(key).length, 'pipes!')
             // This one is getting called afterward
             node.bindings(key).forEach(pipe => {
+
+                var best_t = -Infinity
+                var best_parents = null
+                Object.values(node.resource_at(key).fissures).forEach(f => {
+                    if (f.a == node.pid && f.b == pipe.them && f.time > best_t) {
+                        best_t = f.time
+                        best_parents = f.versions
+                    }
+                })
+
                 pipe.send && pipe.send({
-                    method:'get', key, version, parents, subscribe, origin
+                    method:'get', key, version, parents: best_parents, subscribe
                 })
             })
         }
@@ -229,7 +239,17 @@ module.exports = require.node = function create_node(node_data = {}) {
         // of any new edits made by them... we strive to enforce this fact with
         // the pruning algorithm)
 
-        var versions = resource.mergeable.generate_braid(x => false)
+        var anc = parents ? resource.ancestors(parents, true) : {}
+        var versions = resource.mergeable.generate_braid(x => anc[x])
+
+        var best_t = -Infinity
+        var best_parents = null
+        Object.values(resource.fissures).forEach(f => {
+            if (f.a == node.pid && f.b == origin.them && f.time > best_t) {
+                best_t = f.time
+                best_parents = f.versions
+            }
+        })
 
         // G: oh yes, we also send them all of our fissures, so they can know to keep
         // those versions alive
@@ -239,7 +259,7 @@ module.exports = require.node = function create_node(node_data = {}) {
         // G: ok, here we actually send out the welcome
 
         if (origin.remote) resource.we_welcomed[origin.id] = {id: origin.id, connection: origin.connection, them: origin.them, remote: origin.remote}
-        origin.send && origin.send({method: 'welcome', key, versions, fissures})
+        origin.send && origin.send({method: 'welcome', key, versions, fissures, parents: best_parents})
 
         return resource.mergeable.read()
     }

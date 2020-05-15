@@ -24,6 +24,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
         connection: null,
         connecting: false,
         them: null,
+        most_recent_them: null,
         subscribed_keys: u.dict(),
         remote: true,
 
@@ -107,7 +108,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
             if (args.method === 'hello') {
                 this.connection = (this.connection < args.connection
                                    ? this.connection : args.connection)
-                this.them = args.my_name_is
+                this.most_recent_them = this.them = args.my_name_is
 
                 // hello messages don't do anything else (they are just for
                 // the pipe)
@@ -119,7 +120,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                 /*&& !this.subscribed_keys[args.key].we_requested*/) {
                 // Then we need to welcome them too
                 var resource = node.resource_at(args.key)
-                var versions = resource.mergeable.generate_braid(x => false)
+                var anc = args.parents ? resource.ancestors(args.parents, true) : {}
+                var versions = resource.mergeable.generate_braid(x => anc[x])
+
                 var fissures = Object.values(resource.fissures)
                 this.send({method: 'welcome', key: args.key, versions, fissures})
 
@@ -189,10 +192,20 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, t
                 var subscribe = this.subscribed_keys[k].we_requested
                 delete this.subscribed_keys[k].we_requested
 
+                var best_t = -Infinity
+                var best_parents = null
+                Object.values(node.resource_at(k).fissures).forEach(f => {
+                    if (f.a == node.pid && f.b == this.most_recent_them && f.time > best_t) {
+                        best_t = f.time
+                        best_parents = f.versions
+                    }
+                })
+
                 this.send({
                     key: k,
                     subscribe: subscribe,
                     method: 'get',
+                    parents: best_parents
                 })
             }
         },

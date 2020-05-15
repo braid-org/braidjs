@@ -15,14 +15,16 @@ module.exports = require.resource = function create_resource(resource = {}) {
     // The version history
     if (!resource.time_dag) resource.time_dag = {}
     if (!resource.current_version) resource.current_version = {}
-    resource.ancestors = (versions) => {
+    resource.ancestors = (versions, ignore_nonexistent) => {
         var result = {}
         // console.log('ancestors:', versions)
         function recurse (version) {
             if (result[version]) return
             result[version] = true
-            assert(resource.time_dag[version],
-                   'The version '+version+' no existo')
+            if (!resource.time_dag[version]) {
+                if (ignore_nonexistent) return
+                assert(false, 'The version '+version+' no existo')
+            }
             Object.keys(resource.time_dag[version]).forEach(recurse)
         }
         Object.keys(versions).forEach(recurse)

@@ -36,12 +36,16 @@ function generate_braid(resource, is_anc) {
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
     
-    var versions = [{
-        version: null,
-        parents: {},
-        changes: [` = ${JSON.stringify(read_raw(resource, is_anc))}`]
-    }]
+    var versions = []
     Object.keys(resource.time_dag).filter(x => !is_anc(x)).forEach(version => {
+        if (Object.keys(resource.time_dag[version]).length == 0)
+            if (!versions[0] || versions[0].version)
+                versions.unshift({
+                    version: null,
+                    parents: {},
+                    changes: [` = ${JSON.stringify(read_raw(resource, () => false))}`]
+                })
+
         var ancs = resource.ancestors({[version]: true})
         delete ancs[version]
         var is_anc = x => ancs[x]
