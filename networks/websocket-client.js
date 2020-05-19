@@ -18,6 +18,9 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     }
 
     var connect = () => {
+
+        console.log('connect got called -- creating websocket')
+
         sock           = create_websocket()
         sock.onopen    = ()  => pipe.connected()
         sock.onmessage = msg => {
