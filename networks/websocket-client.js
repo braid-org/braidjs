@@ -43,10 +43,9 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock.onerror = () => {}
     }
     var disconnect = () => {
-
         console.log('disconnect got called!')
-
         sock.close()
+        sock.onclose()
     }
 
     var pipe = require('../pipe.js')({
