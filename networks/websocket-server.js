@@ -32,7 +32,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
             // pipe.connected() <-- this is called just above
         }
         function disconnect () {
-            conn.close()
+            conn.terminate()
         }
         function send (msg) {
             nlog('ws: hub Sends',
