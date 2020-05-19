@@ -42,7 +42,13 @@ module.exports = require.store = function create_store(node, options) {
             options.set(`ab:${key}`, 'a')
             n = nexts[key] = ['a', 0]
         }
+
+        try {
         options.set(`${n[0]}:${n[1]++}:${key}`, JSON.stringify(x))
+        } catch (e) {
+            console.log('e ' + Object.keys(x))
+            throw 'stop'
+        }
     }
 
     function compress(key) {
