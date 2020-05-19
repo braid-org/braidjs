@@ -22,9 +22,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
     function on_pong() {
         clearTimeout(ping_timer)
         ping_timer = setTimeout(() => {
-            send({method: 'ping'})
+            var ping_id = Math.random().toString(36).slice(2)
+            send({method: 'ping', ping_id})
             ping_timer = setTimeout(() => {
-                console.log('no pong came! resetting pipe..')
+                console.log('no pong came! resetting pipe..: ping_id: ' + ping_id)
                 disconnect()
             }, death_time)
         }, ping_time)
@@ -121,9 +122,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
             // ping/pong system
             if (args.method === 'ping') {
-                send({method: 'pong'})
+                send({method: 'pong', ping_id: args.ping_id})
                 return
             } else if (args.method === 'pong') {
+                console.log('got pong with ping_id: ' + args.ping_id)
                 on_pong()
                 return
             }
