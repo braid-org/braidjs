@@ -125,7 +125,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 send({method: 'pong', ping_id: args.ping_id})
                 return
             } else if (args.method === 'pong') {
-                console.log('got pong with ping_id: ' + args.ping_id)
+                console.log('got pong with ping_id: ' + args.ping_id + ' conn_id: ' + conn_id)
                 on_pong()
                 return
             }
