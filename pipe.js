@@ -236,7 +236,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             on_pong()
         },
         disconnected () {
-            clearTimeout(this.ping_timer)
+            clearTimeout(ping_timer)
 
             for (var k in this.subscribed_keys) {
 
