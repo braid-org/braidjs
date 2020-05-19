@@ -12,6 +12,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
 
         // work here
         var conn_id = Math.random().toString(36).slice(2)
+        console.log('conn_id created: ' + conn_id)
 
         var pipe = require('../pipe.js')({node, connect, disconnect, send, conn_id})
 
