@@ -30,6 +30,9 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
             pipe.recv(JSON.parse(msg.data))
         }
         sock.onclose   = ()  => {
+
+            console.log('onclose got called!')
+
             pipe.disconnected()
             if (enabled) {
                 if (typeof(g_debug_WS_messages_delayed) != 'undefined')
@@ -40,6 +43,9 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock.onerror = () => {}
     }
     var disconnect = () => {
+
+        console.log('disconnect got called!')
+
         sock.close()
     }
 
