@@ -11,7 +11,7 @@
 // Todo:
 //   • Describe the connect process and connect() function
 //
-module.exports = require.pipe = function create_pipe({node, id, send, connect, disconnect, type}) {
+module.exports = require.pipe = function create_pipe({node, id, send, connect, disconnect, type, conn_id}) {
     assert(node && send && connect, {node,send,connect})
     id = id || u.random_id()
 
@@ -25,7 +25,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             var ping_id = Math.random().toString(36).slice(2)
             send({method: 'ping', ping_id})
             ping_timer = setTimeout(() => {
-                console.log('no pong came! resetting pipe..: ping_id: ' + ping_id)
+                console.log('no pong came! resetting pipe..: ping_id: ' + ping_id + ' conn_id: ' + conn_id)
                 disconnect()
             }, death_time)
         }, ping_time)
@@ -238,6 +238,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             on_pong()
         },
         disconnected () {
+            console.log('diconnected called on conn_id: ' + conn_id)
             clearTimeout(ping_timer)
 
             for (var k in this.subscribed_keys) {
