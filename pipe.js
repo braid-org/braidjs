@@ -15,6 +15,21 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
     assert(node && send && connect, {node,send,connect})
     id = id || u.random_id()
 
+    var ping_time = 3000
+    var death_time = 4000
+    var ping_timer = null
+
+    function on_pong() {
+        clearTimeout(ping_timer)
+        ping_timer = setTimeout(() => {
+            send({method: 'ping'})
+            ping_timer = setTimeout(() => {
+                console.log('no pong came! resetting pipe..')
+                disconnect()
+            }, death_time)
+        }, ping_time)
+    }
+
     // The Pipe Object!
     var pipe = {
 
@@ -27,20 +42,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
         most_recent_them: null,
         subscribed_keys: u.dict(),
         remote: true,
-
-        ping_time: 3000,
-        death_time: 4000,
-        ping_timer: null,
-        on_pong() {
-            clearTimeout(this.ping_timer)
-            this.ping_timer = setTimeout(() => {
-                this.send({method: 'ping'})
-                this.ping_timer = setTimeout(() => {
-                    console.log('no pong came! resetting pipe..')
-                    disconnect()
-                }, this.death_time)
-            }, this.ping_time)
-        },
 
         // It can Send and Receive messages
         send (args) {
@@ -120,9 +121,11 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
             // ping/pong system
             if (args.method === 'ping') {
-                this.send({method: 'pong'})
+                send({method: 'pong'})
+                return
             } else if (args.method === 'pong') {
-                this.on_pong()
+                on_pong()
+                return
             }
 
             // The hello method is only for pipes
@@ -230,7 +233,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 })
             }
 
-            this.on_pong()
+            on_pong()
         },
         disconnected () {
             clearTimeout(this.ping_timer)
