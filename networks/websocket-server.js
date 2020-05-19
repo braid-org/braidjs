@@ -20,6 +20,10 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
             pipe.recv(JSON.parse(msg))
         })
         conn.on('close', () => {
+
+            console.log('close got called!..')
+
+
             log('ws: socket closed ', s.dead ? '<<dead>>' : '')
             if (s.dead) return
             pipe.disconnected()

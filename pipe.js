@@ -23,8 +23,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
         clearTimeout(ping_timer)
         ping_timer = setTimeout(() => {
             send({method: 'ping'})
-            
-            clearTimeout(ping_timer)
             ping_timer = setTimeout(() => {
                 console.log('no pong came! resetting pipe..')
                 disconnect()
