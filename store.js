@@ -46,7 +46,12 @@ module.exports = require.store = function create_store(node, options) {
         try {
         options.set(`${n[0]}:${n[1]++}:${key}`, JSON.stringify(x))
         } catch (e) {
-            console.log('e ' + Object.keys(x))
+            var d = []
+            Object.keys(x).forEach(k => {
+                d.push(Object.keys(x[k]))
+            })
+
+            console.log('e ' + Object.keys(x) + ':::' + JSON.stringify(d))
             throw 'stop'
         }
     }
