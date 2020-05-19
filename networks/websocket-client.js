@@ -31,7 +31,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         }
         sock.onclose   = ()  => {
 
-            console.log('onclose got called!')
+            console.log('onclose got called!!')
 
             pipe.disconnected()
             if (enabled) {
