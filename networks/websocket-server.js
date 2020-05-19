@@ -9,7 +9,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
     if (!options) options = {}
     var s = options.wss || new (require('ws')).Server({port: options.port || 3007})
     s.on('connection', function(conn) {
-        var pipe = require('../pipe.js')({node, connect, send})
+        var pipe = require('../pipe.js')({node, connect, disconnect, send})
 
         conn.on('message', (msg) => {
             var m = JSON.parse(msg)
@@ -27,8 +27,12 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
         pipe.connected()
 
         function connect () {
-            log('ws-serve: connecting!')
-            // pipe.connected()
+            // we're connected already, nothing to do
+            log('ws-serve: connected')
+            // pipe.connected() <-- this is called just above
+        }
+        function disconnect () {
+            conn.close()
         }
         function send (msg) {
             nlog('ws: hub Sends',

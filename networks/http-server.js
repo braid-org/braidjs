@@ -98,12 +98,13 @@ Content-Length: 81
             session.on('error', (e) => console.log("Session errored:", e))
             session.on('timeout', () => console.log("Session timed out"))
 
-            var pipe = require('./pipe.js')({node, send, connect})
+            var pipe = require('./pipe.js')({node, send, connect, disconnect})
 
             function send (args) {
                 console.log('SEND!!! <implement me..> :/', args)
             }
             function connect () { pipe.connected() }
+            function disconnect () { pipe.disconnected() }
 
             var subscriptions_to_us = {}  // Every key that this session has gotton
             console.log('h2_serve: New connection')

@@ -10,7 +10,7 @@ module.exports = require['http-client'] = function add_http_client(node) {
     var prefix = '/*', url = 'http://localhost:3007/', client_creds = null
     var preprefix = prefix.slice(0,-1)
 
-    var pipe = require('./pipe.js')({node, id: 'client-pipe', send, connect})
+    var pipe = require('./pipe.js')({node, id: 'client-pipe', send, connect, disconnect})
     node.bind(prefix, pipe)
 
     var is_absolute = /^https?:\/\//
@@ -36,6 +36,10 @@ module.exports = require['http-client'] = function add_http_client(node) {
     function connect () {
         console.log("Hmm... I need to think about what connect() should do here...")
         pipe.connected()
+    }
+    function disconnect () {
+        console.log("Hmm... I need to think about what connect() should do here... too..")
+        pipe.disconnected()
     }
 
     function parse_headers (str) {

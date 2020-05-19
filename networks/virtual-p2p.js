@@ -42,8 +42,9 @@ module.exports = require['virtual-p2p'] = (sim) => (
                                           args.method, JSON.parse(JSON.stringify(args))])
                     },
 
-                    // The connect function
-                    connect () { this.connected() }
+                    // The connect functions
+                    connect () { this.connected() },
+                    disconnect () { this.disconnected() }
                 })
 
                 from.bind('my_key', pipe)
