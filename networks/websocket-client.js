@@ -22,7 +22,11 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         console.log('connect got called -- creating websocket')
 
         sock           = create_websocket()
-        sock.onopen    = ()  => pipe.connected()
+        sock.onopen    = ()  => {
+            console.log('onopen got called!')
+            
+            pipe.connected()
+        }
         sock.onmessage = msg => {
             nlog('ws:',
                  node.pid,
