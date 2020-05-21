@@ -24,7 +24,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock           = create_websocket()
         sock.onopen    = ()  => {
             console.log('onopen got called!')
-            
+
             pipe.connected()
         }
         sock.onmessage = msg => {
@@ -38,7 +38,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         }
         sock.onclose   = ()  => {
 
-            console.log('onclose got called!!')
+            console.log('onclose got called!! :: ' + sock.my_tag)
 
             pipe.disconnected()
             if (enabled) {
@@ -52,6 +52,10 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     var disconnect = () => {
         console.log('disconnect got called!')
         sock.close()
+
+        sock.my_tag = 'dog'
+        console.log('sock status: ' + sock.readyState)
+
         sock.onclose()
     }
 
