@@ -15,8 +15,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
     assert(node && send && connect, {node,send,connect})
     id = id || u.random_id()
 
-    var ping_time = 3000
-    var death_time = 4000
+    var ping_time = 1000
+    var death_time = 1000
     var ping_timer = null
 
     function on_pong() {
