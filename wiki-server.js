@@ -30,6 +30,7 @@ console.log('keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 
 ws.on('connection', function(conn) {
     conn.on('message', (msg) => {
-        console.log('GOT: ' + msg)
+        if (!msg.match(/^\{"method"\:"(ping|pong)"\}$/))
+            console.log('GOT: ' + msg)
     })
 })
