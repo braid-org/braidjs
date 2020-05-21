@@ -11,7 +11,7 @@
 // Todo:
 //   • Describe the connect process and connect() function
 //
-module.exports = require.pipe = function create_pipe({node, id, send, connect, disconnect, type, conn_id}) {
+module.exports = require.pipe = function create_pipe({node, id, send, connect, disconnect, type}) {
     assert(node && send && connect, {node,send,connect})
     id = id || u.random_id()
 
@@ -22,13 +22,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
     function on_pong() {
         clearTimeout(ping_timer)
         ping_timer = setTimeout(() => {
-            var ping_id = Math.random().toString(36).slice(2)
-            console.log('sending ping with id: ' + ping_id + ' conn_id: ' + conn_id)
-            send({method: 'ping', ping_id})
-            ping_timer = setTimeout(() => {
-                console.log('no pong came! resetting pipe..: ping_id: ' + ping_id + ' conn_id: ' + conn_id)
-                disconnect()
-            }, death_time)
+            send({method: 'ping'})
+            ping_timer = setTimeout(() => disconnect(), death_time)
         }, ping_time)
     }
 
@@ -123,11 +118,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
             // ping/pong system
             if (args.method === 'ping') {
-                console.log('sending pong with id: ' + args.ping_id + ' conn_id: ' + conn_id)
-                send({method: 'pong', ping_id: args.ping_id})
+                send({method: 'pong'})
                 return
             } else if (args.method === 'pong') {
-                console.log('got pong with ping_id: ' + args.ping_id + ' conn_id: ' + conn_id)
                 on_pong()
                 return
             }
@@ -240,7 +233,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             on_pong()
         },
         disconnected () {
-            console.log('diconnected called on conn_id: ' + conn_id)
             clearTimeout(ping_timer)
 
             for (var k in this.subscribed_keys) {

@@ -9,12 +9,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
     if (!options) options = {}
     var s = options.wss || new (require('ws')).Server({port: options.port || 3007})
     s.on('connection', function(conn) {
-
-        // work here
-        var conn_id = Math.random().toString(36).slice(2)
-        console.log('conn_id created: ' + conn_id)
-
-        var pipe = require('../pipe.js')({node, connect, disconnect, send, conn_id})
+        var pipe = require('../pipe.js')({node, connect, disconnect, send})
 
         conn.on('message', (msg) => {
             var m = JSON.parse(msg)
@@ -25,10 +20,6 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
             pipe.recv(JSON.parse(msg))
         })
         conn.on('close', () => {
-
-            console.log('close got called!..: <<dead>>' + s.dead+ ' :: connid: ' + conn_id)
-
-
             log('ws: socket closed ', s.dead ? '<<dead>>' : '')
             if (s.dead) return
             pipe.disconnected()
