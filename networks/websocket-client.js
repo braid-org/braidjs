@@ -36,11 +36,12 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
                  msg.data.substr(0,w))
             pipe.recv(JSON.parse(msg.data))
         }
+        var onclose_called_already = false
         sock.onclose   = (a)  => {
+            if (onclose_called_already) { return }
+            onclose_called_already = true
 
-            console.log('onclose got called!! :: ' + sock.my_tag)
-            console.log('onclose2 got called!! :: ' + this.my_tag)
-            console.log('onclose3 got called!! :: ', a)
+            console.log('onclose got called!!?')
 
             pipe.disconnected()
             if (enabled) {
@@ -53,10 +54,6 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     }
     var disconnect = () => {
         console.log('disconnect got called!')
-
-        sock.my_tag = 'dog'
-        console.log('sock status: ' + sock.readyState)
-
         sock.close()
         sock.onclose()
     }
