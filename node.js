@@ -239,7 +239,10 @@ module.exports = require.node = function create_node(node_data = {}) {
         // of any new edits made by them... we strive to enforce this fact with
         // the pruning algorithm)
 
-        var anc = parents ? resource.ancestors(parents, true) : {}
+        if (parents) {
+            var anc = resource.ancestors(parents, true)
+            anc[null] = true
+        } else { var anc = {} }
         var versions = resource.mergeable.generate_braid(x => anc[x])
 
         var best_t = -Infinity

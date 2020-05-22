@@ -15,6 +15,7 @@ module.exports = require.resource = function create_resource(resource = {}) {
     // The version history
     if (!resource.time_dag) resource.time_dag = {}
     if (!resource.current_version) resource.current_version = {}
+    if (!resource.version_cache) resource.version_cache = {null: {version: null, parents: {}, changes: []}}
     resource.ancestors = (versions, ignore_nonexistent) => {
         var result = {}
         // console.log('ancestors:', versions)

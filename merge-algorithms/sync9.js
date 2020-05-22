@@ -33,66 +33,7 @@ module.exports = require.sync9 = function create (resource) {
 function generate_braid(resource, is_anc) {
     if (Object.keys(resource.time_dag).length === 0) return []
 
-    var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
-    var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
-    
-    var versions = []
-    Object.keys(resource.time_dag).filter(x => !is_anc(x)).forEach(version => {
-        if (Object.keys(resource.time_dag[version]).length == 0)
-            if (!versions[0] || versions[0].version)
-                versions.unshift({
-                    version: null,
-                    parents: {},
-                    changes: [` = ${JSON.stringify(read_raw(resource, () => false))}`]
-                })
-
-        var ancs = resource.ancestors({[version]: true})
-        delete ancs[version]
-        var is_anc = x => ancs[x]
-        var path = []
-        var changes = []
-        recurse(resource.space_dag)
-        function recurse(x) {
-            if (is_lit(x)) {
-            } else if (x.t == 'val') {
-                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
-                    if (s[2].length) changes.push(`${path.join('')} = ${JSON.stringify(s[2][0])}`)
-                })
-                traverse_space_dag(x.S, is_anc, node => {
-                    node.elems.forEach(recurse)
-                })
-            } else if (x.t == 'arr') {
-                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
-                    changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
-                })
-                var i = 0
-                traverse_space_dag(x.S, is_anc, node => {
-                    node.elems.forEach(e => {
-                        path.push(`[${i++}]`)
-                        recurse(e)
-                        path.pop()
-                    })
-                })
-            } else if (x.t == 'obj') {
-                Object.entries(x.S).forEach(e => {
-                    path.push('[' + JSON.stringify(e[0]) + ']')
-                    recurse(e[1])
-                    path.pop()
-                })
-            } else if (x.t == 'str') {
-                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
-                    changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
-                })
-            }
-        }
-        
-        versions.push({
-            version,
-            parents: Object.assign({}, resource.time_dag[version]),
-            changes
-        })
-    })
-    return versions
+    return Object.values(resource.version_cache).filter(x => !is_anc(x))
 }
 
 function space_dag_generate_braid(S, resource, version, is_anc) {
@@ -233,7 +174,10 @@ function prune(x, has_everyone_whos_seen_a_seen_b, has_everyone_whos_seen_a_seen
         })
     }
     Object.keys(x.current_version).forEach(g)
-    Object.keys(delete_us).forEach(version => delete x.time_dag[version])
+    Object.keys(delete_us).forEach(version => {
+        delete x.time_dag[version]
+        delete x.version_cache[version]
+    })
     return delete_us
 }
 
@@ -370,6 +314,10 @@ function change_names(resource, name_changes) {
                 ...Object.keys(ps).map(v =>
                     ({[name_changes[v] || v]: true})))})))
 
+    resource.version_cache = Object.fromEntries(
+        Object.entries(resource.version_cache).map(([v, c]) =>
+            [name_changes[v] || v, c]))
+
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
 
     function recurse(x) {
@@ -391,6 +339,66 @@ function change_names(resource, name_changes) {
         }
     }
     recurse(resource.space_dag)
+
+    Object.keys(resource.version_cache).forEach(version => {
+        if (version == 'null') {
+            resource.version_cache[null] = {
+                version: null,
+                parents: {},
+                changes: [` = ${JSON.stringify(read_raw(resource, () => false))}`]
+            }
+            return
+        }
+
+        var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
+        var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
+    
+        var ancs = resource.ancestors({[version]: true})
+        delete ancs[version]
+        var is_anc = x => ancs[x]
+        var path = []
+        var changes = []
+        recurse(resource.space_dag)
+        function recurse(x) {
+            if (is_lit(x)) {
+            } else if (x.t == 'val') {
+                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
+                    if (s[2].length) changes.push(`${path.join('')} = ${JSON.stringify(s[2][0])}`)
+                })
+                traverse_space_dag(x.S, is_anc, node => {
+                    node.elems.forEach(recurse)
+                })
+            } else if (x.t == 'arr') {
+                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
+                    changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
+                })
+                var i = 0
+                traverse_space_dag(x.S, is_anc, node => {
+                    node.elems.forEach(e => {
+                        path.push(`[${i++}]`)
+                        recurse(e)
+                        path.pop()
+                    })
+                })
+            } else if (x.t == 'obj') {
+                Object.entries(x.S).forEach(e => {
+                    path.push('[' + JSON.stringify(e[0]) + ']')
+                    recurse(e[1])
+                    path.pop()
+                })
+            } else if (x.t == 'str') {
+                space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
+                    changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
+                })
+            }
+        }
+
+        resource.version_cache[version] = {
+            version,
+            parents: Object.assign({}, resource.time_dag[version]),
+            changes
+        }
+    })
 }
 
 function space_dag_change_names(S, name_changes) {
@@ -411,6 +419,8 @@ function add_version(resource, version, parents, changes, is_anc) {
     let make_lit = x => (x && typeof(x) == 'object') ? {t: 'lit', S: x} : x
     
     if (!version && Object.keys(resource.time_dag).length == 0) {
+        resource.version_cache[null] = JSON.parse(JSON.stringify({version, parents, changes}))
+
         var parse = parse_change(changes[0])
         resource.space_dag = make_lit(parse.val)
         create_annotations(parse)
@@ -419,6 +429,8 @@ function add_version(resource, version, parents, changes, is_anc) {
     
     if (resource.time_dag[version]) return
     resource.time_dag[version] = Object.assign({}, parents)
+
+    resource.version_cache[version] = JSON.parse(JSON.stringify({version, parents, changes}))
     
     Object.keys(parents).forEach(k => {
         if (resource.current_version[k]) delete resource.current_version[k]

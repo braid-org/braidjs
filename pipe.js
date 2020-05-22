@@ -20,6 +20,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
     var ping_timer = null
 
     function on_pong() {
+        if (typeof(debug_WS) != 'undefined') { return }
+
         clearTimeout(ping_timer)
         ping_timer = setTimeout(() => {
             send({method: 'ping'})
@@ -141,7 +143,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 /*&& !this.subscribed_keys[args.key].we_requested*/) {
                 // Then we need to welcome them too
                 var resource = node.resource_at(args.key)
-                var anc = args.parents ? resource.ancestors(args.parents, true) : {}
+                if (args.parents) {
+                    var anc = resource.ancestors(args.parents, true)
+                    anc[null] = true
+                } else { var anc = {} }
                 var versions = resource.mergeable.generate_braid(x => anc[x])
 
                 var fissures = Object.values(resource.fissures)

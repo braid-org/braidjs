@@ -141,7 +141,9 @@ async function main() {
     var exp_time_est = 1
     var longest = 0
     var longest_seed = null
-    var N = 200
+    var N = 100
+
+    var ST = performance.now()
 
     for (var i = 0; i < N; i++) {
         var seed = '__abb__37:' + i
@@ -174,6 +176,8 @@ async function main() {
     console.log('best_seed = ' + best_seed)
     console.log('longest = ' + longest)
     console.log('longest_seed = ' + longest_seed)
+
+    console.log('time(sec) = ' + (performance.now() - ST)/1000)
 }
 
 async function run_experiment(rand_seed) {
@@ -183,7 +187,7 @@ async function run_experiment(rand_seed) {
     g_debug_WS_messages_delayed = []
     debug_WSS.the_one = null
 
-    var trials = 200
+    var trials = 100
 
     var db = create_db()
     var server = null

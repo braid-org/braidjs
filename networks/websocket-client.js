@@ -18,13 +18,8 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     }
 
     var connect = () => {
-
-        console.log('connect got called -- creating websocket')
-
         sock           = create_websocket()
         sock.onopen    = ()  => {
-            console.log('onopen got called!')
-
             pipe.connected()
         }
         sock.onmessage = msg => {
@@ -40,9 +35,6 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock.onclose   = (a)  => {
             if (onclose_called_already) { return }
             onclose_called_already = true
-
-            console.log('onclose got called!!?')
-
             pipe.disconnected()
             if (enabled) {
                 if (typeof(g_debug_WS_messages_delayed) != 'undefined')
@@ -53,7 +45,6 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock.onerror = () => {}
     }
     var disconnect = () => {
-        console.log('disconnect got called!')
         sock.close()
         sock.onclose()
     }
