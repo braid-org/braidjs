@@ -704,7 +704,7 @@ function draw_space_dag(c, g, S, x, y) {
 
         draw_text(c, g, node.version ? node.version.slice(0, 3) : '_', x, y + 25, 'grey', 'left', 'middle')
         
-        var my_text = node.elems + (node.end_cap ? '*' : '')
+        var my_text = node.elems.slice(0, 3) + (node.elems.length > 3 ? '..' : '') + (node.end_cap ? '*' : '')
         
         draw_text(c, g, my_text, x, y, Object.keys(node.deleted_by).length > 0 ? 'red' : 'blue', 'left', 'middle', '20px Arial')
         
