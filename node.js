@@ -110,7 +110,6 @@ module.exports = require.node = function create_node(node_data = {}) {
                     method: 'ack', key, seen:'local', version,
                     joiner_num: resource.joiners[version]
                 })
-
             } else {
 
                 // G: in this case, we have no "origin", which means we created
@@ -443,7 +442,6 @@ module.exports = require.node = function create_node(node_data = {}) {
 
 
         check_ack_count(key, resource, version)
-
         return version
     }
     
@@ -1046,7 +1044,7 @@ module.exports = require.node = function create_node(node_data = {}) {
             return a && b && (tags[a].tag == tags[b].tag)
         }
         var seen_annotations = {}
-        resource.mergeable.prune(q, q, seen_annotations)
+        var deleted = resource.mergeable.prune(q, q, seen_annotations)
 
         // here we change the name of all the versions which are not frozen,
         // meaning they might have changed,
@@ -1063,7 +1061,7 @@ module.exports = require.node = function create_node(node_data = {}) {
                 }
             }
         })
-        resource.mergeable.change_names(name_changes)
+        resource.mergeable.change_names(name_changes, deleted)
 
         // todo: this code can maybe be moved into the resource.mergeable.prune function
         //       (this code also assumes there is a God (a single first version adder))

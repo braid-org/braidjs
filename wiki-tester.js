@@ -129,12 +129,44 @@ debug_WS = function (id) {
 var ds = require('./diff.js')
 var performance = require('perf_hooks').performance
 
+
+
+g_profile = {
+    keys: {},
+    begin(key) {
+        if (!this.keys[key]) this.keys[key] = {count: 0, time: 0}
+        if (this.keys[key].begin != null) throw 'unbalanced begin! key: ' + key
+        this.keys[key].begin = performance.now()
+    },
+    end(key) {
+        if (!this.keys[key]) throw 'unbalanced end! key: ' + key
+        this.keys[key].time += performance.now() - this.keys[key].begin
+        delete this.keys[key].begin
+        this.keys[key].count++
+    },
+    mark(key) {
+        if (!this.keys[key] || this.keys[key].begin == null) this.begin(key)
+        else this.end(key)
+    },
+    print() {
+        Object.entries(this.keys).forEach(([k, v]) => {
+            console.log(`${k}\t${v.time / v.count}\t${v.time}\t${v.count}`)
+        })
+    }
+}
+
+g_prune_counter = 0
+g_prune_period = 0
+
+
 async function main() {
     // var a = '' + require('fs').readFileSync('actions.json')
     // a = JSON.parse(a)
     // run_experiment_from_actions(a)
 
     // return
+
+    g_profile.begin('whole thing')
 
     var best_t = Infinity
     var best_seed = null
@@ -145,8 +177,15 @@ async function main() {
 
     var ST = performance.now()
 
+    var times = []
+
     for (var i = 0; i < N; i++) {
+
+        let sttt = performance.now()
+        
+
         var seed = '__abb__37:' + i
+        //var seed = '__abb__37:' // + i
 
 
         // N = 1
@@ -157,6 +196,10 @@ async function main() {
         var st = performance.now()
 
         var r = await run_experiment(seed)
+
+
+        times.push(performance.now() - sttt)
+
 
         if (!r.ok && r.t < best_t) {
             best_t = r.t
@@ -178,6 +221,12 @@ async function main() {
     console.log('longest_seed = ' + longest_seed)
 
     console.log('time(sec) = ' + (performance.now() - ST)/1000)
+
+    g_profile.end('whole thing')
+
+    g_profile.print()
+
+    console.log('times: ' + JSON.stringify(times))
 }
 
 async function run_experiment(rand_seed) {
