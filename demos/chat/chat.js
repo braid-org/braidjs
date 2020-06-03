@@ -15,12 +15,13 @@ let createListeners = function () {
 
 	let sendbox = document.getElementById("send-box");
 	function submit() {
-		let text = JSON.stringify([sendbox.val() || '']);
+		let text = JSON.stringify([sendbox.value || '']);
 		node.set(key, null, `[${nMessages}:${nMessages}] = ${text}`);
-		sendbox.val("");
+		sendbox.value = '';
 	}
-	document.getElementById("send-box").addEventListener("click", submit);
-	sendbox.addEventListener("keyDown", e => {if (e.keyCode == 13 && !e.shiftKey) {e.preventDefault(); submit()}});
+	document.getElementById("send-msg").addEventListener("click", submit);
+	sendbox.onkeydown = e => {
+        if (e.keyCode == 13 && !e.shiftKey) {e.preventDefault(); submit()}};
 
 	let messageBox = document.getElementById("react-messages");
 	
