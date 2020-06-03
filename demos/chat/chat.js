@@ -32,7 +32,7 @@ let createListeners = function () {
 	function submit() {
 		let text = JSON.stringify([sendbox.value || '']);
 		node.set(key, null, `[${nMessages}:${nMessages}] = ${text}`);
-		sendbox.val("");
+		sendbox.value = "";
 	}
 	document.getElementById("send-box").addEventListener("click", submit);
 	sendbox.addEventListener("keyDown", e => {if (e.keyCode == 13 && !e.shiftKey) {e.preventDefault(); submit()}});
