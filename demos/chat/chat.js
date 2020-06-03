@@ -23,9 +23,8 @@ let createListeners = function () {
                     'div',
                     {className:"msg", key: i},
                     msg.split('\n').map((line, i) =>
-                                        React.createElement('p',
-                                                            {key: i,
-                                                             style: {margin: 0, padding: 0}},
+                                        React.createElement('div',
+                                                            {key: i},
                                                             line)))));
 		ReactDOM.render(
 			MessageList,
