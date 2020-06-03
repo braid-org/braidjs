@@ -28,18 +28,23 @@ body {
 	width: 80%;
 	justify-self: center;
 }
-#messages {
+#react-messages {
 	grid-area: messages;
-	overflow-y: scroll;
-	overflow-x: hidden;
 	margin: 5px 0 5px 15px;
 	width: 80%;
+	overflow-y: scroll;
+	overflow-x: hidden;
 	justify-self: right;
-	display: flex;
-	flex-direction: column;
 	padding-right: 10%;
 }
-#messages div {
+.messageBox {
+	
+	display: flex;
+	flex-direction: column;
+	
+	width: 100%;
+}
+.messageBox .msg {
 	width: 100%;
 	white-space: pre-wrap;
 	display: inline-block;

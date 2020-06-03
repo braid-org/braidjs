@@ -6,8 +6,6 @@
   	<link rel="stylesheet" href="chat.css">
 
   	<!-- Load libraries-->
-  	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-
 	<script src="../../require.js"></script>
 	<script src="../../utilities.js"></script>
 	<script src="../../events.js"></script>
@@ -16,20 +14,21 @@
 	<script src="../../pipe.js"></script>
 	<script src="../../resource.js"></script>
 	<script src="../../networks/websocket-client.js"></script>
+
+	<script src="https://unpkg.com/react@16/umd/react.development.js"></script> 
+	<script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+	<script src="./chat.js"></script>
 </head>
 
 <body>
 	<div class="grid-container">
 		<h2 class="title">Braid Chat</h2>
-		<div id="messages">
-		</div>
+		<div id="react-messages"></div>
 		<div class="input">
 			<textarea id="send-box"></textarea>
 			<span id="send-msg">Send</span>
 		</div>
 	</div>
-
-	<!-- Load closing scripts -->
-	<script src="chat.js"></script>
+	
 </body>
 </html>
