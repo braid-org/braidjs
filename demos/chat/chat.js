@@ -1,6 +1,10 @@
 // Create a node
 const key = "/chat";
-const id = `C-${Math.random().toString(36).substr(10)}`;
+
+const id = localStorage.braidId || `C-${Math.random().toString(36).substring(0, 10)}`;
+if (!localStorage.braidId)
+	localStorage.braidId = id;
+
 const node = require('node.js')({id});
 
 node.default(`${key}/*`, path => [`Top post for ${path}`]);
@@ -16,23 +20,28 @@ let createListeners = function () {
 	let nMessages = 0;
 	let messageBox = document.getElementById("react-messages");
 	// Format messages
-	let md = function(text, i) {
-		return React.createElement('div', {className:"msg", key: i}, text);
+	let md = function(msg, i) {
+		let text = msg.text;
+		let user = msg.user;
+		return React.createElement('div', {className:"msg", key: i},
+			[React.createElement("span", {className: "userID"}, user),
+			 React.createElement("span", {className: "msgText"}, text)]);
 	}
 	function update_messages(newVal) {
 		nMessages = newVal.length;
 		let MessageList = React.createElement('div', {className: "messageBox"},
-			newVal.map(md)
+			newVal.map(msg)
 		);
 		ReactDOM.render(
 			MessageList,
 			messageBox
 		);
+		// Check scrolling 
 	}
 	// Enable sending of messages
 	let sendbox = document.getElementById("send-box");
 	function submit() {
-		let text = JSON.stringify([sendbox.value || '']);
+		let text = JSON.stringify([{"user": id, "text": sendbox.value || ''}]);
 		node.set(key, null, `[${nMessages}:${nMessages}] = ${text}`);
 		sendbox.value = "";
 	}
