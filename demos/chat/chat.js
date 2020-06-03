@@ -15,9 +15,9 @@ let createListeners = function () {
 	// Re-render the messagebox when the remote resource changes
 	let nMessages = 0;
 	let messageBox = document.getElementById("react-messages");
+	// Format messages
 	let md = function(text, i) {
-		let msg = text.replace("\\n", "\n")
-		return React.createElement('div', {className:"msg", key: i}, msg);
+		return React.createElement('div', {className:"msg", key: i}, text);
 	}
 	function update_messages(newVal) {
 		nMessages = newVal.length;
