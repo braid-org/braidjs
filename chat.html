@@ -52,6 +52,6 @@ node = require('./node.js')({id})
 node.default('/chat/*', (path) => ['Top post for '+path])
 node.default('/chat', ['Top post!'])
 
-require('./networks/websocket-client.js')({node})
+require('./networks/websocket-client.js')({node, url: 'wss://invisible.college:3007/'})
 print_network = true
 </script>
