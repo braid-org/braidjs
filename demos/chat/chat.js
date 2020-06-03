@@ -30,7 +30,7 @@ let createListeners = function () {
 	function update_messages(newVal) {
 		nMessages = newVal.length;
 		let MessageList = React.createElement('div', {className: "messageBox"},
-			newVal.map(msg)
+			newVal.map(md)
 		);
 		ReactDOM.render(
 			MessageList,
