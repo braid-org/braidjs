@@ -40,11 +40,13 @@ let createListeners = function () {
 		let MessageList = React.createElement('div', {className: "messageBox"}, newVal.map(format_message));
 		ReactDOM.render(
 			MessageList,
-			messageBox
+			messageBox,
+			() => {
+				if (shouldScroll)
+					messageBox.scrollTop = messageBox.scrollHeight - messageBox.clientHeight;
+			}
 		);
-		if (shouldScroll) {
-			messageBox.scrollTop = messageBox.scrollTopMax;
-		}
+		
 		nMessages = newVal.length;
 
 	}
