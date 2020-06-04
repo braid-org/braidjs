@@ -19,13 +19,23 @@ body {
 	"messages"
 	"input";
 }
-
-.title {
+header {
 	grid-area: title;
-	margin: 2px 0 2px 10px;
-	user-select: none;	
 	width: 80%;
+	display: flex;
 	justify-self: center;
+}
+.title {
+	margin: 0 5px 0 0;
+	user-select: none;
+}
+#settings {
+	display: inline-block;
+	line-height: 16px;
+	width: 16px;
+	text-align: center;
+	align-self: center;
+	color: #555;
 }
 #react-messages {
 	grid-area: messages;

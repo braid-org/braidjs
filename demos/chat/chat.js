@@ -1,9 +1,17 @@
 // Create a node
 const key = "/chat";
 
-const id = localStorage.braidId || `C-${Math.random().toString(36).substring(0, 10)}`;
-if (!localStorage.braidId)
-	localStorage.braidId = id;
+const id = `C-${Math.random().toString(36).substring(0, 10)}`;
+// Pick Username
+let username = localStorage.username;
+if (!username) {
+	// Pick a random username
+	const names = ["Bob", "Alice", "Joe", "Fred", "Mary", "Linda", "Mike", "Greg", "Raf"];
+	let name = names[Math.floor(Math.random() * names.length)];
+	let number = Math.floor(Math.random() * 100000);
+	username = `${name}${number}`;
+	localStorage.username = username;
+}
 
 const node = require('node.js')({id});
 
