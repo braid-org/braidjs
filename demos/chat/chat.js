@@ -20,30 +20,42 @@ let createListeners = function () {
 	let nMessages = 0;
 	let messageBox = document.getElementById("react-messages");
 	// Format messages
-	let md = function(msg, i) {
+	let format_message = function(msg, i) {
 		let text = msg.text;
 		let user = msg.user;
 		return React.createElement('div', {className:"msg", key: i},
-			[React.createElement("span", {className: "userID"}, user),
-			 React.createElement("span", {className: "msgText"}, text)]);
+			[React.createElement("span", {className: "user-id", key: "user"}, user),
+			 React.createElement("span", {className: "msg-text", key: "text"}, text)]);
 	}
 	function update_messages(newVal) {
-		nMessages = newVal.length;
-		let MessageList = React.createElement('div', {className: "messageBox"},
-			newVal.map(md)
-		);
+		// Check scrolling 
+		let shouldScroll = true;
+		if (nMessages) {
+			let furthest_scroll = document.getElementsByClassName("msg")[nMessages - 1].getBoundingClientRect().top;
+			let box_bottom = messageBox.getBoundingClientRect().bottom;
+			// If the last message is off the screen, we shouldn't scroll
+			shouldScroll = box_bottom > furthest_scroll;
+		}
+
+		let MessageList = React.createElement('div', {className: "messageBox"}, newVal.map(format_message));
 		ReactDOM.render(
 			MessageList,
 			messageBox
 		);
-		// Check scrolling 
+		if (shouldScroll) {
+			messageBox.scrollTop = messageBox.scrollTopMax;
+		}
+		nMessages = newVal.length;
+
 	}
 	// Enable sending of messages
 	let sendbox = document.getElementById("send-box");
 	function submit() {
-		let text = JSON.stringify([{"user": id, "text": sendbox.value || ''}]);
-		node.set(key, null, `[${nMessages}:${nMessages}] = ${text}`);
-		sendbox.value = "";
+		if (sendbox.value.length) {
+			let text = JSON.stringify([{"user": id, "text": sendbox.value || ''}]);
+			node.set(key, null, `[${nMessages}:${nMessages}] = ${text}`);
+			sendbox.value = "";
+		}
 	}
 	document.getElementById("send-msg").addEventListener("click", submit);
 	sendbox.onkeydown = e => {

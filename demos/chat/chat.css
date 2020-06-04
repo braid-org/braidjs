@@ -50,6 +50,15 @@ body {
 	display: inline-block;
 	padding: 4px 10% 4px 5px;
 }
+.messageBox .msg .user-id {
+	color: #356;
+	font-weight: 600;
+
+}
+.messageBox .msg .user-id::after {
+	content: ":";
+	margin-right: 3px;
+}
 .input {
 	grid-area: input;
 	display: flex;
