@@ -52,7 +52,7 @@ let createListeners = function () {
 	let sendbox = document.getElementById("send-box");
 	function submit() {
 		if (sendbox.value.length) {
-			let text = JSON.stringify([{"user": id, "text": sendbox.value || ''}]);
+			let text = JSON.stringify([{user: id, text: sendbox.value || ''}]);
 			node.set(key, null, `[${nMessages}:${nMessages}] = ${text}`);
 			sendbox.value = "";
 		}
