@@ -1,5 +1,5 @@
 body {
-	padding: 10px 0 10px 0;
+	padding: 0;
 	margin: 0;
 	width: 100vw;
 	height: 100vh;
@@ -11,40 +11,83 @@ body {
 	height: 100%;
 	display: grid;
 
-
 	grid-template-columns: auto;
-	grid-template-rows: 30px auto 10%;
+	grid-template-rows: 40px auto 10%;
 	grid-template-areas: 
 	"title"
 	"messages"
 	"input";
 }
+.grid-container > * {
+	padding: 0 10%;
+}
 header {
 	grid-area: title;
-	width: 80%;
 	display: flex;
-	justify-self: center;
+	box-shadow: 0 2px 1px 0 rgba(0, 0, 0, 0.2);
 }
 .title {
-	margin: 0 5px 0 0;
+	margin: 0 5px 0 2px;
+	user-select: none;
+	align-self: center;
+}
+#settings-hover-container {
+	display: flex;
+	flex-direction: row;
+	align-self: center;
+	margin: 0;
+	padding: 0;
 	user-select: none;
 }
-#settings {
+.settings {
 	display: inline-block;
-	line-height: 16px;
-	width: 16px;
+	height: 21px;
+	width: 21px;
 	text-align: center;
+	align-self: flex-end;
+	color: #666;
+	padding: 5px;
+}
+#settings-hover-container:hover .settings,
+#settings-hover-container.settings-locked .settings {
+	color: #222;
+}
+.settings-expand {
 	align-self: center;
-	color: #555;
+	font-family: sans-serif;
+	cursor: pointer;
+	margin: 0 5px;
+	color: #666;
+
+	display: none;
+	
+}
+#settings-hover-container:hover .settings-expand,
+#settings-hover-container.settings-locked .settings-expand {
+	display: inline;
+}
+.settings-expand:hover,
+.settings-input-collapse:focus {
+	color: #333;
+}
+.settings-input-collapse {
+	transform-origin: left;
+	max-width: 16ch;
+	border: 1.5px solid #999;
+	border-radius: 5px;
+	padding: 2px 3px 1px 4px;
+	height: 1.5em;
+	margin-left: 0;
+}
+.collapsed {
+	display: none !important;
+	pointer-events: none !important;
 }
 #react-messages {
 	grid-area: messages;
-	margin: 5px 0 5px 15px;
-	width: 80%;
 	overflow-y: scroll;
 	overflow-x: hidden;
-	justify-self: right;
-	padding-right: 10%;
+	z-index: -1;
 }
 .messageBox {
 	display: flex;
@@ -78,9 +121,8 @@ header {
 .input {
 	grid-area: input;
 	display: flex;
-	padding: 2px 2px 2px 10px;
-	width: 80%;
-	justify-self: center;
+	margin-top: -1px;
+	margin-bottom: 2px;
 }
 #send-box {
 	height: auto;
@@ -89,7 +131,7 @@ header {
 	font-size: 16px;
 	font-family: sans-serif;
 	padding: 5px;
-	border-radius: 3px;
+	border-radius: 4px;
 }
 #send-msg {
 	display: inline-block;

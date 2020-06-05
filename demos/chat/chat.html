@@ -24,7 +24,13 @@
 	<div class="grid-container">
 		<header>
 			<h2 class="title">Braid Chat</h2>
-			<span id="settings">&#x2699;</span>
+			<div id="settings-hover-container">
+				<span class="settings" id="settings-click-toggle">&#x2699;</span>
+				<span class="settings-expand" id="username-btn">Username</span>
+				<input id="username-change" class="settings-expand settings-input-collapse collapsed"></input>
+				<span class="settings-expand" id="clear-btn">Clear Chat</span>
+
+			</div>
 		</header>
 		<div id="react-messages"></div>
 		<div class="input">
