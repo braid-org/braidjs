@@ -111,6 +111,7 @@ let createListeners = function () {
     };
     // Username stuff
 	const browserId = localStorage.browserId || `B-${randomString(10)}`;
+	localStorage.browserId = browserId;
 
 	const names = ["Bob", "Alice", "Joe", "Fred", "Mary", "Linda", "Mike", "Greg", "Raf"];
 	let name = names[Math.floor(Math.random() * names.length)];
