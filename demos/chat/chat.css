@@ -48,46 +48,25 @@ header {
 	color: #666;
 	padding: 5px;
 }
-#settings-hover-container:hover .settings,
-#settings-hover-container.settings-locked .settings {
-	color: #222;
-}
 .settings-expand {
 	align-self: center;
 	font-family: sans-serif;
-	cursor: pointer;
 	margin: 0 5px;
 	color: #666;
-
-	display: none;
-	
-}
-#settings-hover-container:hover .settings-expand,
-#settings-hover-container.settings-locked .settings-expand {
-	display: inline;
-}
-.settings-expand:hover,
-.settings-input-collapse:focus {
-	color: #333;
 }
 .settings-input-collapse {
 	transform-origin: left;
-	max-width: 16ch;
+	max-width: 20ch;
 	border: 1.5px solid #999;
 	border-radius: 5px;
 	padding: 2px 3px 1px 4px;
 	height: 1.5em;
 	margin-left: 0;
 }
-.collapsed {
-	display: none !important;
-	pointer-events: none !important;
-}
 #react-messages {
 	grid-area: messages;
 	overflow-y: scroll;
 	overflow-x: hidden;
-	z-index: -1;
 }
 .messageBox {
 	display: flex;
@@ -109,6 +88,9 @@ header {
 	display: inline-block;
 	padding: 4px 10% 4px 5px;
 }
+.messageBox .msg:hover {
+	background-color: rgba(0, 0, 0, 0.1);
+}
 .messageBox .msg .user-id {
 	color: #356;
 	font-weight: 600;
@@ -117,6 +99,9 @@ header {
 .messageBox .msg .user-id::after {
 	content: ":";
 	margin-right: 3px;
+}
+.msg-user-ref {
+	color: #456;
 }
 .input {
 	grid-area: input;
