@@ -89,6 +89,10 @@ header {
 	display: inline-block;
 	padding: 4px 10% 4px 5px;
 }
+.messageBox .msg.msg-collapse {
+	padding-bottom: 2px;
+	padding-top: 0;
+}
 .messageBox .msg:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }

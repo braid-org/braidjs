@@ -48,20 +48,26 @@ let createListeners = function () {
 		let now = new Date();
 		let msgDate = new Date(msg.time);
 		let timestamp = now.getDate() == msgDate.getDate() ?
-			`${msgDate.getHours()}:${msgDate.getMinutes()}`:
-			`${msgDate.getDay()}/${msgDate.getMonth()}/${msgDate.getFullYear()}`;
+			msgDate.toLocaleTimeString() : msg.toLocaleDateString();
 
 		let username = render_username(msg.user);
 		return [React.createElement("span", {className: "user-id", key:"username"}, username),
 				React.createElement("span", {className: "timestamp", key: "time"}, timestamp)];
 	}
-	let format_message = function(msg, i) {
+	let format_message = function(msg, i, msgs) {
+		let collapse = i && (msgs[i-1].user == msg.user) && (msg.time - msgs[i-1].time < 1200000);
 		// Parse the message
-		let renderedHeader = format_header(msg);
+		
 		let renderedMessage = msg.body.map(format_section);
-		return React.createElement('div', {className:"msg", key: i},
-			[React.createElement("div", {className: "msg-header", key: "head"}, renderedHeader),
-			 React.createElement("div", {className: "msg-body", key: "text"}, renderedMessage)]);
+		if (collapse) {
+			return React.createElement('div', {className:"msg msg-collapse", key: i},
+				React.createElement("div", {className: "msg-body", key: "text"}, renderedMessage));
+		} else {
+			let renderedHeader = format_header(msg);
+			return React.createElement('div', {className:"msg", key: i},
+				[React.createElement("div", {className: "msg-header", key: "head"}, renderedHeader),
+				 React.createElement("div", {className: "msg-body", key: "text"}, renderedMessage)]);
+		}
 	}
 	function update_messages(newVal) {
 		// Check scrolling 
@@ -72,7 +78,6 @@ let createListeners = function () {
 			// If the last message is off the screen, we shouldn't scroll
 			shouldScroll = box_bottom > furthest_scroll;
 		}
-
 		let MessageList = React.createElement('div', {className: "messageBox"}, newVal.map(format_message));
 		ReactDOM.render(
 			MessageList,
@@ -117,8 +122,7 @@ let createListeners = function () {
     // Clicking on the settings icon toggles it
    	// Username Changing
    	let nameBox = document.getElementById("username-change");
-	// Reveal an input 
-	
+
     nameBox.onchange = e => {
 		e.preventDefault();
 		let newName = nameBox.value.replace(/\W/g, '');
