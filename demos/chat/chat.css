@@ -25,6 +25,7 @@ header {
 	grid-area: title;
 	display: flex;
 	box-shadow: 0 2px 1px 0 rgba(0, 0, 0, 0.2);
+	z-index: 1;
 }
 .title {
 	margin: 0 5px 0 2px;
@@ -96,9 +97,10 @@ header {
 	font-weight: 600;
 
 }
-.messageBox .msg .user-id::after {
-	content: ":";
-	margin-right: 3px;
+.messageBox .msg .timestamp {
+	color: #666;
+	font-size: 12px;
+	margin-left: 5px;
 }
 .msg-user-ref {
 	color: #456;
@@ -108,6 +110,7 @@ header {
 	display: flex;
 	margin-top: -1px;
 	margin-bottom: 2px;
+	z-index: 1;
 }
 #send-box {
 	height: auto;

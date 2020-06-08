@@ -44,13 +44,24 @@ let createListeners = function () {
 			return React.createElement("span", {className: "msg-user-ref", key: index}, `@${render_username(section.user)}`);
 		return React.createElement("span", {className: "msg-plain-text", key: index}, section);
 	}
+	let format_header = function(msg) {
+		let now = new Date();
+		let msgDate = new Date(msg.time);
+		let timestamp = now.getDate() == msgDate.getDate() ?
+			`${msgDate.getHours()}:${msgDate.getMinutes()}`:
+			`${msgDate.getDay()}/${msgDate.getMonth()}/${msgDate.getFullYear()}`;
+
+		let username = render_username(msg.user);
+		return [React.createElement("span", {className: "user-id", key:"username"}, username),
+				React.createElement("span", {className: "timestamp", key: "time"}, timestamp)];
+	}
 	let format_message = function(msg, i) {
-		let user = msg.user;
 		// Parse the message
+		let renderedHeader = format_header(msg);
 		let renderedMessage = msg.body.map(format_section);
 		return React.createElement('div', {className:"msg", key: i},
-			[React.createElement("span", {className: "user-id", key: "user"}, render_username(user)),
-			 React.createElement("span", {className: "msg-body", key: "text"}, renderedMessage)]);
+			[React.createElement("div", {className: "msg-header", key: "head"}, renderedHeader),
+			 React.createElement("div", {className: "msg-body", key: "text"}, renderedMessage)]);
 	}
 	function update_messages(newVal) {
 		// Check scrolling 
@@ -92,8 +103,8 @@ let createListeners = function () {
 			if (nameId)
 				messageParts[i] = {type: "usr", user: nameId};
 		}
-		
-		let messageBody = JSON.stringify([{user: browserId, body: messageParts}]);
+		let sendTime = new Date().getTime();
+		let messageBody = JSON.stringify([{user: browserId, time: sendTime, body: messageParts}]);
 		node.set(msgKey, null, `[${nMessages}:${nMessages}] = ${messageBody}`);
 		sendbox.value = "";
 	}
