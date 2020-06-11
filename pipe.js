@@ -28,7 +28,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             ping_timer = setTimeout(() => disconnect(), death_time)
         }, ping_time)
     }
-
+    var log = () => {};
     // The Pipe Object!
     var pipe = {
 
