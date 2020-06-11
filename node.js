@@ -11,7 +11,7 @@ module.exports = require.node = function create_node(node_data = {}) {
         if (node_data.fissure_lifetime !== null)
             node.fissure_lifetime = node_data.fissure_lifetime
         if (node.fissure_lifetime === undefined)
-            node.fissure_lifetime = 1000 * 60 * 60 * 24  // Default to 1 day
+            node.fissure_lifetime = 1000 * 60 * 60 * 24 * 2  // Default to 2 days
 
         node.defaults = Object.assign(u.dict(), node.defaults || {})
         node.default_patterns = node.default_patterns || []
