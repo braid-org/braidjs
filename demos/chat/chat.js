@@ -11,9 +11,9 @@ node.default(`${msgKey}/*`, path => []);
 node.default(msgKey, []);
 node.default(usrKey, {});
 
-//show_debug = true;
+show_debug = true;
 
-require('websocket-client.js')({node, url: 'ws://invisible.college:3009/'});
+require('websocket-client.js')({node, url: 'wss://invisible.college:3009/'});
 
 // UI Code
 let createListeners = function () {
@@ -48,7 +48,7 @@ let createListeners = function () {
 		let now = new Date();
 		let msgDate = new Date(msg.time);
 		let timestamp = now.getDate() == msgDate.getDate() ?
-			msgDate.toLocaleTimeString() : msg.toLocaleDateString();
+			msgDate.toLocaleTimeString() : msgDate.toLocaleDateString();
 
 		let username = render_username(msg.user);
 		return [React.createElement("span", {className: "user-id", key:"username"}, username),
