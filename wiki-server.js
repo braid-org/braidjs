@@ -1,5 +1,5 @@
 // Better debugging log info
-['log','warn','error'].forEach((methodName) => {
+['log','warn','error',].forEach((methodName) => {
   const originalMethod = console[methodName];
   console[methodName] = (...args) => {
     try {
@@ -36,10 +36,10 @@ var cb = (req, res) => {
     res.end(req.url == '/braid-bundle.js' ? bundle : wiki_client)
 }
 
-var server = (fs.existsSync('privkey.pem') && fs.existsSync('fullchain.pem')) ?
+var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certificate')) ?
     require('https').createServer({
-        key: fs.readFileSync('privkey.pem'),
-        cert: fs.readFileSync('fullchain.pem')
+        key: fs.readFileSync('certs/private-key'),
+        cert: fs.readFileSync('certs/certificate')
     }, cb) :
     require('http').createServer(cb)
 server.listen(port)
@@ -58,10 +58,11 @@ ws.on('connection', function(conn, req) {
     const ip = req.socket.remoteAddress;
     conn.on('message', (msg) => {
         let data = JSON.parse(msg);
-        if (data.method != "ping" && data.method != "pong")
+        if (data.method != "ping" && data.method != "pong") {
             console.log(`Client at ${ip} sent:`);
             console.group();
             console.dir(data, {depth: 4});
             console.groupEnd();
+        }
     })
 })
