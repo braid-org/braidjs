@@ -8,7 +8,7 @@ module.exports = require.node = function create_node(node_data = {}) {
         for (var key of Object.keys(node.resources)) {
             node.resources[key] = require('./resource.js')(node.resources[key])
         }
-        if (node_data.fissure_lifetime != null) node.fissure_lifetime = node_data.fissure_lifetime
+        node.fissure_lifetime = node_data.fissure_lifetime || (1000 * 60 * 60 * 24)
 
         node.defaults = Object.assign(u.dict(), node.defaults || {})
         node.default_patterns = node.default_patterns || []

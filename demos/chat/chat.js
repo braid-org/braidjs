@@ -1,11 +1,11 @@
 // Create a node
 const msgKey = "/chat";
 const usrKey = "/usr";
-const braidId = `C-${randomString(10)}`;
 const browserId = localStorage.browserId || `B-${randomString(10)}`;
 localStorage.browserId = browserId;
+let nodeCache = localStorage.nodeCache ? JSON.parse(localStorage.nodeCache) : {pid: browserId};
 
-const node = require('node.js')({braidId});
+const node = require('node.js')(nodeCache);
 
 node.default(`${msgKey}/*`, path => []);
 node.default(msgKey, []);
@@ -13,10 +13,15 @@ node.default(usrKey, {});
 
 show_debug = true;
 
-require('websocket-client.js')({node, url: 'wss://invisible.college:3009/'});
+const socket = require('websocket-client.js')({node, url: 'ws://localhost:3009/'});
 
 // UI Code
 let createListeners = function () {
+
+	// Local copy of variables
+	let nMessages = 0;
+	let users = {};
+	let messages = [];
 	// Subscribe for updates to a resource
 	node.get(msgKey, update_messages);
 	node.get(usrKey, newVal => {
@@ -26,10 +31,17 @@ let createListeners = function () {
 		nameBox.value = users[browserId];
 		update_messages(messages);
 	});
-	// Local copy of variables
-	let nMessages = 0;
-	let users = {};
-	let messages = [];
+	// Cache braid state
+	function cache() {
+		nodeCache = {pid: browserId,
+					 resources: node.resources}
+		//localStorage.
+	}
+	setInterval(cache, 10000);
+	document.addEventListener('unload', () => {
+		cache();
+		socket.disable();
+	})
 	
 	//// ----- Messagebox rendering and interactability -----
 	const messageBox = document.getElementById("react-messages");

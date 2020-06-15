@@ -6,15 +6,19 @@
 module.exports = require['websocket-server'] = function add_websocket_server(node, options) {
     if (!options) options = {}
     var s = options.wss || new (require('ws')).Server({port: options.port || 3007})
-    s.on('connection', function(conn) {
+    s.on('connection', function(conn, req) {
         var pipe = require('../pipe.js')({node, connect, disconnect, send})
 
+        const ip = req.socket.remoteAddress;
+        console.log(`New connection from ${ip}`)
         conn.on('message', (msg) => {
-            var m = JSON.parse(msg)
-            nlog('ws: hub Recvs',
-                 m.method.toUpperCase().padEnd(7),
-                 ((pipe.them || m.my_name_is)+'').padEnd(3),
-                 m)
+            var m = JSON.parse(msg);
+            if (m.method != "ping" && m.method != "pong") {
+                console.log(`${ip} -> Server:`);
+                console.group();
+                console.dir(m, {depth: 3});
+                console.groupEnd();
+            }
             pipe.recv(m)
         })
         conn.on('close', () => {
@@ -34,10 +38,12 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
         }
         function send (msg) {
             let msgText = JSON.stringify(msg);
-            nlog('ws: hub Sends',
-                 msg.method.toUpperCase().padEnd(7),
-                 ((pipe.them || '?')+'').padEnd(3),
-                 msgText)
+            if (msg.method != "ping" && msg.method != "pong") {
+                console.log(`Server -> ${ip}:`);
+                console.group();
+                console.dir(msg, {depth: 3});
+                console.groupEnd();
+            }
             conn.send(msgText);
         }
     })

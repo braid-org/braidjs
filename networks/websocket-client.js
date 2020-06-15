@@ -23,12 +23,14 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         }
         sock.onmessage = msg => {
             let data = JSON.parse(msg.data);
-            nlog('ws:',
-                 node.pid,
-                 ' Recvs',
-                 data.method.toUpperCase().padEnd(7),
-                 '   ',
-                 data)
+            let method = data.method.toUpperCase();
+            if (method != "PING" && method != "PONG") {
+                nlog('WS:',
+                     node.pid,
+                     'recvs',
+                     method.padEnd(7),
+                     data)
+            }
             pipe.recv(data)
         }
         var onclose_called_already = false
@@ -56,12 +58,14 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         connect,
         disconnect,
         send: (msg) => {
-            nlog('ws:',
-                 node.pid,
-                 ' Sends',
-                 msg.method.toUpperCase().padEnd(7),
-                 '   ',
-                 msg)
+            let method = msg.method.toUpperCase();
+            if (method != "PING" && method != "PONG") {
+                nlog('ws:',
+                     node.pid,
+                     'sends',
+                     method.padEnd(7),
+                     msg)
+            }
             sock.send(JSON.stringify(msg))
         }
     })
