@@ -1,14 +1,13 @@
-u = require('./utilities.js')
-
+u = require('./util/utilities.js')
 var g_show_protocol_errors = false
 
-module.exports = require.node = function create_node(node_data = {}) {
+module.exports = require.braid = function create_node(node_data = {}) {
     var node = {}
     node.init = (node_data) => {
         node.pid = node_data.pid || u.random_id()
         node.resources = node_data.resources || {}
         for (var key of Object.keys(node.resources)) {
-            node.resources[key] = require('./resource.js')(node.resources[key])
+            node.resources[key] = create_resource(node.resources[key])
         }
         if (node_data.fissure_lifetime !== null)
             node.fissure_lifetime = node_data.fissure_lifetime
@@ -31,7 +30,7 @@ module.exports = require.node = function create_node(node_data = {}) {
         if (typeof key !== 'string')
             throw (JSON.stringify(key) + ' is not a key!')
         if (!node.resources[key])
-            node.resources[key] = require('./resource.js')()
+            node.resources[key] = create_resource()
 
         return node.resources[key]
     }
@@ -1210,8 +1209,139 @@ module.exports = require.node = function create_node(node_data = {}) {
             }
     }
 
-    // Install handlers and bindings
-    require('./events.js')(node)
+    function create_resource(resource = {}) {
+        // The version history
+        if (!resource.time_dag) resource.time_dag = {}
+        if (!resource.current_version) resource.current_version = {}
+        if (!resource.version_cache)
+            resource.version_cache = {null: {version: null, parents: {}, changes: [' = null']}}
+        resource.ancestors = (versions, ignore_nonexistent) => {
+            var result = {}
+            // console.log('ancestors:', versions)
+            function recurse (version) {
+                if (result[version]) return
+                result[version] = true
+                if (!resource.time_dag[version]) {
+                    if (ignore_nonexistent) return
+                    assert(false, 'The version '+version+' no existo')
+                }
+                Object.keys(resource.time_dag[version]).forEach(recurse)
+            }
+            Object.keys(versions).forEach(recurse)
+            return result
+        }
+        // A data structure that can merge simultaneous operations
+        resource.mergeable = require('./merge-algos/sync9.js')(resource)
+
+        // Peers that we have sent a welcome message to
+        if (!resource.we_welcomed) resource.we_welcomed = {}
+
+        // Have we been welcomed yet?  (Has the data loaded?)
+        if (!resource.weve_been_welcomed) resource.weve_been_welcomed = false
+
+        // Disconnections that have occurred in the network without a forget()
+        if (!resource.fissures) resource.fissures = {}
+
+        // Acknowledgement data
+        if (!resource.acked_boundary) resource.acked_boundary = {}
+        if (!resource.unack_boundary) resource.unack_boundary = {}
+        if (!resource.acks_in_process) resource.acks_in_process = {}
+
+        // Empty versions sent to collapse outstanding parallel edits
+        if (!resource.joiners) resource.joiners = {}
+        
+        return resource
+    }
+
+
+    // ===============================================
+    //
+    //   Bindings:
+    //
+    //         Attaching pipes to events
+    //
+    function pattern_matcher () {
+        // The pipes attached to each key, maps e.g. 'get /point/3' to '/30'
+        var handlers = u.one_to_many()
+        var wildcard_handlers = []  // An array of {prefix, funk}
+
+        var matcher = {
+            // A set of timers, for keys to send forgets on
+            bind (key, pipe, allow_wildcards) {
+                allow_wildcards = true // temporarily
+                if (allow_wildcards && key[key.length-1] === '*')
+                    wildcard_handlers.push({prefix: key, pipe: pipe})
+                else
+                    handlers.add(key, pipe.id, pipe)
+
+                // Now check if the method is a get and there's a gotton
+                // key in this space, and if so call the handler.
+            },
+
+            unbind (key, pipe, allow_wildcards) {
+                allow_wildcards = true // temporarily
+                if (allow_wildcards && key[key.length-1] === '*')
+                    // Delete wildcard connection
+                    for (var i=0; i<wildcard_handlers.length; i++) {
+                        var handler = wildcard_handlers[i]
+                        if (handler.prefix === key && handler.pipe.id === pipe.id) {
+                            wildcard_handlers.splice(i,1)  // Splice this element out of the array
+                            i--                            // And decrement the counter while we're looping
+                        }
+                    }
+                else
+                    // Delete direct connection
+                    handlers.delete(key, pipe.id)
+            },
+
+            bindings (key) {
+                // Note:
+                //
+                // We need the bindings that persist state to the database to come
+                // first.  In statebus we added a .priority flag to them, and
+                // processed those priority handlers first.  We haven't implemented
+                // that yet, and are just relying on setting these handlers first in
+                // the array and hash, which makes them come first.  But we need to
+                // make this more robust in the future.
+                //
+                // We might, instead of doing a .priority flag, have separate
+                // .on_change and .on_change_sync handlers.  Then the database stuff
+                // would go there.
+
+                assert(typeof key === 'string',
+                       'Error: "' + key + '" is not a string')
+
+                var result = u.dict()
+
+                // First get the exact key matches
+                var pipes = handlers.get(key)
+                for (var i=0; i < pipes.length; i++)
+                    result[pipes[i].id] = pipes[i]
+
+                // Now iterate through prefixes
+                for (var i=0; i < wildcard_handlers.length; i++) {
+                    var handler = wildcard_handlers[i]
+                    var prefix = handler.prefix.slice(0, -1)       // Cut off the *
+
+                    if (prefix === key.substr(0,prefix.length))
+                        // If the prefix matches, add it to the list!
+                        result[handler.pipe.id] = handler.pipe
+                }
+                return Object.values(result)
+            }
+        }
+        return matcher
+    }
+
+    // Give the node all methods of a pattern matcher, to bind keys and pipes
+    Object.assign(node, pattern_matcher())
+
+    node.remotes = (key) => node.bindings(key).filter( pipe => pipe.remote )
+    node.welcomed_peers = (key) => {
+        var r = node.resource_at(key)
+        return node.bindings(key).filter(pipe => pipe.remote && r.we_welcomed[pipe.id])
+    }
+
 
     return node
 }
