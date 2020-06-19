@@ -7,7 +7,7 @@ module.exports = require['virtual-p2p'] = (sim) => (
         setup () {
             for (var i = 0; i < sim.n_peers; i++) {
                 // Make a peer node
-                var node = require('../node.js')()
+                var node = require('../braid.js')()
 
                 node.pid = 'P' + (i + 1)   // Give it an ID
                 node.incoming = []         // Give it an incoming message queue

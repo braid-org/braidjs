@@ -1,5 +1,5 @@
-require('./merge-algorithms/sync9.js')
-require('./utilities.js')
+require('../merge-algos/sync9.js')
+require('../util/utilities.js')
 
 //show_debug = true
 
@@ -25,7 +25,7 @@ var sim = {
     peers: []
 }
 sim.vis = is_browser
-    ? require('./visualization.js')(sim)
+    ? require('../demos/visualization.js')(sim)
     : {add_frame() {}}
 
 var vis = sim.vis
@@ -289,13 +289,13 @@ run_trial.async = (trial_num, cb) => {
 
 
 var networks = [
-    './networks/virtual-p2p.js',
-    './networks/websocket-test.js'
+    './virtual-p2p.js',
+    './websocket-test.js'
 ]
 
 var network
 if (is_browser) {
-    network = require('./networks/virtual-p2p.js')(sim)
+    network = require('./virtual-p2p.js')(sim)
     setup_test()
     vis.loop()
 } else

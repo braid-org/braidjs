@@ -4,7 +4,7 @@
   "description": "Synchronization for the Web (reference implementation)",
   "main": "braid-peer.js",
   "scripts": {
-    "test": "node tests.js"
+    "test": "node test/tests.js"
   },
   "author": "Braid Working Group",
   "repository": "braid-work/braid",

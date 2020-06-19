@@ -1,5 +1,5 @@
 
-require('./utilities.js')
+require('../util/utilities.js')
 
 var page_key = '/foo'
 g_current_server = null
@@ -126,7 +126,7 @@ debug_WS = function (id) {
     return self
 }
 
-var ds = require('./diff.js')
+var ds = require('../util/diff.js')
 var performance = require('perf_hooks').performance
 
 
@@ -525,15 +525,15 @@ function create_server(db) {
     db.compress_if_inactive_time = 1000 * 1000
     db.compress_after_this_many = 10
 
-    var node = require('./node.js')()
+    var node = require('../braid.js')()
     node.fissure_lifetime = 1 // 4
-    require('./store.js')(node, db)
+    require('../util/store.js')(node, db)
 
     node.on_errors.push((key, origin) => {
         node.unbind(key, origin)
     })
 
-    var wss = require('./networks/websocket-server.js')(node, {wss: new debug_WSS()})
+    var wss = require('../protocol-websocket/websocket-server.js')(node, {wss: new debug_WSS()})
 
     return g_current_server = {
         node,
@@ -549,9 +549,9 @@ function create_server(db) {
 }
 
 function create_client() {
-    var node = require('./node.js')()
+    var node = require('../braid.js')()
     node.default(page_key, {cursors: {[node.pid]: {start: 0, end: 0, time: Date.now()}}, text: ''})
-    var ws_client = require('./networks/websocket-client.js')({node, create_websocket: () => {
+    var ws_client = require('../protocol-websocket/websocket-client.js')({node, create_websocket: () => {
         return new debug_WS(node.pid)
     }})
 
