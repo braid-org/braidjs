@@ -1252,7 +1252,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         
         return resource
     }
-
+    node.create_resource = create_resource
 
     // ===============================================
     //

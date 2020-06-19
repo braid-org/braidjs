@@ -24,7 +24,7 @@ module.exports = require.store = function create_store(node, options) {
             for (var i = 0; d = options.get(`${ab}:${i}:${k}`); i++) {
                 d = JSON.parse(d)
                 if (!d.method) {
-                    node.resources[k] = require('./resource.js')(d)
+                    node.resources[k] = node.create_resource(d)
                     Object.values(node.resources[k].we_welcomed).forEach(pipe => {
                         pipe.remote = true
                         node.bind(k, pipe)
