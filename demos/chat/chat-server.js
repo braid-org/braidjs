@@ -5,8 +5,7 @@ const port = 3009;
 const lib_path = "../../";
 require('../../braid-bundler.js')(lib_path);
 
-
-var knownFiles = ['/braid-bundle.js', '/chat.html', '/chat.js', '/chat.css', '/serviceworker.js']
+var knownFiles = ['/braid-bundle.js', '/chat.html', '/chat.js', '/chat.css']
 var cb = (req, res) => {
 	if (knownFiles.includes(req.url)) {
 		res.writeHead(200);
@@ -15,6 +14,7 @@ var cb = (req, res) => {
 		res.writeHead(404);
 		res.end();
 	}
+	res._headerSent = false;
 }
 
 var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certificate')) ?

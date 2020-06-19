@@ -6,7 +6,6 @@ certificates/*
 # Database stuff
 db.sqlite*
 
-
 # Basic Nodejs Gitignore
 # Logs
 logs

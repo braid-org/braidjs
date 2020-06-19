@@ -1329,7 +1329,10 @@ module.exports = require.node = function create_node(node_data = {}) {
         for (var key of Object.keys(node.resources)) {
             node.resources[key] = require('./resource.js')(node.resources[key])
         }
-        node.fissure_lifetime = node_data.fissure_lifetime || (1000 * 60 * 60 * 24)
+        if (node_data.fissure_lifetime !== null)
+            node.fissure_lifetime = node_data.fissure_lifetime
+        if (node.fissure_lifetime === undefined)
+            node.fissure_lifetime = 1000 * 60 * 60 * 24 * 2  // Default to 2 days
 
         node.defaults = Object.assign(u.dict(), node.defaults || {})
         node.default_patterns = node.default_patterns || []
@@ -2456,6 +2459,7 @@ module.exports = require.node = function create_node(node_data = {}) {
 //
 // Todo:
 //   • Describe the connect process and connect() function
+//   • Maybe the connect should be optional, and have the syntax pipe.on('connect', cb)?
 //
 module.exports = require.pipe = function create_pipe({node, id, send, connect, disconnect, type}) {
     assert(node && send && connect, {node,send,connect})
