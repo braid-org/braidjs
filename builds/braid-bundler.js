@@ -16,5 +16,5 @@ module.exports = function(relativePath) {
 		let newPath = path.join(relativePath, f);
 		agg.push(require('fs').readFileSync(newPath))
 	})
-	fs.writeFileSync('./braid-bundle.js', agg.join('\n'))
+	fs.writeFileSync('./builds/braid-bundle.js', agg.join('\n'))
 }
