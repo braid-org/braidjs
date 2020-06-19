@@ -10,9 +10,14 @@ robust enough for production sites.
 
 Read more about braid at https://braid.news!
 
-## Running the code
 
-Run tests with:
+## Running the code
+If you have nodejs installed, then set it up with:
+```
+npm install
+```
+
+and then run the tests:
 
 ```
 npm test
