@@ -347,101 +347,6 @@ function deep_equals(a, b) {
     } 
     /* These real versions are due to Isaku Wada, 2002/01/09 added */
 }
-// Binding event handlers to a node
-
-module.exports = require.events = function add_control(node) {
-    var u = require('./utilities.js')
-
-    // ===============================================
-    //
-    //   Bindings:
-    //
-    //         Attaching pipes to events
-    //
-    
-    function pattern_matcher () {
-        // The pipes attached to each key, maps e.g. 'get /point/3' to '/30'
-        var handlers = u.one_to_many()
-        var wildcard_handlers = []  // An array of {prefix, funk}
-
-        var matcher = {
-    // A set of timers, for keys to send forgets on
-            bind (key, pipe, allow_wildcards) {
-                allow_wildcards = true // temporarily
-                if (allow_wildcards && key[key.length-1] === '*')
-                    wildcard_handlers.push({prefix: key, pipe: pipe})
-                else
-                    handlers.add(key, pipe.id, pipe)
-
-                // Now check if the method is a get and there's a gotton
-                // key in this space, and if so call the handler.
-            },
-
-            unbind (key, pipe, allow_wildcards) {
-                allow_wildcards = true // temporarily
-                if (allow_wildcards && key[key.length-1] === '*')
-                    // Delete wildcard connection
-                    for (var i=0; i<wildcard_handlers.length; i++) {
-                        var handler = wildcard_handlers[i]
-                        if (handler.prefix === key && handler.pipe.id === pipe.id) {
-                            wildcard_handlers.splice(i,1)  // Splice this element out of the array
-                            i--                            // And decrement the counter while we're looping
-                        }
-                    }
-                else
-                    // Delete direct connection
-                    handlers.delete(key, pipe.id)
-            },
-
-            bindings (key) {
-                // Note:
-                //
-                // We need the bindings that persist state to the database to come
-                // first.  In statebus we added a .priority flag to them, and
-                // processed those priority handlers first.  We haven't implemented
-                // that yet, and are just relying on setting these handlers first in
-                // the array and hash, which makes them come first.  But we need to
-                // make this more robust in the future.
-                //
-                // We might, instead of doing a .priority flag, have separate
-                // .on_change and .on_change_sync handlers.  Then the database stuff
-                // would go there.
-
-                assert(typeof key === 'string',
-                       'Error: "' + key + '" is not a string')
-
-                var result = u.dict()
-
-                // First get the exact key matches
-                var pipes = handlers.get(key)
-                for (var i=0; i < pipes.length; i++)
-                    result[pipes[i].id] = pipes[i]
-
-                // Now iterate through prefixes
-                for (var i=0; i < wildcard_handlers.length; i++) {
-                    var handler = wildcard_handlers[i]
-                    var prefix = handler.prefix.slice(0, -1)       // Cut off the *
-
-                    if (prefix === key.substr(0,prefix.length))
-                        // If the prefix matches, add it to the list!
-                        result[handler.pipe.id] = handler.pipe
-                }
-                return Object.values(result)
-            }
-        }
-        return matcher
-    }
-
-    // Give the node all methods of a pattern matcher, to bind keys and pipes
-    Object.assign(node, pattern_matcher())
-
-    node.remotes = (key) => node.bindings(key).filter( pipe => pipe.remote )
-
-    node.welcomed_peers = (key) => {
-        var r = node.resource_at(key)
-        return node.bindings(key).filter(pipe => pipe.remote && r.we_welcomed[pipe.id])
-    }
-}
 // Adapted from https://github.com/dglittle/cdn/blob/gh-pages/sync9_047.html
 
 module.exports = require.sync9 = function create (resource) {
@@ -867,7 +772,7 @@ function add_version(resource, version, parents, changes, is_anc) {
 
         var parse = parse_change(changes[0])
         resource.space_dag = make_lit(parse.val)
-        create_annotations(parse)
+        parse.annotations && create_annotations(parse.annotations)
         return
     } else if (!version) return
     
@@ -890,25 +795,11 @@ function add_version(resource, version, parents, changes, is_anc) {
         }
     }
 
-    function create_annotations(parse) {
-        Object.entries(parse.annotations || {}).forEach(e => {
-            e[1].range = [0, 0]
-            var cur = resolve_path(e[1])
-            function helper(node, offset) {
-                if (offset <= e[1].pos && e[1].pos <= offset + node.elems.length) {
-                    node.annotations = node.annotations || {}
-                    node.annotations[e[0]] = e[1].pos - offset
-                    return false
-                }
-            }
-            if (e[1].pos == 0) helper(cur.S, 0)
-            else traverse_space_dag(cur.S, is_anc, helper)
-        })
-    }
+    var annotations = {}
     
     changes.forEach(change => {
         var parse = parse_change(change)
-        create_annotations(parse)
+        Object.assign(annotations, parse.annotations)
         var cur = resolve_path(parse)
         if (!parse.range) {
             if (cur.t != 'val') throw 'bad'
@@ -923,6 +814,25 @@ function add_version(resource, version, parents, changes, is_anc) {
             space_dag_add_version(cur.S, version, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
         }
     })
+
+    create_annotations(annotations)
+    function create_annotations(annotations) {
+        var prev_is_anc = is_anc
+        is_anc = v => prev_is_anc(v) || v == version
+        Object.entries(annotations).forEach(e => {
+            e[1].range = [0, 0]
+            var cur = resolve_path(e[1])
+            function helper(node, offset) {
+                if (offset <= e[1].pos && e[1].pos <= offset + node.elems.length) {
+                    node.annotations = node.annotations || {}
+                    node.annotations[e[0]] = e[1].pos - offset
+                    return false
+                }
+            }
+            if (e[1].pos == 0) helper(cur.S, 0)
+            else traverse_space_dag(cur.S, is_anc, helper)
+        })
+    }
 
     function resolve_path(parse) {
         var cur = resource.space_dag
@@ -1011,12 +921,12 @@ function read_raw(x, is_anc, annotations) {
     return finalize(rec_read(x))
     function rec_read(x) {
         if (x && typeof(x) == 'object') {
-            if (!x.t) return rec_read(x.space_dag, is_anc)
+            if (!x.t) return rec_read(x.space_dag)
             if (x.t == 'lit') return JSON.parse(JSON.stringify(x.S))
-            if (x.t == 'val') return rec_read(space_dag_get(x.S, 0, is_anc), is_anc)
+            if (x.t == 'val') return rec_read(space_dag_get(x.S, 0, is_anc))
             if (x.t == 'obj') {
                 var o = {}
-                Object.entries(x.S).forEach(([k, v]) => o[k] = rec_read(v, is_anc))
+                Object.entries(x.S).forEach(([k, v]) => o[k] = rec_read(v))
                 return o
             }
             if (x.t == 'arr') {
@@ -1027,7 +937,7 @@ function read_raw(x, is_anc, annotations) {
                     })
                     if (!deleted) {
                         node.elems.forEach((e) => {
-                            a.push(rec_read(e, is_anc))
+                            a.push(rec_read(e))
                         })
                     }
                 }, true)
@@ -1319,15 +1229,16 @@ function binarySearch(ar, compare_fn) {
     return m;
 }
 
-u = require('./utilities.js')
+u = require('./util/utilities.js')
+var g_show_protocol_errors = false
 
-module.exports = require.node = function create_node(node_data = {}) {
+module.exports = require.braid = function create_node(node_data = {}) {
     var node = {}
     node.init = (node_data) => {
         node.pid = node_data.pid || u.random_id()
         node.resources = node_data.resources || {}
         for (var key of Object.keys(node.resources)) {
-            node.resources[key] = require('./resource.js')(node.resources[key])
+            node.resources[key] = create_resource(node.resources[key])
         }
         if (node_data.fissure_lifetime !== null)
             node.fissure_lifetime = node_data.fissure_lifetime
@@ -1350,7 +1261,7 @@ module.exports = require.node = function create_node(node_data = {}) {
         if (typeof key !== 'string')
             throw (JSON.stringify(key) + ' is not a key!')
         if (!node.resources[key])
-            node.resources[key] = require('./resource.js')()
+            node.resources[key] = create_resource()
 
         return node.resources[key]
     }
@@ -1497,8 +1408,6 @@ module.exports = require.node = function create_node(node_data = {}) {
             ({key, version, parents, subscribe, origin} = args[0])
         }
 
-        node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
-      
         // Set defaults
         if (!version)
             // We might default keep_alive to false in a future version
@@ -1507,9 +1416,24 @@ module.exports = require.node = function create_node(node_data = {}) {
         if (!origin)
             origin = {id: u.random_id()}
 
-        log('get:', node.pid, key)
-        assert(key)
-        var resource = node.resource_at(key)
+        // guard against invalid gets..
+        if (true) {
+            function report(x, y) { g_show_protocol_errors && console.log('PROTOCOL ERROR for get: ' + x) }
+            if (!key || typeof(key) != 'string') { return report('invalid key' + JSON.stringify(key)) }
+
+            log('get:', node.pid, key)
+
+            var resource = node.resource_at(key)
+            if (resource.we_welcomed[origin.id]) { return report('we already welcomed them') }
+
+            if (version && typeof(version) != 'string') { return report('invalid version: ' + JSON.stringify(version)) }
+
+            if (parents && (typeof(parents) != 'object' || Object.entries(parents).some(([k, v]) => v !== true))) { return report('invalid parents: ' + JSON.stringify(parents)) }
+
+            if (!subscribe || typeof(subscribe) != 'object') { report('invalid subscribe: ' + JSON.stringify(subscribe)) }
+        }
+
+        node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
 
         // Now record this subscription to the bus
         node.gets_in.add(key, origin.id)
@@ -1616,11 +1540,26 @@ module.exports = require.node = function create_node(node_data = {}) {
             ({key, patches, version, parents, origin, joiner_num} = args[0])
         }
 
-        assert(key && patches)
-        var resource = node.resource_at(key)
+        // guard against invalid sets..
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for set: ' + x) }
+            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
 
-        if (!version) version = u.random_id()
-        if (!parents) parents = {...resource.current_version}
+            var resource = node.resource_at(key)
+
+            if (origin && !resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+
+            if (!patches || !Array.isArray(patches) || patches.some(x => typeof(x) != 'string')) { return report('invalid patches: ' + JSON.stringify(patches)) }
+
+            if (!version) version = u.random_id()
+            if (!version || typeof(version) != 'string') { report('invalid version: ' + JSON.stringify(version)) }
+
+            if (!parents) parents = {...resource.current_version}
+            if (parents && (typeof(parents) != 'object' || Object.entries(parents).some(([k, v]) => v !== true))) { return report('invalid parents: ' + JSON.stringify(parents)) }
+
+            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number') { return report('invalid joiner_num: ' + JSON.stringify(joiner_num)) }
+        }
+
         log('set:', {key, version, parents, patches, origin, joiner_num})
 
         for (p in parents) {
@@ -1770,15 +1709,40 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
     
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
+        // guard against invalid welcomes..
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for welcome: ' + x) }
+            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+
+            var resource = node.resource_at(key)
+            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+
+            if (!Array.isArray(versions) || !versions.every(v => {
+                if (v.version && typeof(v.version) != 'string') return false
+                if (!v.parents || typeof(v.parents) != 'object' || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
+                if (!Array.isArray(v.changes) || v.changes.some(x => typeof(x) != 'string')) return false
+                return true
+            })) { return report('invalid versions: ' + JSON.stringify(versions)) }
+
+            if (!Array.isArray(fissures) || !fissures.every(fissure => {
+                if (!fissure || typeof(fissure) != 'object') return false
+                if (typeof(fissure.a) != 'string') return false
+                if (typeof(fissure.b) != 'string') return false
+                if (typeof(fissure.conn) != 'string') return false
+                if (!fissure.versions || typeof(fissure.versions) != 'object' || !Object.entries(fissure.versions).every(([k, v]) => v === true)) return false
+                if (!fissure.parents || typeof(fissure.parents) != 'object' || !Object.entries(fissure.parents).every(([k, v]) => v === true)) return false
+                if (typeof(fissure.time) != 'number') return false
+                return true
+            })) { return report('invalid fissures: ' + JSON.stringify(fissures)) }
+
+            if (unack_boundary && (typeof(unack_boundary) != 'object' || !Object.entries(unack_boundary).every(([k, v]) => v === true))) { return report('invalid unack_boundary: ' + JSON.stringify(unack_boundary)) }
+
+            if (min_leaves && (typeof(min_leaves) != 'object' || !Object.entries(min_leaves).every(([k, v]) => v === true))) { return report('invalid min_leaves: ' + JSON.stringify(min_leaves)) }
+        }
+
+        // let people know about the welcome
         node.ons.forEach(on => on('welcome', {key, versions, fissures, unack_boundary, min_leaves, origin}))
 
-        assert(key && versions && fissures,
-               'Missing some variables:',
-               {key, versions, fissures})
-        // console.log('welcome:', key, 'versions:', versions.length,
-        //             'unacking:', Object.keys(unack_boundary))
-        var resource = node.resource_at(key)
-        
         // `versions` is actually array of set messages. Each one has a version.
         var new_versions = []
         
@@ -2124,11 +2088,17 @@ module.exports = require.node = function create_node(node_data = {}) {
             ({key, origin} = args[0])
         }
 
+        // guard against invalid forgets
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for forget: ' + x) }
+            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+
+            var resource = node.resource_at(key)
+            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+        }
+
         node.ons.forEach(on => on('forget', {key, origin}))
 
-        assert(key)
-
-        var resource = node.resource_at(key)
         delete resource.we_welcomed[origin.id]
         node.unbind(key, origin)
         node.gets_in.delete(key, origin.id)
@@ -2149,11 +2119,26 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
+        // guard against invalid messages
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for ack: ' + x) }
+            if (typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+
+            var resource = node.resource_at(key)
+            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+
+            if (typeof(valid) != 'undefined') { return report('support for valid flag not yet implemented') }
+
+            if (seen != 'local' && seen != 'global') { return report('invalid seen: ' + JSON.stringify(seen)) }
+
+            if (typeof(version) != 'string') { return report('invalid version: ' + JSON.stringify(version)) }
+
+            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number') { return report('invalid joiner_num: ' + JSON.stringify(joiner_num)) }
+        }
+
         node.ons.forEach(on => on('ack', {key, valid, seen, version, origin, joiner_num}))
 
         log('node.ack: Acking!!!!', {key, seen, version, origin})
-        assert(key && version && origin)
-        var resource = node.resource_at(key)
 
         if (seen == 'local') {
             if (resource.acks_in_process[version]
@@ -2181,12 +2166,24 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
     
     node.fissure = ({key, fissure, origin}) => {
-        node.ons.forEach(on => on('fissure', {key, fissure, origin}))
+        // guard against invalid messages
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for fissure: ' + x) }
+            if (typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
 
-        assert(key && fissure,
-               'Missing some variables',
-               {key, fissure})
-        var resource = node.resource_at(key)
+            var resource = node.resource_at(key)
+
+            if ((!fissure || typeof(fissure) != 'object') ||
+                (!fissure.a || typeof(fissure.a) != 'string') ||
+                (!fissure.b || typeof(fissure.b) != 'string') ||
+                (!fissure.conn || typeof(fissure.conn) != 'string') ||
+                (!fissure.versions || typeof(fissure.versions) != 'object' || !Object.entries(fissure.versions).every(([k, v]) => v === true)) ||
+                (!fissure.parents || typeof(fissure.parents) != 'object' || !Object.entries(fissure.parents).every(([k, v]) => v === true)) ||
+                (typeof(fissure.time) != 'number')
+            ) { return report('invalid fissure: ' + JSON.stringify(fissure)) }
+        }
+
+        node.ons.forEach(on => on('fissure', {key, fissure, origin}))
 
         var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
         if (!resource.fissures[fkey]) {
@@ -2287,7 +2284,9 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
     
     node.delete = () => {
-        // work here: idea: use "undefined" to represent deletion
+        // NOT IMPLEMENTED: idea: use "undefined" to represent deletion
+        // update: we now have a {type: "deleted"} thing (like {type: "location"}),
+        // may be useful for this
     }
 
     node.prune = (resource) => {
@@ -2441,8 +2440,139 @@ module.exports = require.node = function create_node(node_data = {}) {
             }
     }
 
-    // Install handlers and bindings
-    require('./events.js')(node)
+    function create_resource(resource = {}) {
+        // The version history
+        if (!resource.time_dag) resource.time_dag = {}
+        if (!resource.current_version) resource.current_version = {}
+        if (!resource.version_cache)
+            resource.version_cache = {null: {version: null, parents: {}, changes: [' = null']}}
+        resource.ancestors = (versions, ignore_nonexistent) => {
+            var result = {}
+            // console.log('ancestors:', versions)
+            function recurse (version) {
+                if (result[version]) return
+                result[version] = true
+                if (!resource.time_dag[version]) {
+                    if (ignore_nonexistent) return
+                    assert(false, 'The version '+version+' no existo')
+                }
+                Object.keys(resource.time_dag[version]).forEach(recurse)
+            }
+            Object.keys(versions).forEach(recurse)
+            return result
+        }
+        // A data structure that can merge simultaneous operations
+        resource.mergeable = require('./merge-algos/sync9.js')(resource)
+
+        // Peers that we have sent a welcome message to
+        if (!resource.we_welcomed) resource.we_welcomed = {}
+
+        // Have we been welcomed yet?  (Has the data loaded?)
+        if (!resource.weve_been_welcomed) resource.weve_been_welcomed = false
+
+        // Disconnections that have occurred in the network without a forget()
+        if (!resource.fissures) resource.fissures = {}
+
+        // Acknowledgement data
+        if (!resource.acked_boundary) resource.acked_boundary = {}
+        if (!resource.unack_boundary) resource.unack_boundary = {}
+        if (!resource.acks_in_process) resource.acks_in_process = {}
+
+        // Empty versions sent to collapse outstanding parallel edits
+        if (!resource.joiners) resource.joiners = {}
+        
+        return resource
+    }
+
+
+    // ===============================================
+    //
+    //   Bindings:
+    //
+    //         Attaching pipes to events
+    //
+    function pattern_matcher () {
+        // The pipes attached to each key, maps e.g. 'get /point/3' to '/30'
+        var handlers = u.one_to_many()
+        var wildcard_handlers = []  // An array of {prefix, funk}
+
+        var matcher = {
+            // A set of timers, for keys to send forgets on
+            bind (key, pipe, allow_wildcards) {
+                allow_wildcards = true // temporarily
+                if (allow_wildcards && key[key.length-1] === '*')
+                    wildcard_handlers.push({prefix: key, pipe: pipe})
+                else
+                    handlers.add(key, pipe.id, pipe)
+
+                // Now check if the method is a get and there's a gotton
+                // key in this space, and if so call the handler.
+            },
+
+            unbind (key, pipe, allow_wildcards) {
+                allow_wildcards = true // temporarily
+                if (allow_wildcards && key[key.length-1] === '*')
+                    // Delete wildcard connection
+                    for (var i=0; i<wildcard_handlers.length; i++) {
+                        var handler = wildcard_handlers[i]
+                        if (handler.prefix === key && handler.pipe.id === pipe.id) {
+                            wildcard_handlers.splice(i,1)  // Splice this element out of the array
+                            i--                            // And decrement the counter while we're looping
+                        }
+                    }
+                else
+                    // Delete direct connection
+                    handlers.delete(key, pipe.id)
+            },
+
+            bindings (key) {
+                // Note:
+                //
+                // We need the bindings that persist state to the database to come
+                // first.  In statebus we added a .priority flag to them, and
+                // processed those priority handlers first.  We haven't implemented
+                // that yet, and are just relying on setting these handlers first in
+                // the array and hash, which makes them come first.  But we need to
+                // make this more robust in the future.
+                //
+                // We might, instead of doing a .priority flag, have separate
+                // .on_change and .on_change_sync handlers.  Then the database stuff
+                // would go there.
+
+                assert(typeof key === 'string',
+                       'Error: "' + key + '" is not a string')
+
+                var result = u.dict()
+
+                // First get the exact key matches
+                var pipes = handlers.get(key)
+                for (var i=0; i < pipes.length; i++)
+                    result[pipes[i].id] = pipes[i]
+
+                // Now iterate through prefixes
+                for (var i=0; i < wildcard_handlers.length; i++) {
+                    var handler = wildcard_handlers[i]
+                    var prefix = handler.prefix.slice(0, -1)       // Cut off the *
+
+                    if (prefix === key.substr(0,prefix.length))
+                        // If the prefix matches, add it to the list!
+                        result[handler.pipe.id] = handler.pipe
+                }
+                return Object.values(result)
+            }
+        }
+        return matcher
+    }
+
+    // Give the node all methods of a pattern matcher, to bind keys and pipes
+    Object.assign(node, pattern_matcher())
+
+    node.remotes = (key) => node.bindings(key).filter( pipe => pipe.remote )
+    node.welcomed_peers = (key) => {
+        var r = node.resource_at(key)
+        return node.bindings(key).filter(pipe => pipe.remote && r.we_welcomed[pipe.id])
+    }
+
 
     return node
 }
@@ -2459,7 +2589,6 @@ module.exports = require.node = function create_node(node_data = {}) {
 //
 // Todo:
 //   • Describe the connect process and connect() function
-//   • Maybe the connect should be optional, and have the syntax pipe.on('connect', cb)?
 //
 module.exports = require.pipe = function create_pipe({node, id, send, connect, disconnect, type}) {
     assert(node && send && connect, {node,send,connect})
@@ -2470,7 +2599,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
     var ping_timer = null
 
     function on_pong() {
-        if (typeof(debug_WS) != 'undefined') { return }
+        if (typeof(g_is_wiki_tester) != 'undefined') { return }
 
         clearTimeout(ping_timer)
         ping_timer = setTimeout(() => {
@@ -2738,72 +2867,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 }
 
 
-// Implementation of a `subscribable resource`.  Each subscribable resource
-// has a URL, and supports:
-//
-//  - subscriptions
-//  - acknowledgements
-//  - connections and disconnections
-//  - pruning
-//  - and a merge-type.
-//
-// Right now it only works with the sync9 merge-type, which is implemented in
-// the mergeables/ directory
-
-
-module.exports = require.resource = function create_resource(resource = {}) {
-    // The version history
-    if (!resource.time_dag) resource.time_dag = {}
-    if (!resource.current_version) resource.current_version = {}
-    if (!resource.version_cache) resource.version_cache = {null: {version: null, parents: {}, changes: []}}
-    resource.ancestors = (versions, ignore_nonexistent) => {
-        var result = {}
-        // console.log('ancestors:', versions)
-        function recurse (version) {
-            if (result[version]) return
-            result[version] = true
-            if (!resource.time_dag[version]) {
-                if (ignore_nonexistent) return
-                assert(false, 'The version '+version+' no existo')
-            }
-            Object.keys(resource.time_dag[version]).forEach(recurse)
-        }
-        Object.keys(versions).forEach(recurse)
-        return result
-    }
-    // A data structure that can merge simultaneous operations
-    resource.mergeable = require('./merge-algorithms/sync9.js')(resource)
-
-    // The pipes that wanna hear about this resource
-    // resource.subscriptions = {}
-
-    // The pipes that throw a fissure when broken (prolly not needed anymore)
-    // resource.citizens = () => Object.values(resource.subscriptions)
-    // resource.citizens = () => Object.values(resource.pipes).filter(p => p.peer)
-
-    // Peers that we have sent a welcome message to
-    if (!resource.we_welcomed) resource.we_welcomed = {}
-
-    // Have we been welcomed yet?  (Has the data loaded?)
-    if (!resource.weve_been_welcomed) resource.weve_been_welcomed = false
-
-    // Disconnections that have occurred in the network without a forget()
-    if (!resource.fissures) resource.fissures = {}
-
-    // Acknowledgement data
-    if (!resource.acked_boundary) resource.acked_boundary = {}
-    if (!resource.unack_boundary) resource.unack_boundary = {}
-    if (!resource.acks_in_process) resource.acks_in_process = {}
-
-    // Empty versions sent to collapse outstanding parallel edits
-    if (!resource.joiners) resource.joiners = {}
-   
-    return resource
-}
-
 // Example braid-peer as a web browser client
 
-module.exports = require['websocket-client'] = function add_websocket_client({node, url, prefix}) {
+module.exports = require['websocket-client'] = function add_websocket_client({node, url, prefix, create_websocket}) {
     url = url       || 'ws://localhost:3007/'
     prefix = prefix || '/*'
 
@@ -2811,15 +2877,16 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     var enabled = true
     var sock
 
-    function create_websocket() {
-        if (typeof(debug_WS) != 'undefined') {
-            return new debug_WS(node.pid)
-        } else {
-            return new WebSocket(url + '.braid-websocket')
-        }
+    create_websocket = create_websocket || function () {
+        return new WebSocket(url + '.braid-websocket')
     }
 
+    var reconnect_timeout = null
+    
     var connect = () => {
+        clearTimeout(reconnect_timeout)
+        if (!enabled) { return }
+
         sock           = create_websocket()
         sock.onopen    = ()  => {
             pipe.connected()
@@ -2837,14 +2904,17 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
             pipe.recv(data)
         }
         var onclose_called_already = false
+        var local_sock = sock
         sock.onclose   = (a)  => {
             if (onclose_called_already) { return }
             onclose_called_already = true
+            if (local_sock != sock) { return }
+            
             pipe.disconnected()
             if (enabled) {
                 if (typeof(g_debug_WS_messages_delayed) != 'undefined')
                     g_debug_WS_messages_delayed.push(connect)
-                else setTimeout(connect, 5000)
+                else reconnect_timeout = setTimeout(connect, 5000)
             }
         }
         sock.onerror = () => {}
@@ -3611,7 +3681,7 @@ function merge_tuples (diffs, start, length) {
 }
 
 
-if (typeof(exports) != 'undefined' && exports) {
-    exports.diff_convert_to_my_format = diff_convert_to_my_format
-    exports.diff_main = diff_main
+module.exports = require.diff = {
+    diff_convert_to_my_format,
+    diff_main
 }

@@ -1,13 +1,11 @@
 const files = [
-    './require.js',
-    './utilities.js',
-    './events.js',
-    './merge-algorithms/sync9.js',
-    './node.js',
+    './util/require.js',
+    './util/utilities.js',
+    './merge-algos/sync9.js',
+    './braid.js',
     './pipe.js',
-    './resource.js',
-    './networks/websocket-client.js',
-    './diff.js',
+    './protocol-websocket/websocket-client.js',
+    './util/diff.js',
 ]
 const fs = require('fs');
 const path = require('path');

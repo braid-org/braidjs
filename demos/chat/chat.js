@@ -5,7 +5,7 @@ const browserId = localStorage.browserId || `B-${randomString(10)}`;
 localStorage.browserId = browserId;
 let nodeCache = localStorage.nodeCache ? JSON.parse(localStorage.nodeCache) : {pid: browserId};
 
-const node = require('node.js')(nodeCache);
+const node = require('braid.js')(nodeCache);
 
 node.default(`${msgKey}/*`, path => []);
 node.default(msgKey, []);

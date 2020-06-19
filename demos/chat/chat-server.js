@@ -3,7 +3,7 @@ const path = require('path');
 
 const port = 3009;
 const lib_path = "../../";
-require('../../braid-bundler.js')(lib_path);
+require('../../builds/braid-bundler.js')(lib_path);
 
 var knownFiles = ['/braid-bundle.js', '/chat.html', '/chat.js', '/chat.css']
 var cb = (req, res) => {
@@ -26,11 +26,11 @@ var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certifi
 server.listen(port)
 var wss = new (require('ws').Server)({server})
 
-var node = require(path.join(lib_path, './node.js'))()
+var node = require(path.join(lib_path, './braid.js'))()
 node.fissure_lifetime = 1000*60*60*24 // day
-require(path.join(lib_path, './sqlite-store.js'))(node, 'db.sqlite')
+require(path.join(lib_path, './util/sqlite-store.js'))(node, 'db.sqlite')
 node.on_errors.push((key, origin) => node.unbind(key, origin))
 
-var ws = require(path.join(lib_path, './networks/websocket-server.js'))(node, {wss})
+var ws = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))(node, {wss})
 
 console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
