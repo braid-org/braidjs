@@ -1,5 +1,4 @@
-
-var port = 3007
+const port = 3007;
 
 require('./braid-bundler.js')
 var fs = require('fs')
@@ -10,10 +9,10 @@ var cb = (req, res) => {
     res.end(req.url == '/braid-bundle.js' ? bundle : wiki_client)
 }
 
-var server = (fs.existsSync('privkey.pem') && fs.existsSync('fullchain.pem')) ?
+var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certificate')) ?
     require('https').createServer({
-        key: fs.readFileSync('privkey.pem'),
-        cert: fs.readFileSync('fullchain.pem')
+        key: fs.readFileSync('certs/private-key'),
+        cert: fs.readFileSync('certs/certificate')
     }, cb) :
     require('http').createServer(cb)
 server.listen(port)
@@ -28,9 +27,3 @@ var ws = require('./networks/websocket-server.js')(node, {wss})
 
 console.log('keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 
-ws.on('connection', function(conn) {
-    conn.on('message', (msg) => {
-        if (!msg.match(/^\{"method"\:"(ping|pong)"\}$/))
-            console.log('GOT: ' + msg)
-    })
-})

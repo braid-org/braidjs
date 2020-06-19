@@ -1,5 +1,4 @@
 // Example braid-peer as a web browser client
-w = 70
 
 module.exports = require['websocket-client'] = function add_websocket_client({node, url, prefix, create_websocket}) {
     url = url       || 'ws://localhost:3007/'
@@ -24,13 +23,16 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
             pipe.connected()
         }
         sock.onmessage = msg => {
-            nlog('ws:',
-                 node.pid,
-                 ' Recvs',
-                 JSON.parse(msg.data).method.toUpperCase().padEnd(7),
-                 '   ',
-                 msg.data.substr(0,w))
-            pipe.recv(JSON.parse(msg.data))
+            let data = JSON.parse(msg.data);
+            let method = data.method.toUpperCase();
+            if (method != "PING" && method != "PONG") {
+                nlog('WS:',
+                     node.pid,
+                     'recvs',
+                     method.padEnd(7),
+                     data)
+            }
+            pipe.recv(data)
         }
         var onclose_called_already = false
         var local_sock = sock
@@ -60,12 +62,14 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         connect,
         disconnect,
         send: (msg) => {
-            nlog('ws:',
-                 node.pid,
-                 ' Sends',
-                 msg.method.toUpperCase().padEnd(7),
-                 '   ',
-                 JSON.stringify(msg).substr(0,w))
+            let method = msg.method.toUpperCase();
+            if (method != "PING" && method != "PONG") {
+                nlog('ws:',
+                     node.pid,
+                     'sends',
+                     method.padEnd(7),
+                     msg)
+            }
             sock.send(JSON.stringify(msg))
         }
     })

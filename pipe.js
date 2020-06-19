@@ -15,8 +15,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
     assert(node && send && connect, {node,send,connect})
     id = id || u.random_id()
 
-    var ping_time = 1000
-    var death_time = 1000
+    var ping_time = 5000
+    var death_time = 4000
     var ping_timer = null
 
     function on_pong() {
@@ -28,7 +28,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             ping_timer = setTimeout(() => disconnect(), death_time)
         }, ping_time)
     }
-
+    // Disable logging in the pipe.
+    // This is OK because the various connection clients and servers that create pipe objects
+    //  can have better logging because they know more about their connection
+    var log = () => {};
     // The Pipe Object!
     var pipe = {
 

@@ -1,16 +1,19 @@
+ const u = require('utilities.js')
 // Example braid-peer as a web browser client
 
 // To do:
 //  - Copy the code from websocket-client into here, and modify it to fit HTTP
 //  - The code below can all be used as helper functions
 
-module.exports = require['http-client'] = function add_http_client(node) {
-    var u = require('./utilities.js')
+module.exports = require['http-client'] = function add_http_client({node, url, prefix}) {
+   
+    url = url       || 'https://localhost:3011/'
+    prefix = prefix || '/*'
+    client_creds = null;
 
-    var prefix = '/*', url = 'http://localhost:3007/', client_creds = null
     var preprefix = prefix.slice(0,-1)
 
-    var pipe = require('./pipe.js')({node, id: 'client-pipe', send, connect, disconnect})
+    var pipe = require('pipe.js')({node, id: 'client-pipe', send, connect, disconnect})
     node.bind(prefix, pipe)
 
     var is_absolute = /^https?:\/\//
@@ -38,7 +41,7 @@ module.exports = require['http-client'] = function add_http_client(node) {
         pipe.connected()
     }
     function disconnect () {
-        console.log("Hmm... I need to think about what connect() should do here... too..")
+        console.log("Hmm... I need to think about what disconnect() should do here... too..")
         pipe.disconnected()
     }
 

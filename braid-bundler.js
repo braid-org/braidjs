@@ -1,5 +1,4 @@
-
-var files = [
+const files = [
     './require.js',
     './utilities.js',
     './events.js',
@@ -10,7 +9,14 @@ var files = [
     './networks/websocket-client.js',
     './diff.js',
 ]
+const fs = require('fs');
+const path = require('path');
 
-var agg = []
-files.forEach(f => agg.push(require('fs').readFileSync(f)))
-require('fs').writeFileSync('./braid-bundle.js', agg.join('\n'))
+module.exports = function(relativePath) {
+	var agg = []
+	files.forEach(f => {
+		let newPath = path.join(relativePath, f);
+		agg.push(require('fs').readFileSync(newPath))
+	})
+	fs.writeFileSync('./braid-bundle.js', agg.join('\n'))
+}
