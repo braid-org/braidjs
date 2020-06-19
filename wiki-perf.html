@@ -216,7 +216,7 @@ debug_WS = function (id, socket_up_delay, socket_down_delay, socket_close_delay)
                         prev_down = t + d
                     },
                     terminate() { self.terminate() }
-                })
+                }, {socket: {remoteAddress: 'tester.fake.ip.address'}})
             })
             self.onopen && self.onopen()
         } else {
