@@ -1,7 +1,7 @@
 // Example braid-peer as a web browser client
 w = 70
 
-module.exports = require['websocket-client'] = function add_websocket_client({node, url, prefix}) {
+module.exports = require['websocket-client'] = function add_websocket_client({node, url, prefix, create_websocket}) {
     url = url       || 'ws://localhost:3007/'
     prefix = prefix || '/*'
 
@@ -9,15 +9,16 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     var enabled = true
     var sock
 
-    function create_websocket() {
-        if (typeof(debug_WS) != 'undefined') {
-            return new debug_WS(node.pid)
-        } else {
-            return new WebSocket(url + '.braid-websocket')
-        }
+    create_websocket = create_websocket || function () {
+        return new WebSocket(url + '.braid-websocket')
     }
 
+    var reconnect_timeout = null
+    
     var connect = () => {
+        clearTimeout(reconnect_timeout)
+        if (!enabled) { return }
+
         sock           = create_websocket()
         sock.onopen    = ()  => {
             pipe.connected()
@@ -32,14 +33,17 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
             pipe.recv(JSON.parse(msg.data))
         }
         var onclose_called_already = false
+        var local_sock = sock
         sock.onclose   = (a)  => {
             if (onclose_called_already) { return }
             onclose_called_already = true
+            if (local_sock != sock) { return }
+            
             pipe.disconnected()
             if (enabled) {
                 if (typeof(g_debug_WS_messages_delayed) != 'undefined')
                     g_debug_WS_messages_delayed.push(connect)
-                else setTimeout(connect, 5000)
+                else reconnect_timeout = setTimeout(connect, 5000)
             }
         }
         sock.onerror = () => {}

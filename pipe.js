@@ -20,7 +20,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
     var ping_timer = null
 
     function on_pong() {
-        if (typeof(debug_WS) != 'undefined') { return }
+        if (typeof(g_is_wiki_tester) != 'undefined') { return }
 
         clearTimeout(ping_timer)
         ping_timer = setTimeout(() => {

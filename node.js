@@ -1,5 +1,7 @@
 u = require('./utilities.js')
 
+var g_show_protocol_errors = false
+
 module.exports = require.node = function create_node(node_data = {}) {
     var node = {}
     node.init = (node_data) => {
@@ -173,8 +175,6 @@ module.exports = require.node = function create_node(node_data = {}) {
             ({key, version, parents, subscribe, origin} = args[0])
         }
 
-        node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
-      
         // Set defaults
         if (!version)
             // We might default keep_alive to false in a future version
@@ -183,9 +183,24 @@ module.exports = require.node = function create_node(node_data = {}) {
         if (!origin)
             origin = {id: u.random_id()}
 
-        log('get:', node.pid, key)
-        assert(key)
-        var resource = node.resource_at(key)
+        // guard against invalid gets..
+        if (true) {
+            function report(x, y) { g_show_protocol_errors && console.log('PROTOCOL ERROR for get: ' + x) }
+            if (!key || typeof(key) != 'string') { return report('invalid key' + JSON.stringify(key)) }
+
+            log('get:', node.pid, key)
+
+            var resource = node.resource_at(key)
+            if (resource.we_welcomed[origin.id]) { return report('we already welcomed them') }
+
+            if (version && typeof(version) != 'string') { return report('invalid version: ' + JSON.stringify(version)) }
+
+            if (parents && (typeof(parents) != 'object' || Object.entries(parents).some(([k, v]) => v !== true))) { return report('invalid parents: ' + JSON.stringify(parents)) }
+
+            if (!subscribe || typeof(subscribe) != 'object') { report('invalid subscribe: ' + JSON.stringify(subscribe)) }
+        }
+
+        node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
 
         // Now record this subscription to the bus
         node.gets_in.add(key, origin.id)
@@ -292,11 +307,26 @@ module.exports = require.node = function create_node(node_data = {}) {
             ({key, patches, version, parents, origin, joiner_num} = args[0])
         }
 
-        assert(key && patches)
-        var resource = node.resource_at(key)
+        // guard against invalid sets..
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for set: ' + x) }
+            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
 
-        if (!version) version = u.random_id()
-        if (!parents) parents = {...resource.current_version}
+            var resource = node.resource_at(key)
+
+            if (origin && !resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+
+            if (!patches || !Array.isArray(patches) || patches.some(x => typeof(x) != 'string')) { return report('invalid patches: ' + JSON.stringify(patches)) }
+
+            if (!version) version = u.random_id()
+            if (!version || typeof(version) != 'string') { report('invalid version: ' + JSON.stringify(version)) }
+
+            if (!parents) parents = {...resource.current_version}
+            if (parents && (typeof(parents) != 'object' || Object.entries(parents).some(([k, v]) => v !== true))) { return report('invalid parents: ' + JSON.stringify(parents)) }
+
+            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number') { return report('invalid joiner_num: ' + JSON.stringify(joiner_num)) }
+        }
+
         log('set:', {key, version, parents, patches, origin, joiner_num})
 
         for (p in parents) {
@@ -446,15 +476,40 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
     
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
+        // guard against invalid welcomes..
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for welcome: ' + x) }
+            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+
+            var resource = node.resource_at(key)
+            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+
+            if (!Array.isArray(versions) || !versions.every(v => {
+                if (v.version && typeof(v.version) != 'string') return false
+                if (!v.parents || typeof(v.parents) != 'object' || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
+                if (!Array.isArray(v.changes) || v.changes.some(x => typeof(x) != 'string')) return false
+                return true
+            })) { return report('invalid versions: ' + JSON.stringify(versions)) }
+
+            if (!Array.isArray(fissures) || !fissures.every(fissure => {
+                if (!fissure || typeof(fissure) != 'object') return false
+                if (typeof(fissure.a) != 'string') return false
+                if (typeof(fissure.b) != 'string') return false
+                if (typeof(fissure.conn) != 'string') return false
+                if (!fissure.versions || typeof(fissure.versions) != 'object' || !Object.entries(fissure.versions).every(([k, v]) => v === true)) return false
+                if (!fissure.parents || typeof(fissure.parents) != 'object' || !Object.entries(fissure.parents).every(([k, v]) => v === true)) return false
+                if (typeof(fissure.time) != 'number') return false
+                return true
+            })) { return report('invalid fissures: ' + JSON.stringify(fissures)) }
+
+            if (unack_boundary && (typeof(unack_boundary) != 'object' || !Object.entries(unack_boundary).every(([k, v]) => v === true))) { return report('invalid unack_boundary: ' + JSON.stringify(unack_boundary)) }
+
+            if (min_leaves && (typeof(min_leaves) != 'object' || !Object.entries(min_leaves).every(([k, v]) => v === true))) { return report('invalid min_leaves: ' + JSON.stringify(min_leaves)) }
+        }
+
+        // let people know about the welcome
         node.ons.forEach(on => on('welcome', {key, versions, fissures, unack_boundary, min_leaves, origin}))
 
-        assert(key && versions && fissures,
-               'Missing some variables:',
-               {key, versions, fissures})
-        // console.log('welcome:', key, 'versions:', versions.length,
-        //             'unacking:', Object.keys(unack_boundary))
-        var resource = node.resource_at(key)
-        
         // `versions` is actually array of set messages. Each one has a version.
         var new_versions = []
         
@@ -800,11 +855,17 @@ module.exports = require.node = function create_node(node_data = {}) {
             ({key, origin} = args[0])
         }
 
+        // guard against invalid forgets
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for forget: ' + x) }
+            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+
+            var resource = node.resource_at(key)
+            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+        }
+
         node.ons.forEach(on => on('forget', {key, origin}))
 
-        assert(key)
-
-        var resource = node.resource_at(key)
         delete resource.we_welcomed[origin.id]
         node.unbind(key, origin)
         node.gets_in.delete(key, origin.id)
@@ -825,11 +886,26 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
 
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
+        // guard against invalid messages
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for ack: ' + x) }
+            if (typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+
+            var resource = node.resource_at(key)
+            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+
+            if (typeof(valid) != 'undefined') { return report('support for valid flag not yet implemented') }
+
+            if (seen != 'local' && seen != 'global') { return report('invalid seen: ' + JSON.stringify(seen)) }
+
+            if (typeof(version) != 'string') { return report('invalid version: ' + JSON.stringify(version)) }
+
+            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number') { return report('invalid joiner_num: ' + JSON.stringify(joiner_num)) }
+        }
+
         node.ons.forEach(on => on('ack', {key, valid, seen, version, origin, joiner_num}))
 
         log('node.ack: Acking!!!!', {key, seen, version, origin})
-        assert(key && version && origin)
-        var resource = node.resource_at(key)
 
         if (seen == 'local') {
             if (resource.acks_in_process[version]
@@ -857,12 +933,24 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
     
     node.fissure = ({key, fissure, origin}) => {
-        node.ons.forEach(on => on('fissure', {key, fissure, origin}))
+        // guard against invalid messages
+        if (true) {
+            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for fissure: ' + x) }
+            if (typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
 
-        assert(key && fissure,
-               'Missing some variables',
-               {key, fissure})
-        var resource = node.resource_at(key)
+            var resource = node.resource_at(key)
+
+            if ((!fissure || typeof(fissure) != 'object') ||
+                (!fissure.a || typeof(fissure.a) != 'string') ||
+                (!fissure.b || typeof(fissure.b) != 'string') ||
+                (!fissure.conn || typeof(fissure.conn) != 'string') ||
+                (!fissure.versions || typeof(fissure.versions) != 'object' || !Object.entries(fissure.versions).every(([k, v]) => v === true)) ||
+                (!fissure.parents || typeof(fissure.parents) != 'object' || !Object.entries(fissure.parents).every(([k, v]) => v === true)) ||
+                (typeof(fissure.time) != 'number')
+            ) { return report('invalid fissure: ' + JSON.stringify(fissure)) }
+        }
+
+        node.ons.forEach(on => on('fissure', {key, fissure, origin}))
 
         var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
         if (!resource.fissures[fkey]) {
@@ -963,7 +1051,9 @@ module.exports = require.node = function create_node(node_data = {}) {
     }
     
     node.delete = () => {
-        // work here: idea: use "undefined" to represent deletion
+        // NOT IMPLEMENTED: idea: use "undefined" to represent deletion
+        // update: we now have a {type: "deleted"} thing (like {type: "location"}),
+        // may be useful for this
     }
 
     node.prune = (resource) => {

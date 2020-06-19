@@ -1,0 +1,643 @@
+<body style="margin:0px"></body>
+<script>
+// These 8 lines let browsers import modules with require().
+function require (thing) {
+    thing = thing.split('/')
+    thing = thing[thing.length-1].slice(0,-3)
+    console.assert(require[thing], `require("${thing}") failed because <script src="${thing}"> is not working.`)
+    return require[thing]
+}
+global = window
+module = {exports: {}}
+</script>
+<script src="./diff.js"></script>
+<script src="./utilities.js"></script>
+<script src="./node.js"></script>
+<script src="./events.js"></script>
+<script src="./pipe.js"></script>
+<script src="./resource.js"></script>
+<script src="./store.js"></script>
+<script src="./networks/websocket-client.js"></script>
+<script src="./networks/websocket-server.js"></script>
+<script src="./merge-algorithms/sync9.js"></script>
+<script>
+
+g_log_stuff = false
+g_log_stuff_max_length = 20000 // 150
+
+g_real_clearTimeout = clearTimeout
+g_real_setTimeout = setTimeout
+
+async function main() {
+    var d = make_html(`<div style="display:grid;grid-template-columns:200px 1fr;width:100%;height:100%"></div>`)
+    document.body.append(d)
+
+    var side_panel = make_html(`<div style="background:orange">HELLO</div>`)
+    d.append(side_panel)
+
+    var spark_panel = make_html(`<div style="width:100%;height:100%"></div>`)
+    d.append(spark_panel)
+
+    var stats = {
+        clock: 1,
+        time: 1,
+        server_versions: 1,
+        num_active_servers: 10,
+        num_clients: 10,
+        num_active_clients: 10
+    }
+    Object.entries(stats).forEach(([k, v]) => {
+        var sl = create_sparkline(k, spark_panel.offsetWidth, 60, v)
+        spark_panel.append(sl)
+        sl.style.marginBottom = '19px'
+        stats[k] = sl
+    })
+
+    var params = {
+        rand_seed: 'hi_world',
+
+        server_off_time: [0, 2000],
+        server_on_time: [0, 10 * 1000],
+
+        max_clients: 5,
+        create_client_period: [200, 700],
+        client_on_time: [0, 3000],
+        client_off_time: [0, 2000],
+        client_death_delay: [1 * 1000, 10 * 1000],
+        client_send_forget_chance: 0.5,
+        client_send_deletes_chance: 0.5,
+        client_edit_period: [100, 500],
+        max_edit_size: 5,
+
+        socket_up_delay: [25, 150],
+        socket_down_delay: [25, 150],
+        socket_close_delay: [0, 1000],
+
+        pump_delay: 30
+    }
+
+    Object.entries(params).forEach(([k, v]) => {
+        var label = make_html(`<div></div>`)
+        label.textContent = k
+        side_panel.append(label)
+
+        var input = make_html(`<input style="width:100%"></input>`)
+        input.value = v
+        side_panel.append(input)
+    })
+
+    var pump = null
+    var pump_timer = null
+    var go_button = make_html(`<button style="width:100%;height:60px;margin-top:18px">GO</button>`)
+    go_button.onclick = () => {
+        if (pump) {
+            pump = null
+            g_real_clearTimeout(pump_timer)
+            go_button.textContent = 'GO'
+        } else {
+            go_button.textContent = 'STOP'
+            pump = create_experiment(params)
+            pumper()
+            function pumper() {
+                var results = pump()
+
+                Object.entries(stats).forEach(([k, sl]) => {
+                    sl.update(results[k])
+                })
+
+                pump_timer = g_real_setTimeout(pumper, params.pump_delay)
+            }
+        }
+    }
+    side_panel.append(go_button)
+}
+
+require('./utilities.js')
+var ds = require('./diff.js')
+
+var page_key = '/foo'
+
+var next_msg_id = 0
+
+debug_WSS = function () {
+    return debug_WSS.the_one = {
+        on_conns: [],
+        on(event_type, func) {
+            if (event_type == 'connection') this.on_conns.push(func)
+            else throw 'bad'
+        },
+        ws_array: [],
+        close() {
+            this.ws_array.slice(0).forEach(ws => ws.terminate())
+            debug_WSS.the_one = null
+        }
+    }
+}
+
+debug_WS = function (id, socket_up_delay, socket_down_delay, socket_close_delay) {
+    var prev_up = 0
+    var prev_down = 0
+
+    var self = {
+        id,
+        on_messages: [],
+        on_closes: [],
+        is_open: true,
+        send(msg) {
+            var t = Date.now()
+            var d = rand_range(socket_up_delay)
+            if (t + d < prev_up) d = prev_up + 0.1 - t
+
+            var msg_id = 'MSSSSG::' + next_msg_id++ // Math.random().toString(36).slice(2)
+            g_log_stuff && console.log(`client send C-${id} (t=${t}:t2=${t + d}:d=${d}:id=${msg_id}): ` + msg.slice(0, g_log_stuff_max_length))
+
+
+            setTimeout(() => {
+                if (!self.is_open) { return }
+
+                g_log_stuff && console.log(`server recv C-${id} (t=${Date.now()}:id=${msg_id}): ` + msg.slice(0, g_log_stuff_max_length))
+
+                this.on_messages.forEach(f => f(msg))
+            }, d)
+
+            prev_up = t + d
+        },
+        terminate() {
+            if (!self.is_open) { return }
+            self.is_open = false
+
+            var msg_id = 'MSSSSG::' + next_msg_id++
+            g_log_stuff && console.log(`socket terminated part 1 for C-${id} (id=${msg_id})`)
+
+            setTimeout(() => {
+
+                g_log_stuff && console.log(`socket terminated part 2 for C-${id} (id=${msg_id})`)
+    
+                this.onclose && this.onclose()
+                this.on_closes.forEach(f => f())
+                this.on_closes = []
+                this.on_messages = []
+                if (debug_WSS.the_one) {
+                    let i = debug_WSS.the_one.ws_array.indexOf(self)
+                    if (i >= 0) debug_WSS.the_one.ws_array.splice(i, 1)
+                }    
+            }, rand_range(socket_close_delay))
+        }
+    }
+    self.close = self.terminate
+
+    setTimeout(() => {
+        if (debug_WSS.the_one) {
+            debug_WSS.the_one.ws_array.push(self)
+            debug_WSS.the_one.on_conns.forEach(f => {
+                f({
+                    on(event_type, func) {
+                        if (event_type == 'message') self.on_messages.push(func)
+                        else if (event_type == 'close') self.on_closes.push(func)
+                        else throw 'unknown event_type: ' + event_type
+                    },
+                    send(msg) {
+                        var t = Date.now()
+                        var d = rand_range(socket_down_delay)
+                        if (t + d < prev_down) d = prev_down + 0.1 - t
+
+                        var msg_id = 'MSSSSG::' + next_msg_id++ // Math.random().toString(36).slice(2)
+
+                        g_log_stuff && console.log(`server send C-${id} (t=${t}:t2=${t + d}:d=${d}:id=${msg_id}): ` + msg.slice(0, g_log_stuff_max_length))
+
+                        setTimeout(() => {
+                            if (!self.is_open) { return }
+
+                            g_log_stuff && console.log(`client recv C-${id} (t=${Date.now()}:id=${msg_id}): ` + msg.slice(0, g_log_stuff_max_length))
+
+                            self.onmessage({data: msg})
+                        }, d)
+
+                        prev_down = t + d
+                    },
+                    terminate() { self.terminate() }
+                })
+            })
+            self.onopen && self.onopen()
+        } else {
+            self.terminate()
+        }
+    }, 0)
+
+    return self
+}
+
+g_profile = {
+    keys: {},
+    begin(key) {
+        if (!this.keys[key]) this.keys[key] = {count: 0, time: 0}
+        if (this.keys[key].begin != null) throw 'unbalanced begin! key: ' + key
+        this.keys[key].begin = performance.now()
+    },
+    end(key) {
+        if (!this.keys[key]) throw 'unbalanced end! key: ' + key
+        this.keys[key].time += performance.now() - this.keys[key].begin
+        delete this.keys[key].begin
+        this.keys[key].count++
+    },
+    mark(key) {
+        if (!this.keys[key] || this.keys[key].begin == null) this.begin(key)
+        else this.end(key)
+    },
+    print() {
+        Object.entries(this.keys).forEach(([k, v]) => {
+            console.log(`${k}\t${v.time / v.count}\t${v.time}\t${v.count}`)
+        })
+    }
+}
+
+function create_experiment(params) {
+    Math.randomSeed(params.rand_seed)
+
+    debug_WSS.the_one = null
+
+    var db = create_db()
+    var server = null
+    var clients = []
+
+    var t = 0
+    Date.now = () => t
+
+    var events = []
+    var next_timer_id = 1
+    setTimeout = (f, tt) => {
+        var id = next_timer_id++
+        events.push([t + tt, f, id])
+        return id
+    }
+
+    clearTimeout = (id) => {
+        events = events.filter(x => x[2] != id)
+    }
+
+    create_client_cron()
+    function create_client_cron() {
+        setTimeout(() => {
+            if (clients.length < params.max_clients) {
+                var c = create_client(params)
+                clients.push(c)
+
+                g_log_stuff && console.log(`created client (t=${Date.now()}): C-` + c.id)
+
+                set_on_timeout()
+                function set_on_timeout() {
+                    setTimeout(() => {
+                        if (clients.indexOf(c) >= 0) {
+                            if (!c.is_open) throw 'bad'
+
+                            g_log_stuff && console.log(`closing client (t=${Date.now()}): C-` + c.id)
+
+                            c.close(false, false)
+                            setTimeout(() => {
+                                if (clients.indexOf(c) >= 0) {
+                                    if (c.is_open) throw 'bad'
+
+                                    g_log_stuff && console.log(`openning client (t=${Date.now()}): C-` + c.id)
+
+                                    c.open()
+                                    set_on_timeout()
+                                }
+                            }, rand_range(params.client_off_time))
+                        }
+                    }, rand_range(params.client_on_time))
+                }
+
+                setTimeout(() => {
+
+                    g_log_stuff && console.log(`killing client: (t=${Date.now()}) C-` + c.id)
+
+                    var ci = clients.indexOf(c)
+                    if (ci < 0) throw 'bad'
+                    if (c.is_open) {
+                        var send_forget = Math.random() < params.client_send_forget_chance
+                        var send_deletes = send_forget || Math.random() < params.client_send_deletes_chance
+                        c.close(send_deletes, send_forget)
+                    }
+                    clients.splice(ci, 1)
+                }, rand_range(params.client_death_delay))
+
+                set_edit_timeout()
+                function set_edit_timeout() {
+                    setTimeout(() => {
+                        if (clients.indexOf(c) >= 0) {
+
+                            g_log_stuff && console.log(`editing: (t=${Date.now()}) C-` + c.id)
+
+                            let text = c.get()
+                            let start = Math.floor(Math.random() * (text.length + 1))
+
+                            let max_len = text.length - start + 1
+                            if (max_len > params.max_edit_size) max_len = params.max_edit_size
+                            let len = Math.floor(Math.random() * max_len)
+
+                            let ins_size = Math.floor(Math.random() * params.max_edit_size)
+                            if (ins_size == 0 && len == 0) ins_size = 1
+                            let ins = String.fromCharCode(65 + Math.floor(Math.random() * 26)).repeat(ins_size)
+
+                            c.set(start, len, ins)
+
+                            set_edit_timeout()
+                        }
+                    }, rand_range(params.client_edit_period))
+                }
+            }
+            create_client_cron()
+        }, rand_range(params.create_client_period))
+    }
+
+    toggle_server_cron()
+    function toggle_server_cron() {
+        if (server) {
+            setTimeout(() => {
+
+                g_log_stuff && console.log(`closing server (t=${Date.now()})`)
+
+                server.close()
+                server = null
+                toggle_server_cron()
+            }, rand_range(params.server_on_time))
+        } else {
+            setTimeout(() => {
+
+                g_log_stuff && console.log(`opening server (t=${Date.now()})`)
+
+                server = create_server(db)
+                toggle_server_cron()
+            }, rand_range(params.server_off_time))
+        }
+    }
+
+    var prev_server_versions = 0
+
+    return () => {
+        var e = events.sort((a, b) => a[0] - b[0]).shift()
+        t = e[0]
+
+
+
+        var st = performance.now()
+        e[1]()
+        var et = performance.now()
+
+
+
+        if (server) prev_server_versions = Object.keys(server.node.resource_at(page_key).time_dag).length
+
+        return {
+            clock: (t % 1000)/1000,
+            time: et - st,
+            server_versions: prev_server_versions,
+            num_active_servers: server ? 1 : 0,
+            num_clients: clients.length,
+            num_active_clients: clients.filter(x => x.is_open).length
+        }
+    }
+}
+
+function create_db() {
+    return g_db = {
+        data: {},
+        get(key) { return this.data[key] },
+        set(key, val) { this.data[key] = val },
+        del(key) { delete this.data[key] },
+        list_keys() { return Object.keys(this.data) }
+    }
+}
+
+function create_server(db) {
+    var node = require('./node.js')()
+    node.fissure_lifetime = 1000 * 1000
+    require('./store.js')(node, db)
+
+    node.on_errors.push((key, origin) => {
+        node.unbind(key, origin)
+    })
+
+    var wss = require('./networks/websocket-server.js')(node, {wss: new debug_WSS()})
+
+    return {
+        node,
+        get() {
+            var o = node.resource_at(page_key).mergeable.read()
+            return o && o.text
+        },
+        close() {
+            wss.dead = true
+            wss.close()
+        }
+    }
+}
+
+function create_client(params) {
+    var node = require('./node.js')()
+    node.default(page_key, {cursors: {[node.pid]: {start: 0, end: 0, time: Date.now()}}, text: ''})
+    var ws_client = require('./networks/websocket-client.js')({node, create_websocket: () => {
+        return debug_WS(node.pid, params.socket_up_delay, params.socket_down_delay, params.socket_close_delay)
+    }})
+
+    var cursor_lifetime = 10000
+
+    var ready = false
+    var text = ''
+    var selectionStart = 0
+    var selectionEnd = 0
+
+    function send_diff(from, to) {
+        var v = node.set(page_key, null, ds.diff_convert_to_my_format(ds.diff_main(from, to)).map(x =>
+            `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
+        ))
+    }
+
+    function send_cursor_update(start, end) {
+        node.set(page_key, null, [`.cursors[${JSON.stringify(node.pid)}] = ${JSON.stringify({start: {type: 'location', path: `.text[${start}]`}, end: {type: 'location', path: `.text[${end}]`}, time: Date.now()})}`])
+    }
+
+    var cb = x => {
+        ready = true
+        text = x.text
+        if (x.cursors[node.pid]) {
+            selectionStart = x.cursors[node.pid].start
+            selectionEnd = x.cursors[node.pid].end
+        }
+    }
+    node.get(page_key, cb)
+
+    node.ons.push((method, arg) => {
+        if (method != 'welcome' && method != 'fissure') return
+        if (arg.key != page_key) return
+
+        var fs = {}
+        if (method == 'welcome') {
+            for (let f of arg.fissures)
+                fs[`${f.a}:${f.b}:${f.conn}`] = f
+        } else {
+            let f = arg.fissure
+            fs[`${f.a}:${f.b}:${f.conn}`] = f
+        }
+
+        var rest = () => {
+            var o = node.resource_at(page_key).mergeable.read()
+            if (!o || !o.cursors) return
+
+            Object.assign(fs, node.resource_at(page_key).fissures)
+    
+            var delete_us = {}
+            Object.values(fs).forEach(f => {
+                if (!fs[`${f.b}:${f.a}:${f.conn}`]) {
+                    if (o.cursors[f.b]) delete_us[f.b] = true
+                }
+            })
+
+            var now = Date.now()
+            Object.entries(o.cursors).forEach(([k, v]) => {
+                if (k != node.pid && v.time <= now - cursor_lifetime) delete_us[k] = true
+            })
+
+            var patches = Object.keys(delete_us).map(k => `delete .cursors[${JSON.stringify(k)}]`)
+            if (patches.length) node.set(page_key, null, patches)
+        }
+        setTimeout(rest, 0)
+    })
+
+    node.on_errors.push((key, origin) => {
+        // console.log('CLIENT ON ERROR')
+
+        text = ''
+        selectionStart = 0
+        selectionEnd = 0
+
+        ready = false
+
+        delete node.resources[key]
+        node.unbind(key, origin)
+
+        var subscribe = ws_client.pipe.subscribed_keys[key].we_requested
+        delete ws_client.pipe.subscribed_keys[key].we_requested
+
+        ws_client.pipe.send({
+            key,
+            subscribe,
+            method: 'get'
+        })
+    })
+
+    var self
+    return self = {
+        id: node.pid,
+        node,
+        is_open: true,
+        get: () => {
+            return text
+        },
+        set: (x, del, ins) => {
+            if (!ready) return
+            var new_text = text.slice(0, x) + ins + text.slice(x + del)
+            send_diff(text, new_text)
+            if (x + ins.length <= new_text.length)
+                send_cursor_update(x + ins.length, x + ins.length)
+            else
+                send_cursor_update(new_text.length, new_text.length)
+        },
+        close: (send_deletes, send_forget) => {
+            if (ready && send_deletes) node.set(page_key, null, [`delete .cursors[${JSON.stringify(node.pid)}]`])
+            if (send_forget) node.forget(page_key, cb)
+            ws_client.disable()
+            self.is_open = false
+        },
+        open: () => {
+            ws_client.enable()
+            self.is_open = true
+        }
+    }    
+}
+
+function create_sparkline(text, w, h, max_y) {
+    var d = make_html(`<div></div>`)
+
+    var label = make_html(`<div></div>`)
+    d.append(label)
+    function update_label() { label.textContent = text + ', max_y = ' + max_y }
+    update_label()
+
+    var dd = make_html(`<div style="position:relative;width:${w};height:${h}"></div>`)
+    d.append(dd)
+    
+    if (true) {
+        let back = make_html(`<canvas style="width:${w};height:${h};position:absolute;left:0px;top:0px"></canvas>`)
+        back.width = w * devicePixelRatio
+        back.height = h * devicePixelRatio
+        dd.append(back)
+        
+        let g = back.getContext('2d')
+        let N = 10
+        for (var i = 0; i <= N; i++) {
+            g.fillStyle = 'rgba(0, 0, 0, 0.25)'
+            g.fillRect(0, back.height - 1 - Math.round(back.height / N * i) + (i == N ? 1 : 0), back.width, 1)
+        }
+    }
+    
+    var front = make_html(`<canvas style="width:${w};height:${h};position:absolute;left:0px;top:0px"></canvas>`)
+    front.width = w * devicePixelRatio
+    front.height = h * devicePixelRatio
+    dd.append(front)
+    
+    var front_copy = make_html(`<canvas></canvas>`)
+    front_copy.width = front.width
+    front_copy.height = front.height
+    
+    var x = 0
+    
+    d.update = y => {
+        var g = front.getContext('2d')
+        
+        while (y > max_y) {
+            let gg = front_copy.getContext('2d')
+            gg.clearRect(0, 0, front.width, front.height)
+            gg.drawImage(front, 0, 0)
+            g.clearRect(0, 0, front.width, front.height)
+            g.drawImage(front_copy, 0, front.height / 2, front.width, front.height / 2)
+            
+            max_y *= 2
+            update_label()
+        }
+        
+        g.fillStyle = 'rgba(255, 128, 0, 0.5)'
+        
+        var h = lerp(0, 0, max_y, front.height, y)
+        g.fillRect(x, front.height - h, 1, h)
+
+        x++
+
+        if (x >= front.width) {
+            let gg = front_copy.getContext('2d')
+            gg.clearRect(0, 0, front.width, front.height)
+            gg.drawImage(front, 0, 0)
+            g.clearRect(0, 0, front.width, front.height)
+            g.drawImage(front_copy, -1, 0, front.width, front.height)
+            x--
+        }
+    }
+    
+    return d
+}
+
+function make_html(html) {
+    var d = document.createElement('div')
+    d.innerHTML = html
+    return d.firstChild
+}
+
+function rand_range(a) {
+    return lerp(0, a[0], 1, a[1], Math.random())
+}
+
+function lerp(t0, v0, t1, v1, t) { return (t - t0) * (v1 - v0) / (t1 - t0) + v0 }
+
+main()
+
+</script>

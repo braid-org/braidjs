@@ -726,7 +726,7 @@ function merge_tuples (diffs, start, length) {
 }
 
 
-if (typeof(exports) != 'undefined' && exports) {
-    exports.diff_convert_to_my_format = diff_convert_to_my_format
-    exports.diff_main = diff_main
+module.exports = require.diff = {
+    diff_convert_to_my_format,
+    diff_main
 }

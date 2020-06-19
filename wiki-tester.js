@@ -551,7 +551,9 @@ function create_server(db) {
 function create_client() {
     var node = require('./node.js')()
     node.default(page_key, {cursors: {[node.pid]: {start: 0, end: 0, time: Date.now()}}, text: ''})
-    var ws_client = require('./networks/websocket-client.js')({node})
+    var ws_client = require('./networks/websocket-client.js')({node, create_websocket: () => {
+        return new debug_WS(node.pid)
+    }})
 
     var cursor_lifetime = 1 // 10000
 

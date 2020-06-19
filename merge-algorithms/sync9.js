@@ -423,7 +423,7 @@ function add_version(resource, version, parents, changes, is_anc) {
 
         var parse = parse_change(changes[0])
         resource.space_dag = make_lit(parse.val)
-        create_annotations(parse)
+        parse.annotations && create_annotations(parse.annotations)
         return
     } else if (!version) return
     
@@ -446,25 +446,11 @@ function add_version(resource, version, parents, changes, is_anc) {
         }
     }
 
-    function create_annotations(parse) {
-        Object.entries(parse.annotations || {}).forEach(e => {
-            e[1].range = [0, 0]
-            var cur = resolve_path(e[1])
-            function helper(node, offset) {
-                if (offset <= e[1].pos && e[1].pos <= offset + node.elems.length) {
-                    node.annotations = node.annotations || {}
-                    node.annotations[e[0]] = e[1].pos - offset
-                    return false
-                }
-            }
-            if (e[1].pos == 0) helper(cur.S, 0)
-            else traverse_space_dag(cur.S, is_anc, helper)
-        })
-    }
+    var annotations = {}
     
     changes.forEach(change => {
         var parse = parse_change(change)
-        create_annotations(parse)
+        Object.assign(annotations, parse.annotations)
         var cur = resolve_path(parse)
         if (!parse.range) {
             if (cur.t != 'val') throw 'bad'
@@ -479,6 +465,25 @@ function add_version(resource, version, parents, changes, is_anc) {
             space_dag_add_version(cur.S, version, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
         }
     })
+
+    create_annotations(annotations)
+    function create_annotations(annotations) {
+        var prev_is_anc = is_anc
+        is_anc = v => prev_is_anc(v) || v == version
+        Object.entries(annotations).forEach(e => {
+            e[1].range = [0, 0]
+            var cur = resolve_path(e[1])
+            function helper(node, offset) {
+                if (offset <= e[1].pos && e[1].pos <= offset + node.elems.length) {
+                    node.annotations = node.annotations || {}
+                    node.annotations[e[0]] = e[1].pos - offset
+                    return false
+                }
+            }
+            if (e[1].pos == 0) helper(cur.S, 0)
+            else traverse_space_dag(cur.S, is_anc, helper)
+        })
+    }
 
     function resolve_path(parse) {
         var cur = resource.space_dag
@@ -567,12 +572,12 @@ function read_raw(x, is_anc, annotations) {
     return finalize(rec_read(x))
     function rec_read(x) {
         if (x && typeof(x) == 'object') {
-            if (!x.t) return rec_read(x.space_dag, is_anc)
+            if (!x.t) return rec_read(x.space_dag)
             if (x.t == 'lit') return JSON.parse(JSON.stringify(x.S))
-            if (x.t == 'val') return rec_read(space_dag_get(x.S, 0, is_anc), is_anc)
+            if (x.t == 'val') return rec_read(space_dag_get(x.S, 0, is_anc))
             if (x.t == 'obj') {
                 var o = {}
-                Object.entries(x.S).forEach(([k, v]) => o[k] = rec_read(v, is_anc))
+                Object.entries(x.S).forEach(([k, v]) => o[k] = rec_read(v))
                 return o
             }
             if (x.t == 'arr') {
@@ -583,7 +588,7 @@ function read_raw(x, is_anc, annotations) {
                     })
                     if (!deleted) {
                         node.elems.forEach((e) => {
-                            a.push(rec_read(e, is_anc))
+                            a.push(rec_read(e))
                         })
                     }
                 }, true)
