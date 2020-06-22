@@ -10,9 +10,10 @@ files = [
     './util/diff.js',
 ]
 fs = require('fs')
-if (!fs.existsSync('./builds'))
-    fs.mkdirSync('./builds')
+file_at = (f) => require('path').join(__dirname, '..', f)
+if (!fs.existsSync(file_at('builds')))
+    fs.mkdirSync(file_at('builds'))
 fs.writeFileSync(
-    './builds/braid-bundle.js',
+    file_at('builds/braid-bundle.js'),
     files.map(f => require('fs').readFileSync(f)).join('\n')
 )
