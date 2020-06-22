@@ -5,7 +5,7 @@
   "main": "braid.js",
   "scripts": {
     "test": "node test/tests.js",
-    "install": "node util/braid-bundler.js"
+    "prepublish": "node util/braid-bundler.js"
   },
   "author": "Braid Working Group",
   "repository": "braid-work/braid",

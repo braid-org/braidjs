@@ -9,11 +9,17 @@ files = [
     'protocol-http1/http1-client.js',
     'util/diff.js',
 ]
+
 fs = require('fs')
-const path = require('path');
-file_at = (f) => path.join(__dirname, '..', f)
+
+// Translate relative directories
+file_at = (f) => require('path').join(__dirname, '..', f)
+
+// Create builds/ directory if it doesn't exist
 if (!fs.existsSync(file_at('builds')))
     fs.mkdirSync(file_at('builds'))
+
+// Write the bundle file
 fs.writeFileSync(
     file_at('builds/braid-bundle.js'),
     files.map(f => fs.readFileSync(file_at(f))).join('\n')
