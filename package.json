@@ -1,8 +1,8 @@
 {
   "name": "braidjs",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Synchronization for the Web (reference implementation)",
-  "main": "builds/braid-server-bundle.js",
+  "main": "braid.js",
   "scripts": {
     "test": "node test/tests.js",
     "install": "node util/braid-bundler.js"
