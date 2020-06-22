@@ -1,5 +1,5 @@
 // Bundles up the client javascript file.
-files = [
+var files = [
     'util/require.js',
     'util/utilities.js',
     'merge-algos/sync9.js',
@@ -10,10 +10,10 @@ files = [
     'util/diff.js',
 ]
 
-fs = require('fs')
+var fs = require('fs')
 
 // Translate relative directories
-file_at = (f) => require('path').join(__dirname, '..', f)
+var file_at = (f) => require('path').join(__dirname, '..', f)
 
 // Create builds/ directory if it doesn't exist
 if (!fs.existsSync(file_at('builds')))
