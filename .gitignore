@@ -6,6 +6,10 @@ certificates/*
 # Database stuff
 db.sqlite*
 
+# Builds
+braid-bundle.js
+builds/*
+
 # Basic Nodejs Gitignore
 # Logs
 logs

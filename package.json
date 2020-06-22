@@ -9,7 +9,15 @@
   },
   "author": "Braid Working Group",
   "repository": "braid-work/braid",
-    "files": ["braid.js", "pipe.js", "merge-algos/*.js", "util/braid-bundle.js", "protocol-*/*.js", "util/*.js", "readme.md"],
+  "files": [
+    "braid.js",
+    "pipe.js",
+    "merge-algos/*.js",
+    "util/braid-bundle.js",
+    "protocol-*/*.js",
+    "util/*.js",
+    "readme.md"
+  ],
   "dependencies": {
     "better-sqlite3": "^5.4.3",
     "parse-headers": "^2.0.3",

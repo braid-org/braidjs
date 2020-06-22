@@ -3,7 +3,7 @@ const path = require('path');
 
 const port = 3009;
 const lib_path = "../../";
-require('../../builds/braid-bundler.js')(lib_path);
+require('../../util/braid-bundler.js');
 
 var knownFiles = ['/braid-bundle.js', '/chat.html', '/chat.js', '/chat.css']
 var cb = (req, res) => {
