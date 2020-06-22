@@ -4,7 +4,7 @@ const assert = require('assert');
 const pipe = require('../pipe.js');
 const parseHeaders = require('parse-headers');
 
-module.exports = function add_http_server(node, server) {
+module.exports = function add_http_server(node, server, fileCb) {
     function writePatches(patches) {
         let out = `patches: ${patches.length}\n`
         for (let patch of patches) {
@@ -74,11 +74,11 @@ module.exports = function add_http_server(node, server) {
             // And send it back through `res`.
             let versions = [];
             if (args.method == "welcome") {
-                versions = args.versions.map(f => {
+                versions = args.versions.map(f => {return {
                     version: f.version,
                     parents: f.parents,
                     patches: f.changes // The node object should be changed to call this patches
-                })
+                }})
             } else if (args.method == "set") {
                 versions = [{
                     version: args.version,
@@ -106,12 +106,16 @@ module.exports = function add_http_server(node, server) {
     }
     function handleHttpResponse(req, res) {
         const ip = req.socket.remoteAddress;
-        const done = parsedMessage => responsePipe(res, parsedMessage.subscribe).recv(parsedMessage);
+        const done = parsedMessage => {
+            let p = responsePipe(res, parsedMessage.subscribe);
+            p.recv(parsedMessage);
+            return p;
+        }
         // Copy headers that have the same value in HTTP as Braid
         let msg = {
             key: req.url,
-            version: req.headers['version'],
-            parents: req.headers['parents'],
+            version: JSON.parse(req.headers['version']),
+            parents: req.headers['parents'].split(", ").map(JSON.parse),
             subscribe: req.headers['subscribe']
         }
         if (req.method == "GET") {
@@ -120,8 +124,12 @@ module.exports = function add_http_server(node, server) {
                 status = 209;
                 res.setHeader("subscribe", msg.subscribe)
             }
-            if (!node.resources[msg.key])
-                status = 404;
+            if (!node.resources[msg.key]) {
+                // Assume this is a file request
+                fileCb(req, res);
+                return;
+            }
+                
             res.statusCode = status;
             msg.method = "get"
             done(msg);
@@ -137,6 +145,7 @@ module.exports = function add_http_server(node, server) {
             // Parse patches
             readPatches(req.headers["patches"], res, (patches) => {
                 msg.patches = patches;
+                res.setHeader("Patches", "OK");
                 done(msg);
             })
         }

@@ -13,7 +13,7 @@ node.default(usrKey, {});
 
 show_debug = true;
 
-const socket = require('websocket-client.js')({node, url: 'ws://localhost:3009/'});
+const socket = require('http-client.js')({node, url: 'https://localhost:3009/'});
 
 // UI Code
 let createListeners = function () {

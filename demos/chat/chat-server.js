@@ -23,14 +23,13 @@ var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certifi
         cert: fs.readFileSync('certs/certificate')
     }, cb) :
     require('http').createServer(cb)
-server.listen(port)
-var wss = new (require('ws').Server)({server})
 
 var node = require(path.join(lib_path, './braid.js'))()
 node.fissure_lifetime = 1000*60*60*24 // day
 require(path.join(lib_path, './util/sqlite-store.js'))(node, 'db.sqlite')
 node.on_errors.push((key, origin) => node.unbind(key, origin))
 
-var ws = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))(node, {wss})
+require(path.join(lib_path, './protocol-http1/http1-server.js'))(node, server, cb)
 
 console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
+server.listen(port);
