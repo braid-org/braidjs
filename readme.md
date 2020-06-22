@@ -9,8 +9,6 @@ robust enough for production sites.
 
 Read more about braid at https://braid.news!
 
-## Alpha Release: "The Rock"
-
 
 
 ## Running the code

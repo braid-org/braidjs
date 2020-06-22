@@ -1,6 +1,6 @@
 {
   "name": "braidjs",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Synchronization for the Web (reference implementation)",
   "main": "braid.js",
   "scripts": {
