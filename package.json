@@ -2,22 +2,17 @@
   "name": "braidjs",
   "version": "0.0.1",
   "description": "Synchronization for the Web (reference implementation)",
-  "main": "braid-peer.js",
+  "main": "builds/braid-server-bundle.js",
   "scripts": {
-    "test": "node test/tests.js"
+    "test": "node test/tests.js",
+    "install": "node util/braid-bundler.js"
   },
   "author": "Braid Working Group",
   "repository": "braid-work/braid",
+    "files": ["braid.js", "pipe.js", "merge-algos/*.js", "util/braid-bundle.js", "protocol-*/*.js", "util/*.js", "readme.md"],
   "dependencies": {
-    "bcrypt-nodejs": "0.0.3",
     "better-sqlite3": "^5.4.3",
-    "chokidar": "^1.7.0",
-    "coffeescript": "^2.3.1",
-    "cookie": "^0.3.1",
-    "express": "^4.15.3",
     "parse-headers": "^2.0.3",
-    "sockjs": "^0.3.18",
-    "websocket": "^1.0.24",
     "ws": "^7.3.0"
   }
 }

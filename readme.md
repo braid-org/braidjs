@@ -1,14 +1,16 @@
-# Braidjs: Synchronization for HTTP in Javascript
+# Braidjs: Synchronization in Javascript
 
 This contains a reference implementation in Javascript of the
 [Braid protocol](https://github.com/braid-work/ietf-braid-draft), which adds
-*synchronization* to HTTP.  This code also goes one step further, and
-demonstrates adding synchronization to the *browser and server API*.
+*synchronization* to HTTP.
 
 This implementation is not yet complete, but aims to be fully-functioning and
 robust enough for production sites.
 
 Read more about braid at https://braid.news!
+
+## Alpha Release: "The Rock"
+
 
 
 ## Running the code
