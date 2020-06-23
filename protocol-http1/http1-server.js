@@ -3,7 +3,7 @@
 const assert = require('assert');
 const pipe = require('../pipe.js');
 const parseHeaders = require('parse-headers');
-
+var u = require('../util/utilities.js')
 module.exports = function add_http_server(node, server, fileCb) {
     function writePatches(patches) {
         let out = `patches: ${patches.length}\n`
@@ -60,15 +60,22 @@ module.exports = function add_http_server(node, server, fileCb) {
     }
     function responsePipe(res, keepAlive) {
         // Construct pipe
-        const reqPipe = pipe({node, sendVersions, connect, disconnect});
+        const reqPipe = pipe(
+            {   node,
+                id: null,
+                send: sendVersions,
+                connect: connect,
+                disconnect: disconnect
+            });
 
         //const writeHeaderHttpStyle = (header, value)
         // The send function has to handle the different ways that we might be encoding data into http/1
         const allowedMethods = ["set", "welcome"]
         function sendVersions (args) {
+            console.log("Sending a response:", args)
             if (!keepAlive)
                 disconnect();
-            if (!allowedMethods.contains(args.method))
+            if (!allowedMethods.includes(args.method))
                 return;
             // Rewrite the arguments into headers and body (or text stream)
             // And send it back through `res`.
@@ -100,41 +107,46 @@ module.exports = function add_http_server(node, server, fileCb) {
                 }
             }
         }
-        function connect () { pipe.connected() }
-        function disconnect () { pipe.disconnected(); res.end(); }
-        return reqPipe();
+        function connect () { reqPipe.connected() }
+        function disconnect () { reqPipe.disconnected(); res.end(); }
+        return reqPipe;
     }
     function handleHttpResponse(req, res) {
+        console.log("Got a request:", req.method, req.url);
         const ip = req.socket.remoteAddress;
         const done = parsedMessage => {
             let p = responsePipe(res, parsedMessage.subscribe);
+            p.recv({method: "hello", my_name_is: ip, connection: u.random_id()})
             p.recv(parsedMessage);
             return p;
         }
         // Copy headers that have the same value in HTTP as Braid
         let msg = {
             key: req.url,
-            version: JSON.parse(req.headers['version']),
-            parents: req.headers['parents'].split(", ").map(JSON.parse),
             subscribe: req.headers['subscribe']
         }
+        if (req.headers.version)
+            msg.version = JSON.parse(req.headers['version'])
+        if (req.headers.parents)
+           msg.parents = req.headers['parents'].split(", ").map(JSON.parse)
         if (req.method == "GET") {
-            let status = 200;
-            if (msg.subscribe) {
-                status = 209;
-                res.setHeader("subscribe", msg.subscribe)
-            }
-            if (!node.resources[msg.key]) {
+            if (!node.resources[msg.key] && !node._default_val_for(msg.key)) {
                 // Assume this is a file request
                 fileCb(req, res);
                 return;
             }
-                
+            let status = 200;
+            if (msg.subscribe) {
+                status = 209;
+                res.setHeader("subscribe", msg.subscribe)
+                res.setHeader('content-type', 'text/event-stream');
+                res.setHeader('cache-control', 'no-cache, no-transform');
+            }
             res.statusCode = status;
             msg.method = "get"
             done(msg);
         }
-        if (req.method == "PUT") {
+        else if (req.method == "PUT") {
             assert(req.headers["content-type"] == "application/json")
             assert(req.headers["merge-type"] == "sync9")
             let status = 200;

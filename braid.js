@@ -1208,6 +1208,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 return node.default_patterns[pattern](key)
             }
     }
+    node._default_val_for = default_val_for;
 
     function create_resource(resource = {}) {
         // The version history

@@ -5,27 +5,41 @@ const port = 3009;
 const lib_path = "../../";
 require('../../util/braid-bundler.js');
 
-var knownFiles = ['/braid-bundle.js', '/chat.html', '/chat.js', '/chat.css']
+const knownFiles = {
+	'/braid-bundle.js': {path: path.join(lib_path, `/builds/braid-bundle.js`),
+						 mime: 'text/javascript'},
+	'/chat.html': {path: path.join('.', '/chat.html'),
+				   mime: 'text/html'},
+	'/chat.js': {path: path.join('.', '/chat.js'),
+				 mime: 'text/javascript'},
+	'/chat.css': {path: path.join('.', '/chat.css'),
+				  mime: 'text/css'}
+}
+const knownKeys = {
+	'/usr': {},
+	'/chat': []
+}
 var cb = (req, res) => {
-	if (knownFiles.includes(req.url)) {
-		res.writeHead(200);
-		res.end(fs.readFileSync(path.join(".", req.url)));
+	const f = knownFiles[req.url];
+	if (f) {
+		res.writeHead(200, headers={'content-type': f.mime});
+		res.end(fs.readFileSync(f.path));
 	} else {
 		res.writeHead(404);
 		res.end();
 	}
-	res._headerSent = false;
 }
 
 var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certificate')) ?
     require('https').createServer({
         key: fs.readFileSync('certs/private-key'),
         cert: fs.readFileSync('certs/certificate')
-    }, cb) :
-    require('http').createServer(cb)
+    }) :
+    require('http').createServer();
 
 var node = require(path.join(lib_path, './braid.js'))()
-node.fissure_lifetime = 1000*60*60*24 // day
+Object.keys(knownKeys).forEach(k => node.default(k, knownKeys[k]))
+node.fissure_lifetime = 1000*60*60 // hour
 require(path.join(lib_path, './util/sqlite-store.js'))(node, 'db.sqlite')
 node.on_errors.push((key, origin) => node.unbind(key, origin))
 

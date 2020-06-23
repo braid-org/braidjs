@@ -1,18 +1,23 @@
- const u = require('utilities.js');
-const { parse } = require('cookie');
+var u = require('utilities.js');
 // Example braid-peer as a web browser client
 
 // To do:
 //  - Copy the code from websocket-client into here, and modify it to fit HTTP
 //  - The code below can all be used as helper functions
 
-module.exports = require['http-client'] = function add_http_client({node, url, prefix}) {
+module.exports = require['http1-client'] = function add_http_client({node, url, prefix}) {
    
-    url = url       || 'https://localhost:3007/'
+    url = url       || 'https://localhost:80/'
     prefix = prefix || '/*'
     client_creds = null;
 
-    var pipe = require('pipe.js')({node, id: 'client-pipe', send, connect, disconnect})
+    var pipe = require('pipe.js')(
+        {   node,
+            id: null, 
+            send: send,
+            connect: connect,
+            disconnect: disconnect
+        })
     node.bind(prefix, pipe)
 
     function send(args) {
@@ -32,7 +37,7 @@ module.exports = require['http-client'] = function add_http_client({node, url, p
     function disconnect () {
         pipe.disconnected()
     }
-    function sets_from_stream(buffer, callback, finished) {
+    function sets_from_stream(stream, callback, finished) {
         // Set up a reader
         let reader = stream.getReader()
         let decoder = new TextDecoder('utf-8')
@@ -124,14 +129,15 @@ module.exports = require['http-client'] = function add_http_client({node, url, p
         var h = {}
         if (msg.version) h.version = msg.version
         if (msg.parents) h.parents = msg.parents.map(JSON.stringify).join(', ')
-        if (msg.subscribe) h.subscribe = subscribe;
+        if (msg.subscribe) h.subscribe = msg.subscribe;
+        const sendUrl = new URL(msg.key, url);
         function trySend(waitTime) {
-            console.log('Fetching', url + '/' + msg.key)
-            fetch(new URL(msg.key, url), {method: 'GET', mode: 'cors',
+            console.log(`Fetching ${sendUrl}`)
+            fetch(sendUrl, {method: 'GET', mode: 'cors',
                                         headers: new Headers(h)})
                 .then(function (res) {
                     if (!res.ok) {
-                        console.error("Fetch failed!", Response)
+                        console.error("Fetch failed!", res)
                         return
                     }
                     sets_from_stream(res.body, 
@@ -163,7 +169,7 @@ module.exports = require['http-client'] = function add_http_client({node, url, p
         }
         if (msg.version) h.version = msg.version
         if (msg.parents) h.parents = msg.parents.map(JSON.stringify).join(', ')
-        if (msg.subscribe)
+        if (msg.subscribe) {}
 
         let body = msg.patch;
         if (msg.patches) {
@@ -175,8 +181,9 @@ module.exports = require['http-client'] = function add_http_client({node, url, p
             }).join("\n");
             h.patches = msg.patches.length;
         }
+        const sendUrl = new URL(msg.key, url);
         function trySend(waitTime) {
-            fetch(new URL(msg.key, url), {method: 'PUT', body: body,
+            fetch(sendUrl, {method: 'PUT', body: body,
                                     headers: new Headers(h), mode: 'no-cors'})
                 .then(function (res) {
                     res.text().then(function (text) {
