@@ -2,7 +2,7 @@ const port = 3007;
 
 require('../../util/braid-bundler.js')
 var fs = require('fs')
-var bundle = fs.readFileSync('../../builds/braid-bundle.js')
+var bundle = fs.readFileSync('builds/braid-bundle.js')
 var wiki_client = fs.readFileSync('demos/wiki/wiki-client.html')
 var cb = (req, res) => {
     res.writeHead(200)
