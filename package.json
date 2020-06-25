@@ -1,11 +1,11 @@
 {
   "name": "braidjs",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Synchronization for the Web (reference implementation)",
   "main": "braid.js",
   "scripts": {
     "test": "node test/tests.js",
-    "install": "node util/braid-bundler.js"
+    "prepublish": "node util/braid-bundler.js"
   },
   "author": "Braid Working Group",
   "repository": "braid-work/braid",
