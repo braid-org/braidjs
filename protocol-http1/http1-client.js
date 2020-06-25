@@ -11,13 +11,21 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
     prefix = prefix || '/*'
     client_creds = null;
 
-    var pipe = require('pipe.js')(
-        {   node,
-            id: null, 
+    let pipe = {
+            node,
+            id: u.random_id(), 
             send: send,
             connect: connect,
-            disconnect: disconnect
-        })
+            disconnect: disconnect,
+            recv: function(args) {
+                args.origin = pipe;
+                console.log("Passing to node: ", args)
+                node[args.method](args);
+            },
+            remote: true,
+            connection: "http",
+            them: "server"
+        };
     node.bind(prefix, pipe)
 
     function send(args) {
@@ -32,44 +40,69 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
     }
 
     function connect () {
-        pipe.connected()
     }
     function disconnect () {
-        pipe.disconnected()
     }
     function sets_from_stream(stream, callback, finished) {
         // Set up a reader
         let reader = stream.getReader()
         let decoder = new TextDecoder('utf-8')
         let buffer = '';
+        let bufferNoErase = '';
         let headers = false;
         let patches = [];
-        reader.read().then(function read ({done, chunk}) {
+        reader.read().then(function read ({value, done}) {
             if (done) {
                 // subscription was closed
+                console.log("Connection was closed. We had received:", bufferNoErase);
                 finished();
                 return;
             }
-            buffer = (buffer + (chunk ? decoder.decode(chunk) : "")).trimStart();
+            const chunkStr = value ? decoder.decode(value) : "";
+            buffer = (buffer + chunkStr).trimStart();
+            bufferNoErase += chunkStr;
+            if (value)
+                console.debug(`Got a chunk of length ${chunkStr.length}. Current buffer:`);
+            else
+                console.debug("Reading on unchanged buffer: ")
+            console.debug(buffer);
             if (!headers) {
+                console.debug("Trying to parse headers...")
                 const parsedH = parse_headers();
                 if (parsedH) {
                     headers = parsedH.headers;
                     buffer = buffer.substring(parsedH.consumeLength);
+                    console.debug("Success. Headers:", headers)
+                } else {
+                    console.debug("Failed to parse headers. We probably don't have enough.")
                 }
             }
+            if (headers)
+                console.debug("Trying to parse patches...")
             if (headers && parse_patches()) {
+                console.debug("Success. Patches:", patches)
                 // We have a complete message ... 
                 let msg = {
-                    version: JSON.parse(headers.version),
-                    parents: headers['parents'].split(", ").map(JSON.parse),
-                    patches: patches.slice()
+                    version: headers.version ? JSON.parse(headers.version) : null,
+                    parents: headers.parents ? {} : null,
+                    patches: (patches && patches.length) ? patches.slice() : null
                 };
+                if (headers.parents)
+                    headers.parents.split(", ").forEach(x => msg.parents[JSON.parse(x)] = true)
+                console.debug("Assembled complete message: ", msg);
                 setTimeout(callback, 0, msg);
                 headers = false;
                 patches = [];
+                // We've gotten a SET, but actually there might be more still in the buffer.
+                // We have to keep reading messages until we fail, and only then can we look for the next chunk.
+                console.debug("Restarting in current buffer...")
+                return read({value: false, done: false});
+            } else {
+                if (headers)
+                    console.debug("Couldn't parse patches. We probably don't have enough.")
+                console.debug("Waiting for next chunk to continue reading")
+                return reader.read().then(read);
             }
-            return reader.read().then(read);
             
         });
         function parse_headers() {
@@ -91,6 +124,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         }
         function parse_patches() {
             if (headers['content-length']) {
+                console.debug("Got an absolute body")
                 // This message has "body"
                 const length = headers['content-length'];
                 if (h.length + length < buffer.length)
@@ -103,38 +137,46 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                 while (patches.length < headers.patches) {
                     buffer = buffer.trimStart();
                     const parsePatchHeaders = parse_headers();
-                    if (!parsePatchHeaders)
+                    if (!parsePatchHeaders) {
+                        console.debug("Failed to parse patch headers!")
                         return false;
-                    
+                    }
                     const patchHeaders = parsePatchHeaders.headers;
                     const headerLength = parsePatchHeaders.consumeLength;
                     // assume we have content-length...
-                    const length = patchHeaders['content-length'];
+                    const length = parseInt(patchHeaders['content-length']);
                     // Does our current buffer contain enough data that we have the entire patch?
-                    if (headerLength + length < buffer.length)
+                    if (buffer.length < headerLength + length) {
+                        console.debug("Buffer is too small to contain the rest of the patch...")
                         return false;
+                    }
                     // Assume that content-range is of the form 'json .index'
-                    const r = headers['content-range']
+                    const r = patchHeaders['content-range']
                     const patchRange = r.startsWith("json ") ? r.substring(5) : r;
-                    const patchValue = curPatch.substring(headerLength, headerLength + length);
+                    const patchValue = buffer.substring(headerLength, headerLength + length);
                     // We've got our patch!
                     patches.push(`${patchRange} = ${patchValue}`);
                     buffer = buffer.substring(headerLength + length);
+                    console.debug(`Successfully parsed a patch. We now have ${patches.length}/${headers.patches}`);
                 }
+                console.debug("Parsed all patches.")
                 return true;
             }
         }
     }
     function send_get (msg) {
         var h = {}
-        if (msg.version) h.version = msg.version
-        if (msg.parents) h.parents = msg.parents.map(JSON.stringify).join(', ')
-        if (msg.subscribe) h.subscribe = msg.subscribe;
+        if (msg.version) h.version = JSON.stringify(msg.version)
+        if (msg.parents) h.parents = Object.keys(msg.parents).map(JSON.stringify).join(', ')
+        if (msg.subscribe) h.subscribe = "keep-alive"
         const sendUrl = new URL(msg.key, url);
         function trySend(waitTime) {
-            console.log(`Fetching ${sendUrl}`)
-            fetch(sendUrl, {method: 'GET', mode: 'cors',
-                                        headers: new Headers(h)})
+            console.log(`Fetching ${sendUrl}`);
+            const controller = new AbortController();
+            fetch(sendUrl, {method: 'GET',
+                            mode: 'cors',
+                            headers: new Headers(h),
+                            signal: controller.signal})
                 .then(function (res) {
                     if (!res.ok) {
                         console.error("Fetch failed!", res)
@@ -142,6 +184,17 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                     }
                     sets_from_stream(res.body, 
                         callback = setMessage => {
+                            // When synchronization is disabled, the first SET implies a welcome.
+                            let resource = node.resource_at(msg.key)
+                            let welcomed = resource.we_welcomed;
+                            if (!welcomed[pipe.id]) {
+                                welcomed[pipe.id] = {
+                                    id: pipe.id,
+                                    connection: pipe.connection,
+                                    them: pipe.them
+                                }
+                            }
+                            resource.weve_been_welcomed = true;
                             // Insert the method and key into this
                             setMessage.method = "set";
                             setMessage.key = msg.key;
@@ -149,31 +202,30 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                         },
                         finished = () => {
                             // Maybe close the fetch?? idk
-                            console.log(`Subscription to ${msg.key} ended by remote host`);
+                            console.warn(`Subscription to ${msg.key} ended by remote host`);
                         }
                     );
                 })
                 .catch(function (err) {
-                    console.log("Fetch GET failed: ", err)
+                    console.error("Fetch GET failed: ", err)
                     setTimeout(() => trySend(Math.min(waitTime * 5, 10000)), waitTime)
                 })
         }
         trySend(100);
         
     }
-
     function send_set (msg) {
         var h = {
             'content-type': 'application/json',
             'merge-type': 'sync9'
         }
-        if (msg.version) h.version = msg.version
-        if (msg.parents) h.parents = msg.parents.map(JSON.stringify).join(', ')
+        if (msg.version) h.version = JSON.stringify(msg.version)
+        if (msg.parents) h.parents = Object.keys(msg.parents).map(JSON.stringify).join(', ')
         if (msg.subscribe) {}
 
         let body = msg.patch;
         if (msg.patches) {
-            body = msg.patches.map(p => {
+            body = msg.patches.map(patch => {
                 const split = patch.match(/(.*?)\s*=\s*(.*)/); // (...) = (...)
                 const length = `content-length: ${split[2].length}`;
                 const range = `content-range: json ${split[1]}`;
@@ -183,15 +235,17 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         }
         const sendUrl = new URL(msg.key, url);
         function trySend(waitTime) {
-            fetch(sendUrl, {method: 'PUT', body: body,
-                                    headers: new Headers(h), mode: 'no-cors'})
+            fetch(sendUrl, {method: 'PUT',
+                            body: body,
+                            mode: 'cors',
+                            headers: new Headers(h)})
                 .then(function (res) {
                     res.text().then(function (text) {
                         console.log('send_set got a ', res.status, text)
                     })
                 })
                 .catch(function (err) {
-                    console.log("Fetch SET failed: ", err);
+                    console.error("Fetch SET failed: ", err);
                     setTimeout(() => trySend(Math.min(waitTime * 5, 10000)), waitTime)
                 });
         }

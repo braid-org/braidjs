@@ -12,6 +12,7 @@ node.default(msgKey, []);
 node.default(usrKey, {});
 
 show_debug = true;
+g_show_protocol_errors = true;
 
 const socket = require('http1-client.js')({node, url: 'http://localhost:3009/'});
 

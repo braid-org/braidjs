@@ -3,7 +3,12 @@ const path = require('path');
 
 const port = 3009;
 const lib_path = "../../";
-require('../../util/braid-bundler.js');
+require(path.join(lib_path, './util/braid-bundler.js'));
+const sqlite = require(path.join(lib_path, './util/sqlite-store.js'))
+const braid = require(path.join(lib_path, './braid.js'));
+
+global.g_show_protocol_errors = true;
+global.show_debug = true;
 
 const knownFiles = {
 	'/braid-bundle.js': {path: path.join(lib_path, `/builds/braid-bundle.js`),
@@ -37,11 +42,13 @@ var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certifi
     }) :
     require('http').createServer();
 
-var node = require(path.join(lib_path, './braid.js'))()
-Object.keys(knownKeys).forEach(k => node.default(k, knownKeys[k]))
-node.fissure_lifetime = 1000*60*60 // hour
-require(path.join(lib_path, './util/sqlite-store.js'))(node, 'db.sqlite')
+var node = braid();
+node.fissure_lifetime = 1000 * 60 // Fissures can only last 1 minute...
+sqlite(node, 'db.sqlite');
 node.on_errors.push((key, origin) => node.unbind(key, origin))
+
+// For any of the default keys, if we have no versions for them, set an initial version.
+Object.keys(knownKeys).filter(k => Object.keys(node.resource_at(k).current_version).length == 0).forEach(k => node.set(k, knownKeys[k]))
 
 require(path.join(lib_path, './protocol-http1/http1-server.js'))(node, server, cb)
 
