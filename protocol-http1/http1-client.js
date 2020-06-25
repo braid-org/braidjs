@@ -1,33 +1,29 @@
 var u = require('utilities.js');
-// Example braid-peer as a web browser client
 
-// To do:
-//  - Copy the code from websocket-client into here, and modify it to fit HTTP
-//  - The code below can all be used as helper functions
-
+// Binds a node to a url, allowing the node to send GETS and SETS to that url
 module.exports = require['http1-client'] = function add_http_client({node, url, prefix}) {
-   
     url = url       || 'https://localhost:80/'
     prefix = prefix || '/*'
-    client_creds = null;
+    var enabled = true;
 
+    // Make a fake pipe object
+    // The real ones check acks and synchronization and such
     let pipe = {
-            node,
-            id: u.random_id(), 
-            send: send,
-            connect: connect,
-            disconnect: disconnect,
-            recv: function(args) {
-                args.origin = pipe;
-                console.log("Passing to node: ", args)
-                node[args.method](args);
-            },
-            remote: true,
-            connection: "http",
-            them: "server"
-        };
-    node.bind(prefix, pipe)
+        node,
+        id: u.random_id(), 
+        send: send,
+        recv: function(args) {
+            args.origin = pipe;
+            console.log("Passing to node: ", args)
+            node[args.method](args);
+        },
+        remote: true,
+        connection: "http",
+        them: "server"
+    };
 
+    node.bind(prefix, pipe)
+    
     function send(args) {
         if (args.method === 'get')
             send_get(args)
@@ -38,39 +34,40 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         else
             console.info('No http1 implementation for method', args.method.toUpperCase())
     }
-
-    function connect () {
-    }
-    function disconnect () {
-    }
+    // Read sets from a persistent stream
     function sets_from_stream(stream, callback, finished) {
         // Set up a reader
         let reader = stream.getReader()
         let decoder = new TextDecoder('utf-8')
         let buffer = '';
-        let bufferNoErase = '';
         let headers = false;
         let patches = [];
         reader.read().then(function read ({value, done}) {
             if (done) {
                 // subscription was closed
-                console.log("Connection was closed. We had received:", bufferNoErase);
+                if (buffer.trim().length)
+                    console.debug("Connection was closed. Remaining data in buffer:", buffer);
+                else
+                    console.debug("Connection was closed. Buffer was empty.")
                 finished();
                 return;
             }
             const chunkStr = value ? decoder.decode(value) : "";
+            // Remove newlines at the beginning, maybe unnecessary
             buffer = (buffer + chunkStr).trimStart();
-            bufferNoErase += chunkStr;
             if (value)
                 console.debug(`Got a chunk of length ${chunkStr.length}. Current buffer:`);
             else
-                console.debug("Reading on unchanged buffer: ")
+                // If there's no new chunk then we must have had some data left over after a successful parse
+                console.debug("Reading on unchanged buffer:")
             console.debug(buffer);
+            // If we haven't parsed headers yet, try to parse headers.
             if (!headers) {
                 console.debug("Trying to parse headers...")
                 const parsedH = parse_headers();
                 if (parsedH) {
                     headers = parsedH.headers;
+                    // Take the parsed headers out of the buffer
                     buffer = buffer.substring(parsedH.consumeLength);
                     console.debug("Success. Headers:", headers)
                 } else {
@@ -79,6 +76,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
             }
             if (headers)
                 console.debug("Trying to parse patches...")
+            // Try to parse patches. parse_patches returns boolean
             if (headers && parse_patches()) {
                 console.debug("Success. Patches:", patches)
                 // We have a complete message ... 
@@ -184,7 +182,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                     }
                     sets_from_stream(res.body, 
                         callback = setMessage => {
-                            // When synchronization is disabled, the first SET implies a welcome.
+                            // When acking and pruning is disabled, the first SET implies a welcome.
                             let resource = node.resource_at(msg.key)
                             let welcomed = resource.we_welcomed;
                             if (!welcomed[pipe.id]) {
@@ -208,7 +206,8 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                 })
                 .catch(function (err) {
                     console.error("Fetch GET failed: ", err)
-                    setTimeout(() => trySend(Math.min(waitTime * 5, 10000)), waitTime)
+                    // Exponential backoff
+                    setTimeout(() => trySend(Math.min(waitTime * 5, 100000)), waitTime)
                 })
         }
         trySend(100);
@@ -225,7 +224,9 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
 
         let body = msg.patch;
         if (msg.patches) {
+            // Write patches as pseudoheaders
             body = msg.patches.map(patch => {
+                // We should use the sync9 patch parser
                 const split = patch.match(/(.*?)\s*=\s*(.*)/); // (...) = (...)
                 const length = `content-length: ${split[2].length}`;
                 const range = `content-range: json ${split[1]}`;
@@ -246,9 +247,17 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                 })
                 .catch(function (err) {
                     console.error("Fetch SET failed: ", err);
-                    setTimeout(() => trySend(Math.min(waitTime * 5, 10000)), waitTime)
+                    // Exponential backoff
+                    setTimeout(() => trySend(Math.min(waitTime * 5, 100000)), waitTime)
                 });
         }
         trySend(20);
+    }
+    return {
+        pipe,
+        enabled() {return enabled},
+        enable()  {nlog('ENABLING PIPE', pipe.id); enabled = true; connect()},
+        disable() {nlog('DISABLING PIPE',pipe.id); enabled = false; },
+        toggle()  {if (enabled) {disable()} else enable()}
     }
 }

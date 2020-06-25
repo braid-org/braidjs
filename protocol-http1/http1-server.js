@@ -5,12 +5,27 @@ const assert = require('assert');
 const parseHeaders = require('parse-headers');
 var u = require('../util/utilities.js')
 
+// This function sets a request eventlistener on the provided server.
+// FileCb is called when the server receives a GET request for a key it doesn't know about
+//   ie, the braid server is passing control back to the app, to serve files or anything else.
 module.exports = function add_http_server(node, server, fileCb) {
+    // Write an array of patches into the pseudoheader format.
     function writePatches(patches) {
+        // This will return something like:
+        // Patches: n
+        // 
+        // content-length: 14 // patch #1
+        // content-range: json .range (or) json [indices]
+        //
+        // ["json object"]
+        //
+        // content-length: x // patch #2
+        // ...
         let out = `patches: ${patches.length}\n`
         for (let patch of patches) {
             out += "\n"
-            const split = patch.match(/(.*?)\s*=\s*(.*)/); // (...) = (...)
+            // This should be rewritten to use sync9's patch parser.
+            const split = patch.match(/(.*?)\s*=\s*(.*)/);
             assert(split.length == 3)
             const range = split[1];
             const change = split[2];
@@ -21,6 +36,9 @@ module.exports = function add_http_server(node, server, fileCb) {
         }
         return out;
     }
+    // This function reads n patches in pseudoheader format from a ReadableStream
+    //   and then fires a callback when they're finished
+    // Might be nice to use a promise here
     function readPatches(n, stream, cb) {
         let patches = [];
         let curPatch = "";
@@ -32,7 +50,7 @@ module.exports = function add_http_server(node, server, fileCb) {
             const headerLength = curPatch.indexOf("\n\n");
             if (headerLength == -1) return;
             // Now that we have all the headers, we have to parse them and look for content-length
-            // TODO: Support Transfer-Encoding: Chunked (maybe)
+            // TODO: Support Transfer-Encoding: Chunked (maybe?)
             const headers = parseHeaders(curPatch.substring(0, headerLength));
             assert(headers['content-length']);
             const length = parseInt(headers['content-length']);
@@ -61,47 +79,47 @@ module.exports = function add_http_server(node, server, fileCb) {
             }
         })
     }
+    // Construct a (fake) pipe object that allows writing data into a persistent stream
     function responsePipe(res, keepAlive) {
         // Construct pipe
         const reqPipe = {
             id: u.random_id(),
             send: sendVersions,
-            connect: connect,
-            disconnect: disconnect,
             recv: function(args) {
                 console.debug("Receiving message", args);
                 args.origin = reqPipe;
                 node[args.method](args);
             },
             remote: true,
-            connection: "http", // These are supposed to be unique ids :)
+            connection: "http", // These are supposed to be unique ids of some sort :)
             them: "client"
-        }
+        };
+        res.on('timeout', () => console.warn("Unfortunately, a connection timed out."))
+        res.on('end', () => {console.warn("Connection ended.")})
 
-        //const writeHeaderHttpStyle = (header, value)
-        // The send function has to handle the different ways that we might be encoding data into http/1
         const allowedMethods = ["set", "welcome"]
+        // The node will call this method with JSON messages
         function sendVersions (args) {
+            // Streams created in response to SETs aren't kept alive.
             if (!keepAlive) {
                 console.log("Node tried to send", args.method, "on non-persistent stream:")
-                console.dir(args);
                 disconnect();
                 return;
             }
+            // The protocol doesn't support things like acks and fissures
             if (!allowedMethods.includes(args.method)) {
                 console.log("Node tried to send", args.method)
                 return;
             }
             console.log("Sending a response: ")
             console.dir(args, {depth: 4});
-            // Rewrite the arguments into headers and body (or text stream)
-            // And send it back through `res`.
+            // Extract the three relevant fields from JSON message
             let versions = [];
             if (args.method == "welcome") {
                 versions = args.versions.map(f => {return {
                     version: f.version,
                     parents: f.parents,
-                    patches: f.changes // The node object should be changed to call this patches
+                    patches: f.changes // The node object should be changed to call this patches, and then this can be shorter
                 }})
             } else if (args.method == "set") {
                 versions = [{
@@ -110,35 +128,37 @@ module.exports = function add_http_server(node, server, fileCb) {
                     patches: args.patches
                 }]
             }
-            if (keepAlive) {
-                // If keepAlive is set, then we're technically writing headers into the body.
-                // Every version should be split by lines.
-                // We'll choose to put this at the end, and content-length should make the meaning clear.
-                for (let version of versions) {
-                    if (version.version)
-                        res.write(`Version: ${JSON.stringify(version.version)}\n`)
-                    if (Object.keys(version.parents).length)
-                        res.write(`Parents: ${Object.keys(version.parents).map(JSON.stringify).join(", ")}\n`)
-                    
-                    res.write("Merge-Type: sync9\n")
-                    res.write("Content-Type: application/json\n")
-                    res.write(writePatches(version.patches)) // adds its own newline
-                    res.write("\n")
-                }
+            for (let version of versions) {
+                if (version.version)
+                    res.write(`Version: ${JSON.stringify(version.version)}\n`)
+                if (Object.keys(version.parents).length)
+                    res.write(`Parents: ${Object.keys(version.parents).map(JSON.stringify).join(", ")}\n`)
+                
+                res.write("Merge-Type: sync9\n")
+                res.write("Content-Type: application/json\n")
+                res.write(writePatches(version.patches)) // adds its own newline
+                res.write("\n")
             }
-            //res.end();
+            
         }
-        function connect () {}
         function disconnect () {res.end(); }
         if (!keepAlive)
             setTimeout(disconnect);
         return reqPipe;
     }
+    // The entry point of the server.
+    // Listen for requests
     function handleHttpResponse(req, res) {
         console.log("Got a request:", req.method, req.url);
+        // Apply hardcoded access control headers
+        // The cors() method will return true if the request is an OPTIONS request
+        // (It'll also respond 200 and end the stream)
         if (cors(req, res))
             return;
-        const ip = req.socket.remoteAddress;
+        // There should be a better way to do this.
+        // Initially, this would take a message, create a pipe, and recv the message
+        // But it turns out that in many cases you actually want to set some data on the node
+        //   before it receives the message but after the pipe is created
         const done = persistent => {
             return responsePipe(res, persistent);
         }
@@ -146,48 +166,59 @@ module.exports = function add_http_server(node, server, fileCb) {
         let msg = {
             key: req.url
         }
+        // Copy headers that need minor modifications but no additional conditionals
         if (req.headers.version)
             msg.version = JSON.parse(req.headers.version)
         if (req.headers.parents) {
             msg.parents = {};
             req.headers.parents.split(", ").forEach(x => msg.parents[JSON.parse(x)] = true)
         }
+        // If we end up having more methods supported, maybe make this a switch
         if (req.method == "GET") {
+            // If we don't have a default or a copy of the requested resource
             if (!node.resources[msg.key] && !node._default_val_for(msg.key)) {
                 // Assume this is a file request
                 fileCb(req, res);
                 return;
             }
             let status = 200;
-            if (req.headers.subscribe) {
+            const persistent = Boolean(req.headers.subscribe);
+            if (persistent) {
+                // Set some headers needed to indicate a subscription.
                 status = 209;
                 res.setHeader("subscribe", req.headers.subscribe)
                 res.setHeader('content-type', 'text/plain');
                 res.setHeader('cache-control', 'no-cache, no-transform');
                 res.setHeader('connection', 'Keep-Alive');
-                res.setHeader('keep-alive', 'timeout=30');
-                res.on('timeout', () => console.warn("Unfortunately, a connection timed out."))
-                if (req.headers.subscribe)
-                    msg.subscribe = {"keep-alive": true}
+                msg.subscribe = {"keep-alive": true}
             }
             res.statusCode = status;
             msg.method = "get"
-            done(Boolean(msg.subscribe["keep-alive"])).recv(msg);
+            done(persistent).recv(msg);
         }
         else if (req.method == "PUT") {
+            // We only support these headers right now...
             assert(req.headers["content-type"] == "application/json")
             assert(req.headers["merge-type"] == "sync9")
             let status = 200;
             if (!node.resources[msg.key])
+                // If we don't have the resource, it'll be created.
+                // We actually need to add a way to prevent clients from creating braid resources with the same names
+                //   as file resources, which would make them unreadable.
+                // I think we should instead make the server explicitly bind itself to some paths.
                 status = 201;
             res.statusCode = status;
             msg.method = "set"
             // Parse patches
-            readPatches(req.headers["patches"], req, (patches) => {
+            // Try to read patches from the request body
+            // req.headers.patches is the number of patches expected
+            readPatches(req.headers.patches, req, (patches) => {
+                // When finished, create a pipe.
                 msg.patches = patches;
                 res.setHeader("patches", "OK");
                 let pipe = done(persistent = false);
 
+                // When pruning and fissures are disabled, we're allowed to accept from SETS from non-subscribed clients.
                 let resource = node.resource_at(msg.key)
                 let welcomed = resource.we_welcomed;
                 if (!welcomed[pipe.id]) {
@@ -204,9 +235,9 @@ module.exports = function add_http_server(node, server, fileCb) {
     }
     function cors(req, res) {
         const free_the_cors = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*"
+            "Access-Control-Allow-Origin": "*"
+            ,"Access-Control-Allow-Methods": "OPTIONS, HEAD, GET, PUT"
+            //,"Access-Control-Allow-Headers": "*"
         };
         Object.entries(free_the_cors).forEach(x => res.setHeader(x[0], x[1]));
         if ( req.method === 'OPTIONS' ) {
