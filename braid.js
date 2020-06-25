@@ -1,5 +1,5 @@
 u = require('./util/utilities.js')
-var g_show_protocol_errors = false
+g_show_protocol_errors = false;
 
 module.exports = require.braid = function create_node(node_data = {}) {
     var node = {}
@@ -951,7 +951,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 (!fissure.versions || typeof(fissure.versions) != 'object' || !Object.entries(fissure.versions).every(([k, v]) => v === true)) ||
                 (!fissure.parents || typeof(fissure.parents) != 'object' || !Object.entries(fissure.parents).every(([k, v]) => v === true)) ||
                 (typeof(fissure.time) != 'number')
-            ) { return report('invalid fissure: ' + JSON.stringify(fissure)) }
+            ) { 
+                return report('invalid fissure: ' + JSON.stringify(fissure))
+            }
         }
 
         node.ons.forEach(on => on('fissure', {key, fissure, origin}))
@@ -1223,6 +1225,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 return node.default_patterns[pattern](key)
             }
     }
+    node._default_val_for = default_val_for;
 
     function create_resource(resource = {}) {
         // The version history

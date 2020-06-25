@@ -28,10 +28,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             ping_timer = setTimeout(() => disconnect(), death_time)
         }, ping_time)
     }
-    // Disable logging in the pipe.
-    // This is OK because the various connection clients and servers that create pipe objects
-    //  can have better logging because they know more about their connection
-    var log = () => {};
+    var log = console.log;
     // The Pipe Object!
     var pipe = {
 
