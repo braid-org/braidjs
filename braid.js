@@ -12,7 +12,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (node_data.fissure_lifetime !== null)
             node.fissure_lifetime = node_data.fissure_lifetime
         if (node.fissure_lifetime === undefined)
-            node.fissure_lifetime = 1000 * 60 * 60 * 24 * 2  // Default to 2 days
+            node.fissure_lifetime = 1000 * 60 * 60 * 8  // Default to 8 hours
+
+        node.max_fissures = node_data.max_fissures
 
         node.defaults = Object.assign(u.dict(), node.defaults || {})
         node.default_patterns = node.default_patterns || []
@@ -1099,6 +1101,19 @@ module.exports = require.braid = function create_node(node_data = {}) {
                     delete resource.fissures[k]
                 }
             })
+        }
+
+        if (node.max_fissures != null) {
+            let count = Object.keys(resource.fissures).length
+            if (count > node.max_fissures) {
+                Object.entries(resource.fissures).sort((a, b) => {
+                    if (a[1].time == null) a[1].time = now
+                    if (b[1].time == null) b[1].time = now
+                    return a[1].time - b[1].time
+                }).slice(0, count - node.max_fissures).forEach(e => {
+                    delete resource.fissures[e[0]]
+                })
+            }
         }
         
         var tags = {null: {tags: {}}}

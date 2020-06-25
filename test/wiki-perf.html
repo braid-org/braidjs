@@ -30,6 +30,7 @@ async function main() {
         clock: 1,
         time: 1,
         server_versions: 1,
+        server_fissures: 1,
         num_active_servers: 10,
         num_clients: 10,
         num_active_clients: 10
@@ -41,7 +42,8 @@ async function main() {
         stats[k] = sl
     })
 
-    var params = {
+    var params = JSON.parse(localStorage.wiki_perf_li7fl3drudc || '{}')
+    Object.entries({
         rand_seed: 'hi_world',
 
         server_off_time: [0, 2000],
@@ -62,7 +64,10 @@ async function main() {
         socket_close_delay: [0, 1000],
 
         pump_delay: 30
-    }
+    }).forEach(([k, v]) => {
+        if (params[k] == null) params[k] = v
+    })
+    localStorage.wiki_perf_li7fl3drudc = JSON.stringify(params)
 
     Object.entries(params).forEach(([k, v]) => {
         var label = make_html(`<div></div>`)
@@ -72,6 +77,17 @@ async function main() {
         var input = make_html(`<input style="width:100%"></input>`)
         input.value = v
         side_panel.append(input)
+        input.oninput = () => {
+            if (Array.isArray(v)) {
+                params[k] = input.value.split(/,/).map(x => 1*x.trim())
+            } else if (typeof(v) == 'number') {
+                params[k] = 1*input.value.trim()
+            } else {
+                params[k] = input.value.trim()
+            }
+            localStorage.wiki_perf_li7fl3drudc = JSON.stringify(params)
+        }
+        input.onchange = () => input.value = params[k]
     })
 
     var pump = null
@@ -361,6 +377,8 @@ function create_experiment(params) {
     }
 
     var prev_server_versions = 0
+    var prev_server_fissed_versions = 0
+    var prev_server_fissures = 0
 
     return () => {
         var e = events.sort((a, b) => a[0] - b[0]).shift()
@@ -374,12 +392,27 @@ function create_experiment(params) {
 
 
 
-        if (server) prev_server_versions = Object.keys(server.node.resource_at(page_key).time_dag).length
+        if (server) {
+            prev_server_versions = Object.keys(server.node.resource_at(page_key).time_dag).length
+
+            let versions = Object.fromEntries(Object.keys(server.node.resource_at(page_key).time_dag).map(x => [x, true]))
+            let fissed_versions = {}
+            Object.values(server.node.resource_at(page_key).fissures).forEach(f => {
+                Object.keys(f.versions).forEach(v => {
+                    if (versions[v]) fissed_versions[v] = true
+                })
+            })
+            prev_server_fissed_versions = Object.keys(fissed_versions).length
+
+            prev_server_fissures = Object.keys(server.node.resource_at(page_key).fissures).length
+        }
 
         return {
             clock: (t % 1000)/1000,
             time: et - st,
             server_versions: prev_server_versions,
+            server_fissed_versions: prev_server_fissed_versions,
+            server_fissures: prev_server_fissures,
             num_active_servers: server ? 1 : 0,
             num_clients: clients.length,
             num_active_clients: clients.filter(x => x.is_open).length
@@ -400,6 +433,7 @@ function create_db() {
 function create_server(db) {
     var node = require('../braid.js')()
     node.fissure_lifetime = 1000 * 1000
+    // node.max_fissures = 10
     require('../util/store.js')(node, db)
 
     node.on_errors.push((key, origin) => {
