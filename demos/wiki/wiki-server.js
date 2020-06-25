@@ -1,8 +1,8 @@
 const port = 3007;
 
-require('./braid-bundler.js')
+require('../../util/braid-bundler.js')
 var fs = require('fs')
-var bundle = fs.readFileSync('braid-bundle.js')
+var bundle = fs.readFileSync('../../builds/braid-bundle.js')
 var wiki_client = fs.readFileSync('wiki-client.html')
 var cb = (req, res) => {
     res.writeHead(200)
@@ -18,12 +18,12 @@ var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certifi
 server.listen(port)
 var wss = new (require('ws').Server)({server})
 
-var node = require('./node.js')()
+var node = require('../../braid.js')()
 node.fissure_lifetime = 1000*60*60*24*7 // week
-require('./sqlite-store.js')(node, 'db.sqlite')
+require('../../util/sqlite-store.js')(node, 'db.sqlite')
 node.on_errors.push((key, origin) => node.unbind(key, origin))
 
-var ws = require('./networks/websocket-server.js')(node, {wss})
+var ws = require('../../protocol-websocket//websocket-server.js')(node, {wss})
 
 console.log('keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 
