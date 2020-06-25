@@ -1,4 +1,4 @@
-const port = 3007;
+const port = 3009;
 
 require('../../util/braid-bundler.js')
 var fs = require('fs')
@@ -20,6 +20,9 @@ var wss = new (require('ws').Server)({server})
 
 var node = require('../../braid.js')()
 require('../../util/sqlite-store.js')(node, 'db.sqlite')
+
+node.fissure_lifetime = 1000*60*60*8 // 8 hours
+
 node.on_errors.push((key, origin) => node.unbind(key, origin))
 
 var ws = require('../../protocol-websocket/websocket-server.js')(node, {wss})
