@@ -1,4 +1,4 @@
-const port = 3009;
+const port = 3007;
 
 require('../../util/braid-bundler.js')
 var fs = require('fs')
