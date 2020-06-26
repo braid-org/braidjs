@@ -26,14 +26,21 @@ let createListeners = function () {
 	let users = {};
 	let messages = [];
 	// Subscribe for updates to a resource
-	node.get(msgKey, update_messages);
-	node.get(usrKey, newVal => {
+    node.get(msgKey, update_messages);
+    let usrKey_cb = newVal => {
 		users = newVal;
 		if (!users[browserId])
 			setUsername(generatedUsername);
 		nameBox.value = users[browserId];
 		update_messages(messages);
-	});
+    }
+	node.get(usrKey, usrKey_cb);
+
+    window.addEventListener('beforeunload', function () {
+        node.forget(msgKey, update_messages)
+        node.forget(usrKey, usrKey_cb)
+    })
+
 	// Cache braid state
 	function cache() {
 		nodeCache = {pid: browserId,
