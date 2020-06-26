@@ -6,6 +6,7 @@ localStorage.browserId = browserId;
 let nodeCache = localStorage.nodeCache ? JSON.parse(localStorage.nodeCache) : {pid: browserId};
 
 const node = require('braid.js')(nodeCache);
+node.fissure_lifetime = 1000 * 60 * 60 * 8 // Fissures can only last 8 hours...
 
 node.default(`${msgKey}/*`, path => []);
 node.default(msgKey, []);
@@ -14,7 +15,8 @@ node.default(usrKey, {});
 show_debug = true;
 g_show_protocol_errors = true;
 
-const socket = require('http1-client.js')({node, url: 'http://localhost:3009/'});
+//const socket = require('http1-client.js')({node, url: 'http://localhost:3009/'});
+var socket = require('websocket-client.js')({node, url: 'wss://invisible.college:3009/'})
 
 // UI Code
 let createListeners = function () {

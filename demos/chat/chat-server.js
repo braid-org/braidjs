@@ -39,18 +39,22 @@ var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certifi
     require('https').createServer({
         key: fs.readFileSync('certs/private-key'),
         cert: fs.readFileSync('certs/certificate')
-    }) :
-    require('http').createServer();
+    }, cb) :
+    require('http').createServer(cb);
 
 var node = braid();
-node.fissure_lifetime = 1000 * 60 // Fissures can only last 1 minute...
+node.fissure_lifetime = 1000 * 60 * 60 * 8 // Fissures can only last 8 hours...
 sqlite(node, 'db.sqlite');
 node.on_errors.push((key, origin) => node.unbind(key, origin))
 
 // For any of the default keys, if we have no versions for them, set an initial version.
 Object.keys(knownKeys).filter(k => Object.keys(node.resource_at(k).current_version).length == 0).forEach(k => node.set(k, knownKeys[k]))
 
-require(path.join(lib_path, './protocol-http1/http1-server.js'))(node, server, cb)
-
-console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 server.listen(port);
+var wss = new (require('ws').Server)({server})
+
+// require(path.join(lib_path, './protocol-http1/http1-server.js'))(node, server, cb)
+
+require(path.join(lib_path, './protocol-websocket/websocket-server.js'))(node, {wss})
+    
+console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
