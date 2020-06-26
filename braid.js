@@ -863,13 +863,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (true) {
             function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for forget: ' + x) }
             if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
-
-            var resource = node.resource_at(key)
-            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
         }
 
         node.ons.forEach(on => on('forget', {key, origin}))
 
+        var resource = node.resource_at(key)
         delete resource.we_welcomed[origin.id]
         node.unbind(key, origin)
         node.gets_in.delete(key, origin.id)
