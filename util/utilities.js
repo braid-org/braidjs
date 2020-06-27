@@ -21,6 +21,13 @@ module.exports = require.utilities = {
         var data   = dict()
         var counts = dict()
         return {
+
+
+            // work here
+            test_data: data,
+            test_counts: counts,
+
+
             get (k) { return Object.values(data[k] || dict()) },
             add (k1, k2, value) {
                 if (  data[k1] === undefined)   data[k1] = dict()
