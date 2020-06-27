@@ -861,8 +861,13 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // guard against invalid forgets
         if (true) {
-            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for forget: ' + x) }
-            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+            function report(x) {
+                g_show_protocol_errors && console.log('PROTOCOL ERROR for forget: '+x)
+            }
+            if (!key || typeof(key) != 'string')
+                return report('invalid key: ' + JSON.stringify(key))
+            if (!node.gets_in.has(key, origin.id))
+                return report('pipe did not get the key "'+key+'" yet')
         }
 
         node.ons.forEach(on => on('forget', {key, origin}))
