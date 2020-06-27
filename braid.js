@@ -866,9 +866,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
             }
             if (!key || typeof(key) != 'string')
                 return report('invalid key: ' + JSON.stringify(key))
-            if (!node.gets_in.has(key, origin.id)) {
+
+            // work here
+
+            if (!node.gets_in.has(key, origin.id))
                 return report('pipe did not get the key "'+key+'" yet')
-            }
         }
 
         node.ons.forEach(on => on('forget', {key, origin}))
