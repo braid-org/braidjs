@@ -28,7 +28,8 @@ module.exports = require.utilities = {
                 if (!data[k1][k2]) counts[k1]++
                 data[k1][k2] = value
             },
-            delete (k, k2) { delete data[k][k2]; counts[k]-- },
+            delete (k, k2) { if (!(k2 in data[k])) throw 'No key ' + k2 + ' to delete.'
+                             delete data[k][k2]; counts[k]-- },
             delete_all (k) { delete data[k]; delete counts[k] },
             has (k, k2)    { return data[k] && data[k][k2] },
             count (k)      { return counts[k] || 0}
