@@ -207,7 +207,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
 
         // Now record this subscription to the bus
-        node.gets_in.add(key, origin.id)
+        node.gets_in.add(key, origin.id, origin)
         // ...and bind the origin pipe to future sets
         node.bind(key, origin)
 
@@ -862,12 +862,13 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // guard against invalid forgets
         if (true) {
             function report(x) {
-                g_show_protocol_errors && console.log('PROTOCOL ERROR for forget: '+x)
+                g_show_protocol_errors && console.error('PROTOCOL ERROR for forget: '+x)
             }
             if (!key || typeof(key) != 'string')
                 return report('invalid key: ' + JSON.stringify(key))
-            if (!node.gets_in.has(key, origin.id))
+            if (!node.gets_in.has(key, origin.id)) {
                 return report('pipe did not get the key "'+key+'" yet')
+            }
         }
 
         node.ons.forEach(on => on('forget', {key, origin}))
