@@ -23,9 +23,7 @@ module.exports = require.utilities = {
         return {
             get (k) { return Object.values(data[k] || dict()) },
             add (k1, k2, value) {
-                //console.assert(value, "one-to-many was passed no value")
-                if (!value)
-                    throw `Tried to map ${k1}->${k2}->${value}`
+                assert(value, "one-to-many.add() requires three parameters")
                 if (  data[k1] === undefined)   data[k1] = dict()
                 if (counts[k1] === undefined) counts[k1] = 0
                 if (!data[k1][k2]) counts[k1]++
