@@ -920,19 +920,27 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
         // guard against invalid messages
         if (true) {
-            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for ack: ' + x) }
-            if (typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+            function report(x) {
+                g_show_protocol_errors && console.log('PROTOCOL ERROR for ack: ' + x)
+            }
+            if (typeof(key) != 'string')
+                return report('invalid key: ' + JSON.stringify(key))
 
             var resource = node.resource_at(key)
-            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+            if (!resource.we_welcomed[origin.id])
+                return report('we did not welcome them yet')
 
-            if (typeof(valid) != 'undefined') { return report('support for valid flag not yet implemented') }
+            if (typeof(valid) != 'undefined')
+                return report('support for valid flag not yet implemented')
 
-            if (seen != 'local' && seen != 'global') { return report('invalid seen: ' + JSON.stringify(seen)) }
+            if (seen != 'local' && seen != 'global')
+                return report('invalid seen: ' + JSON.stringify(seen))
 
-            if (typeof(version) != 'string') { return report('invalid version: ' + JSON.stringify(version)) }
+            if (typeof(version) != 'string')
+                return report('invalid version: ' + JSON.stringify(version))
 
-            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number') { return report('invalid joiner_num: ' + JSON.stringify(joiner_num)) }
+            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number')
+                return report('invalid joiner_num: ' + JSON.stringify(joiner_num))
         }
 
         node.ons.forEach(on => on('ack', {key, valid, seen, version, origin, joiner_num}))
@@ -1090,6 +1098,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // may be useful for this
     }
 
+    node.current_version = (key) =>
+        Object.keys(node.resource_at(key).current_version).join('-') || null
+    node.versions = (key) => Object.keys(node.resource_at(key).time_dag)
+
     node.prune = (resource) => {
         var unremovable = {}
         Object.entries(resource.fissures).forEach(x => {
@@ -1225,9 +1237,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
                   parents: Object.assign(u.dict(), resource.current_version),
                   joiner_num})
     }        
-
-    node.current_version = (key) =>
-        Object.keys(node.resource_at(key).current_version).join('-') || null
 
     node.default = (key, val) => {
         var is_wildcard = key[key.length-1] === '*'
