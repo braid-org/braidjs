@@ -228,7 +228,7 @@ module.exports = function add_http_server(node, server, fileCb) {
                 // When finished, create a pipe.
                 msg.patches = patches;
                 res.setHeader("patches", "OK");
-                let pipe = done(persistent = false);
+                let pipe = done(false);
 
                 // When pruning and fissures are disabled, we're allowed to accept from SETS from non-subscribed clients.
                 let resource = node.resource_at(msg.key)
