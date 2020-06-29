@@ -231,12 +231,12 @@ module.exports = require.braid = function create_node(node_data = {}) {
             })
         }
 
-        // // G: now if the person connecting with us wants to be a citizen, they'll
-        // // set "pid", and we'll want to send them a "get" as well so that we
-        // // can learn about their updates -- of course, when they get that get,
-        // // we don't want an echo war of gets begetting gets, so when someone sends
-        // // the initial get, they set "initial" to true, but we respond with a get
-        // // with initial not set to true
+        // G: now if the person connecting with us wants to be a citizen, they'll
+        // set "pid", and we'll want to send them a "get" as well so that we
+        // can learn about their updates -- of course, when they get that get,
+        // we don't want an echo war of gets begetting gets, so when someone sends
+        // the initial get, they set "initial" to true, but we respond with a get
+        // with initial not set to true
 
         // if (origin.them && initial)
         //     origin.send({method: 'get', key, initial: false})
@@ -277,8 +277,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // G: ok, here we actually send out the welcome
 
-        if (origin.remote) resource.we_welcomed[origin.id] = {id: origin.id, connection: origin.connection, them: origin.them, remote: origin.remote}
-        origin.send && origin.send({method: 'welcome', key, versions, fissures, parents: best_parents})
+        if (origin.remote) resource.we_welcomed[origin.id] = {
+            id: origin.id,
+            connection: origin.connection,
+            them: origin.them,
+            remote: origin.remote
+        }
+        origin.send && origin.send({
+            method: 'welcome', key, versions, fissures, parents: best_parents})
 
         return resource.mergeable.read()
     }
@@ -311,22 +317,34 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // guard against invalid sets..
         if (true) {
-            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for set: ' + x) }
-            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+            function report(x) {
+                g_show_protocol_errors && console.log('PROTOCOL ERROR for set: ' + x)
+            }
+
+            if (!key || typeof(key) != 'string')
+                return report('invalid key: ' + JSON.stringify(key))
 
             var resource = node.resource_at(key)
 
-            if (origin && !resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+            // Todo: Remove this?  Shouldn't we allow a SET from anyone if we can?
+            if (origin && !resource.we_welcomed[origin.id])
+                return report('we did not welcome them yet')
 
-            if (!patches || !Array.isArray(patches) || patches.some(x => typeof(x) != 'string')) { return report('invalid patches: ' + JSON.stringify(patches)) }
+            if (!patches || !Array.isArray(patches)
+                || patches.some(x => typeof(x) != 'string'))
+                return report('invalid patches: ' + JSON.stringify(patches))
 
             if (!version) version = u.random_id()
-            if (!version || typeof(version) != 'string') { report('invalid version: ' + JSON.stringify(version)) }
+            if (!version || typeof(version) != 'string')
+                report('invalid version: ' + JSON.stringify(version))
 
             if (!parents) parents = {...resource.current_version}
-            if (parents && (typeof(parents) != 'object' || Object.entries(parents).some(([k, v]) => v !== true))) { return report('invalid parents: ' + JSON.stringify(parents)) }
+            if (parents && (typeof(parents) != 'object'
+                            || Object.entries(parents).some(([k, v]) => v !== true)))
+                return report('invalid parents: ' + JSON.stringify(parents))
 
-            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number') { return report('invalid joiner_num: ' + JSON.stringify(joiner_num)) }
+            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number')
+                return report('invalid joiner_num: ' + JSON.stringify(joiner_num))
         }
 
         log('set:', {key, version, parents, patches, origin, joiner_num})
