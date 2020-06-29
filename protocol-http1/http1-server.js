@@ -83,13 +83,13 @@ module.exports = function add_http_server(node, server, fileCb) {
     // Construct a (fake) pipe object that allows writing data into a persistent stream
     function responsePipe(res, keepAlive) {
         // Construct pipe
-        const reqPipe = {
+        const pipe = {
             id: u.random_id(),
             send: sendVersions,
             disconnect: disconnect,
             recv: function(args) {
                 console.debug("Receiving message", args);
-                args.origin = reqPipe;
+                args.origin = pipe;
                 node[args.method](args);
             },
             remote: true,
@@ -147,7 +147,7 @@ module.exports = function add_http_server(node, server, fileCb) {
         function disconnect () {res.end(); }
         if (!keepAlive)
             setTimeout(disconnect);
-        return reqPipe;
+        return pipe;
     }
     // The entry point of the server.
     // Listen for requests
