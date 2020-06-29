@@ -223,7 +223,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 var best_t = -Infinity
                 var best_parents = null
                 Object.values(node.resource_at(key).fissures).forEach(f => {
-                    if (f.a == node.pid && f.b == pipe.them && f.time > best_t) {
+                    if (f.a == node.pid && f.b == pipe.remote_peer && f.time > best_t) {
                         best_t = f.time
                         best_parents = f.versions
                     }
@@ -268,7 +268,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         var best_t = -Infinity
         var best_parents = null
         Object.values(resource.fissures).forEach(f => {
-            if (f.a == node.pid && f.b == origin.them && f.time > best_t) {
+            if (f.a == node.pid && f.b == origin.remote_peer && f.time > best_t) {
                 best_t = f.time
                 best_parents = f.versions
             }
@@ -281,11 +281,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // G: ok, here we actually send out the welcome
 
-        if (origin.remote) resource.we_welcomed[origin.id] = {
+        if (origin.remote_peer) resource.we_welcomed[origin.id] = {
             id: origin.id,
             connection: origin.connection,
-            them: origin.them,
-            remote: origin.remote
+            them: origin.remote_peer,
+            // remote: origin.remote
         }
         origin.send && origin.send({
             method: 'welcome', key, versions, fissures, parents: best_parents})
@@ -1024,7 +1024,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (node.bindings(key).some(p => p.id == origin.id)) node.unbind(key, origin)
 
         // if we haven't sent them a welcome (or they are not remote), then no need to create a fissure
-        if (!origin.remote || !node.resource_at(key).we_welcomed[origin.id]) return
+        if (!origin.remote_peer || !node.resource_at(key).we_welcomed[origin.id]) return
 
         // now since we're disconnecting, we reset the we_welcomed flag
         delete node.resource_at(key).we_welcomed[origin.id]
@@ -1056,8 +1056,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
             //        `This pipe ${origin.id} is not on the resource for ${node.pid}'s ${key}`,
             //        resource.subscriptions)
             
-            assert(origin.id,   'Need id on the origin', origin)
-            assert(origin.them, 'Need a peer on origin', origin)
+            assert(origin.id,          'Need id on the origin', origin)
+            assert(origin.remote_peer, 'Need a peer on origin', origin)
 
             var versions = {}
             var ack_versions = resource.ancestors(resource.acked_boundary)
@@ -1071,7 +1071,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             
             fissure = {
                 a: node.pid,
-                b: origin.them,
+                b: origin.remote_peer,
                 conn: origin.connection,
                 versions,
                 parents,
@@ -1384,7 +1384,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     node.welcomed_peers = (key) => {
         var r = node.resource_at(key)
-        return node.bindings(key).filter(pipe => pipe.remote && r.we_welcomed[pipe.id])
+        return node.bindings(key).filter(pipe => pipe.remote_peer && r.we_welcomed[pipe.id])
     }
 
 

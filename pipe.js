@@ -36,10 +36,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
         type: type, // Only used for debugging
         connection: null,
         connecting: false,
-        them: null,
-        most_recent_them: null,
+        remote_peer: null,
+        most_recent_remote_peer: null,
         subscribed_keys: u.dict(),
-        remote: true,
+        //remote: true,
 
         // It can Send and Receive messages
         send (args) {
@@ -113,7 +113,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
         recv (args) {
             var we_welcomed = args.key && node.resource_at(args.key).we_welcomed[this.id]
             log(`pipe.RECV:`,
-                node.pid + '-' + (this.them || '?'),
+                node.pid + '-' + (this.remote_peer || '?'),
                 args.method,
                 args.version || '')
 
@@ -130,7 +130,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             if (args.method === 'hello') {
                 this.connection = (this.connection < args.connection
                                    ? this.connection : args.connection)
-                this.most_recent_them = this.them = args.my_name_is
+                this.most_recent_remote_peer = this.remote_peer = args.my_name_is
 
                 // hello messages don't do anything else (they are just for
                 // the pipe)
@@ -158,7 +158,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 // to fissure.
                 resource.we_welcomed[this.id] = {id: this.id,
                                                  connection: this.connection,
-                                                 them: this.them}
+                                                 remote_peer: this.remote_peer}
             }
 
             // Remember new subscriptions from them
@@ -220,7 +220,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 var best_t = -Infinity
                 var best_parents = null
                 Object.values(node.resource_at(k).fissures).forEach(f => {
-                    if (f.a == node.pid && f.b == this.most_recent_them && f.time > best_t) {
+                    if (f.a == node.pid && f.b == this.most_recent_remote_peer && f.time > best_t) {
                         best_t = f.time
                         best_parents = f.versions
                     }
@@ -259,7 +259,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
             this.connecting = false
             this.connection = null
-            this.them = null
+            this.remote_peer = null
         },
 
         keep_alive (key) {
@@ -273,9 +273,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             return {id: this.id,
                     w: !!node.resource_at(key).we_welcomed[this.id],
                     k_a: this.keep_alive(key),
-                    peer: this.them,
-                    c: !!this.connection,
-                    r: this.remote
+                    peer: this.remote_peer,
+                    c: !!this.connection
+                    //r: this.remote
                    }
         }
     }
