@@ -351,6 +351,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         for (p in parents) {
             if (!resource.time_dag[p]) {
+                // Todo: make this work with origin == null
                 origin.send && origin.send({
                     method: 'error',
                     key,
@@ -1373,7 +1374,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
     // Give the node all methods of a pattern matcher, to bind keys and pipes
     Object.assign(node, pattern_matcher())
 
-    node.remotes = (key) => node.bindings(key).filter( pipe => pipe.remote )
     node.welcomed_peers = (key) => {
         var r = node.resource_at(key)
         return node.bindings(key).filter(pipe => pipe.remote && r.we_welcomed[pipe.id])

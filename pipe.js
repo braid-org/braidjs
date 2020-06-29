@@ -181,8 +181,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
             if (args.method === 'get')
                 log('pipe.recv: New remote!', this.id,
-                    'Now we have', node.remotes(args.key).length)
-
+                    'Now we have',
+                    node.bindings(args.key).filter(pipe => pipe.remote).length)
         },
 
         // It can Connect and Disconnect
