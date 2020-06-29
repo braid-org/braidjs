@@ -195,11 +195,15 @@ module.exports = require.braid = function create_node(node_data = {}) {
             log('get:', node.pid, key)
 
             var resource = node.resource_at(key)
-            if (resource.we_welcomed[origin.id]) { return report('we already welcomed them') }
+            if (resource.we_welcomed[origin.id])
+                return report('we already welcomed them')
 
-            if (version && typeof(version) != 'string') { return report('invalid version: ' + JSON.stringify(version)) }
+            if (version && typeof(version) != 'string')
+                return report('invalid version: ' + JSON.stringify(version))
 
-            if (parents && (typeof(parents) != 'object' || Object.entries(parents).some(([k, v]) => v !== true))) { return report('invalid parents: ' + JSON.stringify(parents)) }
+            if (parents && (typeof(parents) != 'object'
+                            || Object.entries(parents).some(([k, v]) => v !== true)))
+                return report('invalid parents: ' + JSON.stringify(parents))
         }
 
         node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
@@ -503,7 +507,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
             if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
 
             var resource = node.resource_at(key)
-            if (!resource.we_welcomed[origin.id]) { return report('we did not welcome them yet') }
+            if (!resource.we_welcomed[origin.id])
+                return report('we did not welcome them yet')
 
             if (!Array.isArray(versions) || !versions.every(v => {
                 if (v.version && typeof(v.version) != 'string') return false
@@ -525,7 +530,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
             if (unack_boundary && (typeof(unack_boundary) != 'object' || !Object.entries(unack_boundary).every(([k, v]) => v === true))) { return report('invalid unack_boundary: ' + JSON.stringify(unack_boundary)) }
 
-            if (min_leaves && (typeof(min_leaves) != 'object' || !Object.entries(min_leaves).every(([k, v]) => v === true))) { return report('invalid min_leaves: ' + JSON.stringify(min_leaves)) }
+            if (min_leaves && (typeof(min_leaves) != 'object'
+                               || !Object.entries(min_leaves).every(
+                                   ([k, v]) => v === true)))
+                return report('invalid min_leaves: ' + JSON.stringify(min_leaves))
         }
 
         // let people know about the welcome
