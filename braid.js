@@ -200,8 +200,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
             if (version && typeof(version) != 'string') { return report('invalid version: ' + JSON.stringify(version)) }
 
             if (parents && (typeof(parents) != 'object' || Object.entries(parents).some(([k, v]) => v !== true))) { return report('invalid parents: ' + JSON.stringify(parents)) }
-
-            if (!subscribe || typeof(subscribe) != 'object') { report('invalid subscribe: ' + JSON.stringify(subscribe)) }
         }
 
         node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
