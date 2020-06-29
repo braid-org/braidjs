@@ -1,146 +1,146 @@
 body {
-	padding: 0;
-	margin: 0;
-	width: 100vw;
-	height: 100vh;
-	box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    width: 100vw;
+    height: 100vh;
+    box-sizing: border-box;
 }
 
 .grid-container {
-	width: 100%;
-	height: 100%;
-	display: grid;
+    width: 100%;
+    height: 100%;
+    display: grid;
 
-	grid-template-columns: auto;
-	grid-template-rows: 40px auto 10%;
-	grid-template-areas: 
-	"title"
-	"messages"
-	"input";
+    grid-template-columns: auto;
+    grid-template-rows: 40px auto 10%;
+    grid-template-areas: 
+    "title"
+    "messages"
+    "input";
 }
 .grid-container > * {
-	padding: 0 10%;
+    padding: 0 10%;
 }
 header {
-	grid-area: title;
-	display: flex;
-	box-shadow: 0 2px 1px 0 rgba(0, 0, 0, 0.2);
-	z-index: 1;
+    grid-area: title;
+    display: flex;
+    box-shadow: 0 2px 1px 0 rgba(0, 0, 0, 0.2);
+    z-index: 1;
 }
 .title {
-	margin: 0 5px 0 2px;
-	user-select: none;
-	align-self: center;
+    margin: 0 5px 0 2px;
+    user-select: none;
+    align-self: center;
 }
 #settings-hover-container {
-	display: flex;
-	flex-direction: row;
-	align-self: center;
-	margin: 0;
-	padding: 0;
-	user-select: none;
+    display: flex;
+    flex-direction: row;
+    align-self: center;
+    margin: 0;
+    padding: 0;
+    user-select: none;
 }
 .settings {
-	display: inline-block;
-	height: 21px;
-	width: 21px;
-	text-align: center;
-	align-self: flex-end;
-	color: #666;
-	padding: 5px;
+    display: inline-block;
+    height: 21px;
+    width: 21px;
+    text-align: center;
+    align-self: flex-end;
+    color: #666;
+    padding: 5px;
 }
 .settings-expand {
-	align-self: center;
-	font-family: sans-serif;
-	margin: 0 5px;
-	color: #666;
+    align-self: center;
+    font-family: sans-serif;
+    margin: 0 5px;
+    color: #666;
 }
 .settings-input-collapse {
-	transform-origin: left;
-	max-width: 20ch;
-	border: 1.5px solid #999;
-	border-radius: 5px;
-	padding: 2px 3px 1px 4px;
-	height: 1.5em;
-	margin-left: 0;
+    transform-origin: left;
+    max-width: 20ch;
+    border: 1.5px solid #999;
+    border-radius: 5px;
+    padding: 2px 3px 1px 4px;
+    height: 1.5em;
+    margin-left: 0;
 }
 #react-messages {
-	grid-area: messages;
-	overflow-y: scroll;
-	overflow-x: hidden;
+    grid-area: messages;
+    overflow-y: scroll;
+    overflow-x: hidden;
 }
 .messageBox {
-	display: flex;
-	flex-direction: column;
-	width: 100%;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
 }
 .messageBox:empty::after {
-	content: "It's too quiet in here...";
-	font-style: italic;
-	color: #777;
-	font-size: 1.1875em;
-	padding: 4px 10% 4px 5px;
-	width: 100%;
-	text-align: center;
+    content: "It's too quiet in here...";
+    font-style: italic;
+    color: #777;
+    font-size: 1.1875em;
+    padding: 4px 10% 4px 5px;
+    width: 100%;
+    text-align: center;
 }
 .messageBox .msg {
-	width: 100%;
-	white-space: pre-wrap;
-	display: inline-block;
-	padding: 4px 10% 4px 5px;
+    width: 100%;
+    white-space: pre-wrap;
+    display: inline-block;
+    padding: 4px 10% 4px 5px;
 }
 .messageBox .msg.msg-collapse {
-	padding-bottom: 2px;
-	padding-top: 0;
+    padding-bottom: 2px;
+    padding-top: 0;
 }
 .messageBox .msg:hover {
-	background-color: rgba(0, 0, 0, 0.1);
+    background-color: rgba(0, 0, 0, 0.1);
 }
 .messageBox .msg .user-id {
-	color: #356;
-	font-weight: 600;
+    color: #356;
+    font-weight: 600;
 
 }
 .messageBox .msg .timestamp {
-	color: #666;
-	font-size: 12px;
-	margin-left: 5px;
+    color: #666;
+    font-size: 12px;
+    margin-left: 5px;
 }
 .msg-user-ref {
-	color: #456;
+    color: #456;
 }
 .input {
-	grid-area: input;
-	display: flex;
-	margin-top: -1px;
-	margin-bottom: 2px;
-	z-index: 1;
+    grid-area: input;
+    display: flex;
+    margin-top: -1px;
+    margin-bottom: 2px;
+    z-index: 1;
 }
 #send-box {
-	height: auto;
-	flex-grow: 1;
-	resize: none;
-	font-size: 16px;
-	font-family: sans-serif;
-	padding: 5px;
-	border-radius: 4px;
+    height: auto;
+    flex-grow: 1;
+    resize: none;
+    font-size: 16px;
+    font-family: sans-serif;
+    padding: 5px;
+    border-radius: 4px;
 }
 #send-msg {
-	display: inline-block;
-	width: 45px;
-	height: 45px;
-	border-radius: 100%;
-	line-height: 45px;
-	
-	text-align: center;
-	align-self: center;
-	margin: 6px;
+    display: inline-block;
+    width: 45px;
+    height: 45px;
+    border-radius: 100%;
+    line-height: 45px;
+    
+    text-align: center;
+    align-self: center;
+    margin: 6px;
 
-	cursor: pointer;
+    cursor: pointer;
 
-	font-family: sans-serif;
-	color: white;
-	background-color: #48d;
-	border: 4px solid #7ac;
-	user-select: none;
+    font-family: sans-serif;
+    color: white;
+    background-color: #48d;
+    border: 4px solid #7ac;
+    user-select: none;
 }

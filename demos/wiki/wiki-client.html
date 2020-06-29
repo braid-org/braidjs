@@ -254,7 +254,7 @@ sync_editor(t)
 async function sync_editor(t) {
     var prev_text = ''
     var node = window.node = require('./node.js')({pid: 'C-' + Math.random().toString(36).slice(2, 12)})
-    node.fissure_lifetime = 1000*60*60*24*7 // week
+    node.fissure_lifetime = 1000*60*60*8 // 8 hours
     node.default(page_key, {cursors: {[node.pid]: {start: 0, end: 0, time: Date.now()}}, text: ''})
     var ws_client = require('./networks/websocket-client.js')({node, url: 'wss://invisible.college:3007/'})
     // var ws_client = require('./networks/websocket-client.js')({node})

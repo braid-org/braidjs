@@ -10,14 +10,14 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
         var pipe = require('../pipe.js')({node, connect, disconnect, send})
 
         const ip = req.socket.remoteAddress;
-        console.log(`New connection from ${ip}`)
+        // console.log(`New connection from ${ip}`)
         conn.on('message', (msg) => {
             var m = JSON.parse(msg);
             if (m.method != "ping" && m.method != "pong") {
-                console.log(`${ip} -> Server:`);
-                console.group();
-                console.dir(m, {depth: 3});
-                console.groupEnd();
+                // console.log(`${ip} -> Server:`);
+                // console.group();
+                // console.dir(m, {depth: 3});
+                // console.groupEnd();
             }
             pipe.recv(m)
         })
@@ -39,10 +39,10 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
         function send (msg) {
             let msgText = JSON.stringify(msg);
             if (msg.method != "ping" && msg.method != "pong") {
-                console.log(`Server -> ${ip}:`);
-                console.group();
-                console.dir(msg, {depth: 3});
-                console.groupEnd();
+                // console.log(`Server -> ${ip}:`);
+                // console.group();
+                // console.dir(msg, {depth: 3});
+                // console.groupEnd();
             }
             conn.send(msgText);
         }
