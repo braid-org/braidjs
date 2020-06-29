@@ -5,7 +5,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
     url = url       || 'https://localhost:80/'
     prefix = prefix || '/*'
     var enabled = true;
-
+    const controller = new AbortController();
     // Make a fake pipe object
     // The real ones check acks and synchronization and such
     let pipe = {
@@ -170,7 +170,6 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         const sendUrl = new URL(msg.key, url);
         function trySend(waitTime) {
             console.log(`Fetching ${sendUrl}`);
-            const controller = new AbortController();
             fetch(sendUrl, {method: 'GET',
                             mode: 'cors',
                             headers: new Headers(h),
@@ -253,11 +252,12 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         }
         trySend(20);
     }
+    document.addEventListener('unload', () => {controller.abort()});
     return {
         pipe,
         enabled() {return enabled},
-        enable()  {nlog('ENABLING PIPE', pipe.id); enabled = true; connect()},
-        disable() {nlog('DISABLING PIPE',pipe.id); enabled = false; },
+        enable()  {nlog('ENABLING PIPE', pipe.id); enabled = true; }, // connect()
+        disable() {nlog('DISABLING PIPE',pipe.id); enabled = false; }, // disconnect()
         toggle()  {if (enabled) {disable()} else enable()}
     }
 }

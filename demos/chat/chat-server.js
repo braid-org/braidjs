@@ -65,11 +65,15 @@ var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certifi
 
 // Initialize a braid
 var node = braid();
-// Setup the braid sqlite store at a local db
-sqlite(node, 'db.sqlite');
+node.ons.push((type, vals) => {
+	if (type == "fissure")
+		console.log("Fissured!")
+})
 // Unsubscribe on error
 // Maybe not needed
 node.on_errors.push((key, origin) => node.unbind(key, origin))
+// Setup the braid sqlite store at a local db
+sqlite(node, 'db.sqlite');
 
 // For any of the default keys, if we have no versions for them, set an initial version.
 Object.keys(knownKeys)

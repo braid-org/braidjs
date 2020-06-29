@@ -10,6 +10,7 @@ var u = require('../util/utilities.js')
 //   ie, the braid server is passing control back to the app, to serve files or anything else.
 module.exports = function add_http_server(node, server, fileCb) {
     // Write an array of patches into the pseudoheader format.
+    const openPipes = {};
     function writePatches(patches) {
         // This will return something like:
         // Patches: n
@@ -85,6 +86,7 @@ module.exports = function add_http_server(node, server, fileCb) {
         const reqPipe = {
             id: u.random_id(),
             send: sendVersions,
+            disconnect: disconnect,
             recv: function(args) {
                 console.debug("Receiving message", args);
                 args.origin = reqPipe;
@@ -92,17 +94,18 @@ module.exports = function add_http_server(node, server, fileCb) {
             },
             remote: true,
             connection: "http", // These are supposed to be unique ids of some sort :)
-            them: "client"
+            them: "client",
         };
-        res.on('timeout', () => console.warn("Unfortunately, a connection timed out."))
-        res.on('end', () => {console.warn("Connection ended.")})
 
         const allowedMethods = ["set", "welcome"]
         // The node will call this method with JSON messages
         function sendVersions (args) {
+            if (args.method == "error") {
+                console.warn(`Node sent error`, args);
+            }
             // Streams created in response to SETs aren't kept alive.
             if (!keepAlive) {
-                console.log("Node tried to send", args.method, "on non-persistent stream:")
+                console.log("Node tried to send", args.method, "on non-persistent stream.")
                 disconnect();
                 return;
             }
@@ -160,7 +163,16 @@ module.exports = function add_http_server(node, server, fileCb) {
         // But it turns out that in many cases you actually want to set some data on the node
         //   before it receives the message but after the pipe is created
         const done = persistent => {
-            return responsePipe(res, persistent);
+            let pipe = responsePipe(res, persistent);
+            //req.on('abort', )
+            openPipes[pipe.id] = {key: req.url, origin: pipe};
+            res.on('close', () => {
+                console.log(`Connection closed on ${req.url}`);
+                assert(openPipes[pipe.id]);
+                node.forget(openPipes[pipe.id]);
+                delete openPipes[pipe.id];
+            });
+            return pipe;
         }
         // Copy headers that have the same value in HTTP as Braid
         let msg = {
@@ -248,4 +260,14 @@ module.exports = function add_http_server(node, server, fileCb) {
         return false;
     }
     server.on('request', handleHttpResponse);
+
+    // If the process is closed, forget any open connections.
+    process.on('SIGINT', function() {
+        console.log("Forgetting connections...");
+        Object.values(openPipes).forEach(sub => {
+            node.forget(sub);
+            sub.origin.disconnect();
+        });
+        process.exit();
+    });
 }
