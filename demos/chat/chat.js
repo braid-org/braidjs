@@ -3,9 +3,8 @@ const msgKey = "/chat";
 const usrKey = "/usr";
 const browserId = localStorage.browserId || `B-${randomString(10)}`;
 localStorage.browserId = browserId;
-let nodeCache = localStorage.nodeCache ? JSON.parse(localStorage.nodeCache) : {pid: browserId};
 
-const node = require('braid.js')(nodeCache);
+const node = require('braid.js')({pid: browserId});
 node.fissure_lifetime = 1000 * 60 * 60 * 8 // Fissures can only last 8 hours...
 
 node.default(`${msgKey}/*`, path => []);
@@ -39,18 +38,6 @@ let createListeners = function () {
     window.addEventListener('beforeunload', function () {
         node.forget(msgKey, update_messages)
         node.forget(usrKey, usrKey_cb)
-    })
-
-    // Cache braid state
-    function cache() {
-        nodeCache = {pid: browserId,
-                     resources: node.resources}
-        //localStorage.
-    }
-    setInterval(cache, 10000);
-    document.addEventListener('unload', () => {
-        cache();
-        socket.disable();
     })
     
     //// ----- Messagebox rendering and interactability -----
