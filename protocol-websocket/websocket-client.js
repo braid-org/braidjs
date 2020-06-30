@@ -27,7 +27,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
             var data = JSON.parse(msg)
             var method = data.method.toUpperCase()
             if (method !== "PING" && method !== "PONG") {
-                nlog('WS:',
+                nlog('ws:',
                      node.pid.slice(0,3).padEnd(3),
                      'recvs',
                      method.padEnd(7),
