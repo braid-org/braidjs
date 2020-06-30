@@ -503,8 +503,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
         // guard against invalid welcomes..
         if (true) {
-            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for welcome: ' + x) }
-            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+            function report(x) {
+                g_show_protocol_errors && console.log('PROTOCOL ERROR for welcome: '+x)
+            }
+            if (!key || typeof(key) != 'string')
+                return report('invalid key: ' + JSON.stringify(key))
 
             var resource = node.resource_at(key)
             if (!resource.we_welcomed[origin.id])
@@ -512,8 +515,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
             if (!Array.isArray(versions) || !versions.every(v => {
                 if (v.version && typeof(v.version) != 'string') return false
-                if (!v.parents || typeof(v.parents) != 'object' || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
-                if (!Array.isArray(v.changes) || v.changes.some(x => typeof(x) != 'string')) return false
+                if (!v.parents || typeof(v.parents) != 'object'
+                    || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
+                if (!Array.isArray(v.changes)
+                    || v.changes.some(x => typeof(x) != 'string')) return false
                 return true
             })) { return report('invalid versions: ' + JSON.stringify(versions)) }
 
@@ -522,13 +527,18 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 if (typeof(fissure.a) != 'string') return false
                 if (typeof(fissure.b) != 'string') return false
                 if (typeof(fissure.conn) != 'string') return false
-                if (!fissure.versions || typeof(fissure.versions) != 'object' || !Object.entries(fissure.versions).every(([k, v]) => v === true)) return false
-                if (!fissure.parents || typeof(fissure.parents) != 'object' || !Object.entries(fissure.parents).every(([k, v]) => v === true)) return false
+                if (!fissure.versions || typeof(fissure.versions) != 'object'
+                    || !Object.entries(fissure.versions).every(([k, v]) => v === true)) return false
+                if (!fissure.parents || typeof(fissure.parents) != 'object'
+                    || !Object.entries(fissure.parents).every(([k, v]) => v === true)) return false
                 if (typeof(fissure.time) != 'number') return false
                 return true
             })) { return report('invalid fissures: ' + JSON.stringify(fissures)) }
 
-            if (unack_boundary && (typeof(unack_boundary) != 'object' || !Object.entries(unack_boundary).every(([k, v]) => v === true))) { return report('invalid unack_boundary: ' + JSON.stringify(unack_boundary)) }
+            if (unack_boundary && (typeof(unack_boundary) != 'object'
+                                   || !Object.entries(unack_boundary).every(
+                                       ([k, v]) => v === true)))
+                return report('invalid unack_boundary: '+JSON.stringify(unack_boundary))
 
             if (min_leaves && (typeof(min_leaves) != 'object'
                                || !Object.entries(min_leaves).every(
