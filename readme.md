@@ -39,7 +39,7 @@ node chat-server.js network
 Then you'll see something like this:
 
 ```
-s: hub Sends HELLO   ?    {"method":"hello","connection":"1k5kiyu5jrr","my_name_is":"hub"}
+ws: hub Sends HELLO   ?    {"method":"hello","connection":"1k5kiyu5jrr","my_name_is":"hub"}
 ws: hub Sends HELLO   ?    {"method":"hello","connection":"h84e6dcy9ai","my_name_is":"hub"}
 ws: C1  sends HELLO   ?    {"method":"hello","connection":"lpdym7xf6u9","my_name_is":"C1"}
 ws: C1  sends GET     ?    {"key":"my_key","subscribe":{"keep_alive":true},"method":"get","parents":null}
