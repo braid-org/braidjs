@@ -305,7 +305,7 @@ if (is_browser) {
 } else
     networks.forEach( n => {
         network = require(n)(sim)
-
+        console.log('Running', n.substr(2), 'trials!')
         if (network.sync)
             run_trials()
         else
