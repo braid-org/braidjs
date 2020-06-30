@@ -1,10 +1,10 @@
 // Create a node
 const msgKey = "/chat";
 const usrKey = "/usr";
-const browserId = localStorage.browserId || `B-${randomString(10)}`;
+const browserId = localStorage.browserId || 'B-'+randomString();
 localStorage.browserId = browserId;
 
-const node = require('braid.js')({pid: browserId});
+const node = require('braid.js')({pid: 'C-'+randomString()});
 node.fissure_lifetime = 1000 * 60 * 60 * 8 // Fissures can only last 8 hours...
 
 node.default(`${msgKey}/*`, path => []);
@@ -158,9 +158,5 @@ if (document.readyState === "complete" ||
 } else {
     document.addEventListener("DOMContentLoaded", createListeners);
 }
-function randomString(length) {
-    let result = '';
-    let chars = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890";
-    for (var i = length; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
-    return result;
-}
+
+function randomString () { return Math.random().toString(36).slice(2) }
