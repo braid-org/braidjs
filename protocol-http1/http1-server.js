@@ -186,6 +186,7 @@ module.exports = function add_http_server(node) {
                 res.setHeader('content-type', 'text/plain');
                 res.setHeader('cache-control', 'no-cache, no-transform');
                 res.setHeader('connection', 'Keep-Alive');
+                // TODO: Allow different kinds of keep-alive
                 msg.subscribe = {"keep-alive": true}
             }
             res.statusCode = status;

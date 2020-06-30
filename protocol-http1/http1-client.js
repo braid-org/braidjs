@@ -34,7 +34,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         if (args.method === 'error')
             symbol = '-!>'
         if (args.method != "ping" && args.method != "pong") {
-            nlogf('ws', 'local ', symbol, 'remote', msg);
+            nlogf('h1', 'local ', symbol, 'remote', args);
         }
     }
     // Read sets from a persistent stream
