@@ -4,6 +4,7 @@
 //
 
 is_browser = typeof process !== 'object' || typeof global !== 'object'
+terminal_width = _ => (!is_browser && process.stdout.columns) || 78
 
 // dict() is an alternative to {}.  It creates a clean hash table without any
 // pre-existing keys, like .constructor or .prototype that are built into

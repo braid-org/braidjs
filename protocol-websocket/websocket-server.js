@@ -3,7 +3,6 @@
 //     port: // default is 3007
 //     wss: // default is null, will create a 'ws' module WebSocket.Server with the given port
 // }
-terminal_width = _ => process.stdout.columns || 78
 module.exports = require['websocket-server'] = function add_websocket_server(node, options) {
     if (!options) options = {}
     var s = options.wss || new (require('ws')).Server({port: options.port || 3007})

@@ -334,7 +334,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             // If you're trying to join a persistent consistent group, then
             // you probably don't want to send any SETs before you actually
             // join and know what the current version is:
-            if (origin && && origin.keep_alive(key)
+            if (origin && origin.keep_alive && origin.keep_alive(key)
                 && !resource.keepalive_peers[origin.id])
                 return report('we did not welcome them yet')
 
@@ -424,15 +424,12 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
             resource.acks_in_process[version] = {
                 origin: origin,
-                count: node.welcomed_peers(key).length - (origin ? 1 : 0)
+                count: Object.keys(resource.keepalive_peers).length
             }
-
-            // log('node.set:', node.pid, 'Initializing ACKs for', version, 'to',
-            //     `${node.joined_peers(key).length}-${(origin ? 1 : 0)}=${resource.acks_in_process[version].count}`)
-
-            // log('node.set: we will want',
-            //             node.citizens(key).length - (origin ? 1 : 0),
-            //             'acks, because we have citizens', node.citizens(key))
+            if (origin && resource.keepalive_peers[origin.id])
+                // If the origin is a keepalive_peer, then since we've already
+                // seen it from them, we can decrement count
+                resource.acks_in_process[version].count--
 
             assert(resource.acks_in_process[version].count >= 0,
                    node.pid, 'Acks have below zero! Proof:',
@@ -1426,12 +1423,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     // Give the node all methods of a pattern matcher, to bind keys and pipes
     Object.assign(node, pattern_matcher())
-
-    node.welcomed_peers = (key) => {
-        var r = node.resource_at(key)
-        return node.bindings(key).filter(pipe => pipe.remote_peer && r.keepalive_peers[pipe.id])
-    }
-
 
     return node
 }
