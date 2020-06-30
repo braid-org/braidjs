@@ -331,8 +331,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
             var resource = node.resource_at(key)
 
-            // Todo: Remove this?  Shouldn't we allow a SET from anyone if we can?
-            if (origin && !resource.keepalive_peers[origin.id])
+            // If you're trying to join a persistent consistent group, then
+            // you probably don't want to send any SETs before you actually
+            // join and know what the current version is:
+            if (origin && && origin.keep_alive(key)
+                && !resource.keepalive_peers[origin.id])
                 return report('we did not welcome them yet')
 
             if (!patches || !Array.isArray(patches)
