@@ -3,12 +3,9 @@
 const assert = require('assert');
 //const pipe = require('../pipe.js');
 const parseHeaders = require('parse-headers');
-var u = require('../util/utilities.js')
+var u = require('../util/utilities.js');
 
-// This function sets a request eventlistener on the provided server.
-// FileCb is called when the server receives a GET request for a key it doesn't know about
-//   ie, the braid server is passing control back to the app, to serve files or anything else.
-module.exports = function add_http_server(node, server, fileCb) {
+module.exports = function add_http_server(node) {
     // Write an array of patches into the pseudoheader format.
     const openPipes = {};
     function writePatches(patches) {
@@ -81,20 +78,14 @@ module.exports = function add_http_server(node, server, fileCb) {
         })
     }
     // Construct a (fake) pipe object that allows writing data into a persistent stream
-    function responsePipe(res, keepAlive) {
+    function responsePipe(res, id) {
         // Construct pipe
         const pipe = {
-            id: u.random_id(),
+            id: id,
             send: sendVersions,
             disconnect: disconnect,
-            recv: function(args) {
-                console.debug("Receiving message", args);
-                args.origin = pipe;
-                node[args.method](args);
-            },
             remote: true,
             connection: "http", // These are supposed to be unique ids of some sort :)
-            them: "client",
         };
 
         const allowedMethods = ["set", "welcome"]
@@ -102,12 +93,6 @@ module.exports = function add_http_server(node, server, fileCb) {
         function sendVersions (args) {
             if (args.method == "error") {
                 console.warn(`Node sent error`, args);
-            }
-            // Streams created in response to SETs aren't kept alive.
-            if (!keepAlive) {
-                console.log("Node tried to send", args.method, "on non-persistent stream.")
-                disconnect();
-                return;
             }
             // The protocol doesn't support things like acks and fissures
             if (!allowedMethods.includes(args.method)) {
@@ -142,11 +127,8 @@ module.exports = function add_http_server(node, server, fileCb) {
                 res.write(writePatches(version.patches)) // adds its own newline
                 res.write("\n")
             }
-            
         }
         function disconnect () {res.end(); }
-        if (!keepAlive)
-            setTimeout(disconnect);
         return pipe;
     }
     // The entry point of the server.
@@ -162,17 +144,23 @@ module.exports = function add_http_server(node, server, fileCb) {
         // Initially, this would take a message, create a pipe, and recv the message
         // But it turns out that in many cases you actually want to set some data on the node
         //   before it receives the message but after the pipe is created
-        const done = persistent => {
-            let pipe = responsePipe(res, persistent);
-            //req.on('abort', )
-            openPipes[pipe.id] = {key: req.url, origin: pipe};
+        const create_pipe = (id) => {
+            if (openPipes[id]) {
+                console.error("ClientID collision!");
+                return;
+            }
+            let pipe = responsePipe(res);
+            openPipes[id] = {key: req.url, origin: pipe};
             res.on('close', () => {
                 console.log(`Connection closed on ${req.url}`);
-                assert(openPipes[pipe.id]);
-                node.forget(openPipes[pipe.id]);
-                delete openPipes[pipe.id];
+                assert(openPipes[id]);
+                //node.forget(openPipes[id]);
+                delete openPipes[id];
             });
-            return pipe;
+        };
+        const recv = (id, msg) => {
+            msg.origin = openPipes[id];
+            node[msg.method](msg);
         }
         // Copy headers that have the same value in HTTP as Braid
         let msg = {
@@ -187,12 +175,6 @@ module.exports = function add_http_server(node, server, fileCb) {
         }
         // If we end up having more methods supported, maybe make this a switch
         if (req.method == "GET") {
-            // If we don't have a default or a copy of the requested resource
-            if (!node.resources[msg.key] && !node._default_val_for(msg.key)) {
-                // Assume this is a file request
-                fileCb(req, res);
-                return;
-            }
             let status = 200;
             const persistent = Boolean(req.headers.subscribe);
             if (persistent) {
@@ -206,7 +188,9 @@ module.exports = function add_http_server(node, server, fileCb) {
             }
             res.statusCode = status;
             msg.method = "get"
-            done(persistent).recv(msg);
+            const clientID = `${req.headers['x-client-id'] || u.random_id()}=>${msg.key}`;
+            create_pipe(clientID);
+            recv(clientID, msg);
         }
         else if (req.method == "PUT") {
             // We only support these headers right now...
@@ -228,9 +212,9 @@ module.exports = function add_http_server(node, server, fileCb) {
                 // When finished, create a pipe.
                 msg.patches = patches;
                 res.setHeader("patches", "OK");
-                let pipe = done(false);
-
-                // When pruning and fissures are disabled, we're allowed to accept from SETS from non-subscribed clients.
+                const clientID = `${req.headers['x-client-id'] || u.random_id()}=>${msg.key}`;
+                recv(clientID, msg);
+                /*// When pruning and fissures are disabled, we're allowed to accept from SETS from non-subscribed clients.
                 let resource = node.resource_at(msg.key)
                 let welcomed = resource.we_welcomed;
                 if (!welcomed[pipe.id]) {
@@ -239,9 +223,7 @@ module.exports = function add_http_server(node, server, fileCb) {
                         connection: pipe.connection,
                         them: pipe.them
                     }
-                }
-
-                pipe.recv(msg);
+                }*/
             })
         }
     }
@@ -259,7 +241,6 @@ module.exports = function add_http_server(node, server, fileCb) {
         }
         return false;
     }
-    server.on('request', handleHttpResponse);
 
     // If the process is closed, forget any open connections.
     process.on('SIGINT', function() {
@@ -270,4 +251,6 @@ module.exports = function add_http_server(node, server, fileCb) {
         });
         process.exit();
     });
+
+    return handleHttpResponse;
 }

@@ -14,8 +14,8 @@ node.default(usrKey, {});
 show_debug = true;
 g_show_protocol_errors = true;
 
-//const socket = require('http1-client.js')({node, url: 'http://localhost:3009/'});
-var socket = require('websocket-client.js')({node, url: 'ws://localhost:3009/'})
+const socket = require('http1-client.js')({node, url: 'http://localhost:3009/'});
+//var socket = require('websocket-client.js')({node, url: 'ws://localhost:3009/'})
 
 // UI Code
 let createListeners = function () {
