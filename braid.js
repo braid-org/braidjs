@@ -1424,11 +1424,5 @@ module.exports = require.braid = function create_node(node_data = {}) {
     // Give the node all methods of a pattern matcher, to bind keys and pipes
     Object.assign(node, pattern_matcher())
 
-    node.welcomed_peers = (key) => {
-        var r = node.resource_at(key)
-        return node.bindings(key).filter(pipe => pipe.remote_peer && r.keepalive_peers[pipe.id])
-    }
-
-
     return node
 }
