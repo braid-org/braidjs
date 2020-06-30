@@ -9,7 +9,6 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
     // Make a fake pipe object
     // The real ones check acks and synchronization and such
     let pipe = {
-        node,
         id: u.random_id(), 
         send: send,
         recv: function(args) {
@@ -17,7 +16,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
             console.log("Passing to node: ", args)
             node[args.method](args);
         },
-        remote: true,
+        remote_peer: "server",
         connection: "http"
     };
 
@@ -98,10 +97,10 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                 if (headers)
                     console.debug("Couldn't parse patches. We probably don't have enough.")
                 console.debug("Waiting for next chunk to continue reading")
-                return reader.read().then(read);
+                return reader.read().then(read).catch(console.error);
             }
             
-        });
+        }).catch(console.error);
         function parse_headers() {
             // This string could contain a whole response.
             // So first let's isolate to just the headers.
