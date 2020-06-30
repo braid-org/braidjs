@@ -3,9 +3,9 @@ require('../util/utilities.js')
 
 //show_debug = true
 
-var n_peers = 4
+var n_peers = 3
 var n_steps_per_trial = 100
-var n_trials = 10
+var n_trials = 89
 var rand = Math.create_rand('000_hi_001')
 
 var solo_trial = null

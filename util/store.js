@@ -25,7 +25,7 @@ module.exports = require.store = function create_store(node, options) {
                 d = JSON.parse(d)
                 if (!d.method) {
                     node.resources[k] = node.create_resource(d)
-                    Object.values(node.resources[k].we_welcomed).forEach(pipe => {
+                    Object.values(node.resources[k].keepalive_peers).forEach(pipe => {
                         pipe.remote = true
                         node.bind(k, pipe)
                         node.gets_in.add(k, pipe.id, pipe)
@@ -96,7 +96,7 @@ module.exports = require.store = function create_store(node, options) {
     })
 
     Object.entries(node.resources).forEach(([key, r]) =>
-        Object.values(r.we_welcomed).forEach(pipe => {
+        Object.values(r.keepalive_peers).forEach(pipe => {
             node.disconnected({key, origin: pipe})
         })
     )

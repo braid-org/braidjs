@@ -24,8 +24,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
         clearTimeout(ping_timer)
         ping_timer = setTimeout(() => {
-            send({method: 'ping'})
-            ping_timer = setTimeout(() => disconnect(), death_time)
+            send.call(pipe, {method: 'ping'})
+            ping_timer = setTimeout(() => disconnect.call(this), death_time)
         }, ping_time)
     }
     // The Pipe Object!
@@ -43,8 +43,8 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
         // It can Send and Receive messages
         send (args) {
-            var we_welcomed = args.key && node.resource_at(args.key).we_welcomed[this.id]
-            log('pipe.send:', args.method, 'welcomed:', !!we_welcomed)
+            var we_welcomed = args.key && node.resource_at(args.key).keepalive_peers[this.id]
+            log('pipe.send:', args.method)
             assert(args.method !== 'hello')
             log('...')
 
@@ -72,7 +72,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                     this.connecting = true
 
                     // Run the programmer's connect function
-                    connect.apply(this)
+                    connect.call(this)
 
                     // Don't run the send code below, since we'll send this
                     // get when the connection completes
@@ -111,7 +111,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 log('FAILED to send, because pipe not yet connected..')
         },
         recv (args) {
-            var we_welcomed = args.key && node.resource_at(args.key).we_welcomed[this.id]
+            var we_welcomed = args.key && node.resource_at(args.key).keepalive_peers[this.id]
             log(`pipe.RECV:`,
                 node.pid + '-' + (this.remote_peer || '?'),
                 args.method,
@@ -119,7 +119,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
             // ping/pong system
             if (args.method === 'ping') {
-                send({method: 'pong'})
+                send.call(this, {method: 'pong'})
                 return
             } else if (args.method === 'pong') {
                 on_pong()
@@ -156,9 +156,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 // crash, it'll need to create and send fissures for everyone
                 // it's welcomed.  So right here we store the info necessary
                 // to fissure.
-                resource.we_welcomed[this.id] = {id: this.id,
-                                                 connection: this.connection,
-                                                 remote_peer: this.remote_peer}
+                resource.keepalive_peers[this.id] = {id: this.id,
+                                                     connection: this.connection,
+                                                     remote_peer: this.remote_peer}
             }
 
             // Remember new subscriptions from them
@@ -271,7 +271,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
         printy_stuff (key) {
             return {id: this.id,
-                    w: !!node.resource_at(key).we_welcomed[this.id],
+                    w: !!node.resource_at(key).keepalive_peers[this.id],
                     k_a: this.keep_alive(key),
                     peer: this.remote_peer,
                     c: !!this.connection
