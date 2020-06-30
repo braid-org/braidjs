@@ -11,7 +11,7 @@ var rand = Math.create_rand('000_hi_001')
 var solo_trial = null
 if (!is_browser && process.argv.length >= 4 && process.argv[2] === 'solo') {
     solo_trial = parseInt(process.argv[3])
-    show_debug = true
+    // show_debug = true
     print_network = true
 }
 
