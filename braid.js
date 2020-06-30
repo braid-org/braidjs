@@ -284,7 +284,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (origin.remote_peer) resource.we_welcomed[origin.id] = {
             id: origin.id,
             connection: origin.connection,
-            them: origin.remote_peer
+            remote_peer: origin.remote_peer
         }
         origin.send && origin.send({
             method: 'welcome', key, versions, fissures, parents: best_parents})
@@ -1041,7 +1041,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // unbind them (but only if they are bound)
         if (node.bindings(key).some(p => p.id == origin.id)) node.unbind(key, origin)
 
-        // if we haven't sent them a welcome (or they are not remote), then no need to create a fissure
+        // if we haven't sent them a welcome (or they are not remote), then no
+        // need to create a fissure
         if (!origin.remote_peer || !node.resource_at(key).we_welcomed[origin.id]) return
 
         // now since we're disconnecting, we reset the we_welcomed flag
