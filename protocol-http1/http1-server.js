@@ -83,9 +83,8 @@ module.exports = function add_http_server(node) {
         const pipe = {
             id: id,
             send: sendVersions,
-            disconnect: disconnect,
-            remote: true,
-            connection: "http", // These are supposed to be unique ids of some sort :)
+            disconnect: disconnect
+            //connection: "http", // These are supposed to be unique ids of some sort :)
         };
 
         const allowedMethods = ["set", "welcome"]
@@ -149,7 +148,7 @@ module.exports = function add_http_server(node) {
                 console.error("ClientID collision!");
                 return;
             }
-            let pipe = responsePipe(res);
+            let pipe = responsePipe(res, id);
             openPipes[id] = {key: req.url, origin: pipe};
             res.on('close', () => {
                 console.log(`Connection closed on ${req.url}`);
@@ -159,7 +158,8 @@ module.exports = function add_http_server(node) {
             });
         };
         const recv = (id, msg) => {
-            msg.origin = openPipes[id];
+            msg.origin = openPipes[id].origin;
+            console.log(msg);
             node[msg.method](msg);
         }
         // Copy headers that have the same value in HTTP as Braid
@@ -245,7 +245,9 @@ module.exports = function add_http_server(node) {
     // If the process is closed, forget any open connections.
     process.on('SIGINT', function() {
         console.log("Forgetting connections...");
+        console.dir(openPipes, {depth: 10});
         Object.values(openPipes).forEach(sub => {
+            
             node.forget(sub);
             sub.origin.disconnect();
         });
