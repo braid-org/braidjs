@@ -3,7 +3,7 @@
 //     port: // default is 3007
 //     wss: // default is null, will create a 'ws' module WebSocket.Server with the given port
 // }
-print_width = 70
+terminal_width = _ => process.stdout.columns || 78
 module.exports = require['websocket-server'] = function add_websocket_server(node, options) {
     if (!options) options = {}
     var s = options.wss || new (require('ws')).Server({port: options.port || 3007})
@@ -17,8 +17,8 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
             if (m.method != "ping" && m.method != "pong") {
                 nlog('ws: hub Recvs',
                      m.method.toUpperCase().padEnd(7),
-                     ((pipe.remote_peer || m.my_name_is)+'').padEnd(3),
-                     msg.substr(0, print_width))
+                     ((pipe.remote_peer || m.my_name_is)+'').slice(0,4).padEnd(4),
+                     msg.substr(0, terminal_width() - 27))
                 // console.log(`${ip} -> Server:`);
                 // console.group();
                 // console.dir(m, {depth: 3});
@@ -46,8 +46,8 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
             if (msg.method != "ping" && msg.method != "pong") {
                 nlog('ws: hub Sends',
                      msg.method.toUpperCase().padEnd(7),
-                     ((pipe.remote_peer || '?')+'').padEnd(3),
-                     JSON.stringify(msg).substr(0, print_width))
+                     ((pipe.remote_peer || '?')+'').slice(0,4).padEnd(4),
+                     JSON.stringify(msg).substr(0, terminal_width() - 27))
                 // console.log(`Server -> ${ip}:`);
                 // console.group();
                 // console.dir(msg, {depth: 3});

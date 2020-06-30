@@ -15,7 +15,7 @@ const braidHttpServer = require(path.join(lib_path, './protocol-http1/http1-serv
 
 const port = 3009;
 global.g_show_protocol_errors = true;
-global.show_debug = true;
+//global.show_debug = true;
 
 // Static files we want to serve over http
 //  and where to find them on disk, and their mime types
@@ -84,3 +84,5 @@ var braidCallback = braidHttpServer(node);
 
 console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 server.listen(port);
+var wss = new (require('ws').Server)({server})
+braidWebsocketServer(node, {port, wss})
