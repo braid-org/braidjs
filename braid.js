@@ -163,7 +163,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
                                   // applied any relevant default.  We know
                                   // the default has been applied because
                                   // there will be at least one version.
-                                  && !(default_val_for(key) && !node.current_version(key)))) {
+                                  && !(default_val_for(key)
+                                       && !node.current_version(key)))) {
+
                               // Let's also ensure this doesn't run until
                               // (weve_been_welcomed || zero get handlers are registered)
 
@@ -187,8 +189,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (!origin)
             origin = {id: u.random_id()}
 
-        // guard against invalid gets..
-        if (true) {
+        // Sanity-check the input
+        {
             function report(x, y) { g_show_protocol_errors && console.log('PROTOCOL ERROR for get: ' + x) }
             if (!key || typeof(key) != 'string') { return report('invalid key' + JSON.stringify(key)) }
 
@@ -320,8 +322,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
             ({key, patches, version, parents, origin, joiner_num} = args[0])
         }
 
-        // guard against invalid sets..
-        if (true) {
+        // Sanity-check the input
+        {
             function report(x) {
                 g_show_protocol_errors && console.log('PROTOCOL ERROR for set: ' + x)
             }
@@ -422,11 +424,12 @@ module.exports = require.braid = function create_node(node_data = {}) {
             // then we'll be responsible for sending the "global" ack when
             // the time is right)..
 
+            var origin_is_keepalive = origin && resource.keepalive_peers[origin.id]
             resource.acks_in_process[version] = {
-                origin: origin,
+                origin: origin_is_keepalive && origin,
                 count: Object.keys(resource.keepalive_peers).length
             }
-            if (origin && resource.keepalive_peers[origin.id])
+            if (origin_is_keepalive)
                 // If the origin is a keepalive_peer, then since we've already
                 // seen it from them, we can decrement count
                 resource.acks_in_process[version].count--
@@ -503,8 +506,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.set_patch = node.setPatch = (key, patch) => node.set({key, patches: [patch]})
 
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
-        // guard against invalid welcomes..
-        if (true) {
+        // Sanity-check the input
+        {
             function report(x) {
                 g_show_protocol_errors && console.log('PROTOCOL ERROR for welcome: '+x)
             }
