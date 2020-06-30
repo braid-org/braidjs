@@ -290,7 +290,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         origin.send && origin.send({
             method: 'welcome', key, versions, fissures, parents: best_parents})
 
-        return resource.mergeable.read()
+        return resource.mergeable.read(version)
     }
     
     node.error = ({key, type, in_response_to, origin}) => {
