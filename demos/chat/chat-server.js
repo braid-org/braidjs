@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { assert } = require('console');
 const ws = require('ws');
 // When we have the npm version, this can be improved
 const lib_path = "../../";
@@ -23,7 +22,7 @@ const knownFiles = {
 	'/braid-bundle.js': {
 		path: path.join(lib_path, `/builds/braid-bundle.js`),
 		mime: 'text/javascript'},
-	'/chat.html': {
+	'/braidchat': {
 		path: path.join('.', '/chat.html'),
 		mime: 'text/html'},
 	'/chat.js': {
@@ -48,8 +47,8 @@ Object.values(knownFiles).forEach(file => {
 function serveFile(req, res) {
 	if (knownKeys.hasOwnProperty(req.url))
 		return braidCallback(req, res);
-
-	const f = knownFiles[req.url];
+	const reqPath = new URL(req.url, `http://${req.headers.host}`);
+	const f = knownFiles[reqPath.pathname];
 	if (f) {
 		res.writeHead(200, headers = {'content-type': f.mime});
 		res.end(f.data);
@@ -81,8 +80,8 @@ Object.keys(knownKeys)
 	.forEach(k => node.set(k, knownKeys[k]));
 
 var braidCallback = braidHttpServer(node);
+var wss = new ws.Server({server})
+braidWebsocketServer(node, {port, wss})
 
 console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 server.listen(port);
-var wss = new (require('ws').Server)({server})
-braidWebsocketServer(node, {port, wss})

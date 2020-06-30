@@ -13,9 +13,11 @@ node.default(usrKey, {});
 
 show_debug = true;
 g_show_protocol_errors = true;
-
-//var socket = require('http1-client.js')({node, url: 'http://localhost:3009/'});
-var socket = require('websocket-client.js')({node, url: 'wss://invisible.college:3009/'})
+const params = new URLSearchParams(window.location.search);
+const protocol = params.get("protocol") === 'http' ? 'http' : 'ws';
+const is_secure = window.location.protocol === 'https:';
+const braid_url = `${protocol}${is_secure ? 's' : ''}://${window.location.host}/`
+var socket = require(protocol == 'http' ? 'http1-client.js' : 'websocket-client.js')({node, url: braid_url});
 
 // UI Code
 let createListeners = function () {
