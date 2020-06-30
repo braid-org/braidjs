@@ -158,7 +158,8 @@ module.exports = function add_http_server(node) {
             });
         };
         const recv = (id, msg) => {
-            msg.origin = openPipes[id].origin;
+            if (openPipes[id])
+                msg.origin = openPipes[id].origin;
             console.log(msg);
             node[msg.method](msg);
         }
@@ -214,16 +215,6 @@ module.exports = function add_http_server(node) {
                 res.setHeader("patches", "OK");
                 const clientID = `${req.headers['x-client-id'] || u.random_id()}=>${msg.key}`;
                 recv(clientID, msg);
-                /*// When pruning and fissures are disabled, we're allowed to accept from SETS from non-subscribed clients.
-                let resource = node.resource_at(msg.key)
-                let welcomed = resource.we_welcomed;
-                if (!welcomed[pipe.id]) {
-                    welcomed[pipe.id] = {
-                        id: pipe.id,
-                        connection: pipe.connection,
-                        them: pipe.them
-                    }
-                }*/
             })
         }
     }
@@ -241,18 +232,6 @@ module.exports = function add_http_server(node) {
         }
         return false;
     }
-
-    // If the process is closed, forget any open connections.
-    process.on('SIGINT', function() {
-        console.log("Forgetting connections...");
-        console.dir(openPipes, {depth: 10});
-        Object.values(openPipes).forEach(sub => {
-            
-            node.forget(sub);
-            sub.origin.disconnect();
-        });
-        process.exit();
-    });
 
     return handleHttpResponse;
 }

@@ -16,8 +16,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
             console.log("Passing to node: ", args)
             node[args.method](args);
         },
-        remote_peer: "server",
-        connection: "http"
+        //connection: "http"
     };
 
     node.bind(prefix, pipe)
@@ -179,17 +178,6 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                     }
                     sets_from_stream(res.body, 
                         callback = setMessage => {
-                            // When acking and pruning is disabled, the first SET implies a welcome.
-                            let resource = node.resource_at(msg.key)
-                            let welcomed = resource.we_welcomed;
-                            if (!welcomed[pipe.id]) {
-                                welcomed[pipe.id] = {
-                                    id: pipe.id,
-                                    connection: pipe.connection,
-                                    them: pipe.them
-                                }
-                            }
-                            resource.weve_been_welcomed = true;
                             // Insert the method and key into this
                             setMessage.method = "set";
                             setMessage.key = msg.key;
