@@ -4,7 +4,19 @@
 //
 
 is_browser = typeof process !== 'object' || typeof global !== 'object'
-terminal_width = _ => (!is_browser && process.stdout.columns) || 78
+terminal_width = _ => (!is_browser && process.stdout.columns) || 80
+nlogf = (protocol, from, symbol, to, msg) => {
+    let stringy = JSON.stringify(msg, function(k, v) {
+        if (k === 'method')
+            return undefined;
+        return v;
+    });
+    nlog(
+        `${protocol}: ${from} ${symbol} ${to}`,
+        msg.method.toUpperCase().padEnd(7),
+        stringy.substr(0, terminal_width() - 30)
+    )
+}
 
 // dict() is an alternative to {}.  It creates a clean hash table without any
 // pre-existing keys, like .constructor or .prototype that are built into

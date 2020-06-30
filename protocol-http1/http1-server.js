@@ -90,16 +90,16 @@ module.exports = function add_http_server(node) {
         const allowedMethods = ["set", "welcome"]
         // The node will call this method with JSON messages
         function sendVersions (args) {
-            if (args.method == "error") {
-                console.warn(`Node sent error`, args);
+            let symbol = allowedMethods.includes(args.method) ? '-=>' : '-|>';
+            if (args.method === 'error')
+                symbol = '-!>'
+            if (args.method != "ping" && args.method != "pong") {
+                nlogf('h1', 'server', symbol, id.slice(0,6).padEnd(6), args);
             }
             // The protocol doesn't support things like acks and fissures
             if (!allowedMethods.includes(args.method)) {
-                console.log("Node tried to send", args.method)
                 return;
             }
-            console.log("Sending a response: ")
-            console.dir(args, {depth: 4});
             // Extract the three relevant fields from JSON message
             let versions = [];
             if (args.method == "welcome") {
@@ -133,7 +133,6 @@ module.exports = function add_http_server(node) {
     // The entry point of the server.
     // Listen for requests
     function handleHttpResponse(req, res) {
-        console.log("Got a request:", req.method, req.url);
         // Apply hardcoded access control headers
         // The cors() method will return true if the request is an OPTIONS request
         // (It'll also respond 200 and end the stream)
@@ -158,9 +157,11 @@ module.exports = function add_http_server(node) {
             });
         };
         const recv = (id, msg) => {
+            if (msg.method != "ping" && msg.method != "pong") {
+                nlogf('h1', id.slice(0,6).padEnd(6), '=->', 'server', msg);
+            }
             if (openPipes[id])
                 msg.origin = openPipes[id].origin;
-            console.log(msg);
             node[msg.method](msg);
         }
         // Copy headers that have the same value in HTTP as Braid

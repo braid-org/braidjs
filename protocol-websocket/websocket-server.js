@@ -8,22 +8,15 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
     var s = options.wss || new (require('ws')).Server({port: options.port || 3007})
     s.on('connection', function(conn, req) {
         var pipe = require('../pipe.js')({node, connect, disconnect, send})
-
+        const peer_name = (m) => (pipe.remote_peer || (m || {}).my_name_is || 'C-?').toString();
         const ip = req.socket.remoteAddress;
         // console.log(`New connection from ${ip}`)
-        conn.on('message', (msg) => {
-            var m = JSON.parse(msg);
-            if (m.method != "ping" && m.method != "pong") {
-                nlog('ws: hub Recvs',
-                     m.method.toUpperCase().padEnd(7),
-                     ((pipe.remote_peer || m.my_name_is)+'').slice(0,4).padEnd(4),
-                     msg.substr(0, terminal_width() - 27))
-                // console.log(`${ip} -> Server:`);
-                // console.group();
-                // console.dir(m, {depth: 3});
-                // console.groupEnd();
+        conn.on('message', (text) => {
+            var msg = JSON.parse(text);
+            if (msg.method != "ping" && msg.method != "pong") {
+                nlogf('ws', peer_name(msg).slice(0,6).padEnd(6), '-->', 'server', msg);
             }
-            pipe.recv(m)
+            pipe.recv(msg)
         })
         conn.on('close', () => {
             log('ws: socket closed ', s.dead ? '<<dead>>' : '')
@@ -41,18 +34,11 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
             conn.terminate()
         }
         function send (msg) {
-            let msgText = JSON.stringify(msg);
+            let text = JSON.stringify(msg);
             if (msg.method != "ping" && msg.method != "pong") {
-                nlog('ws: hub Sends',
-                     msg.method.toUpperCase().padEnd(7),
-                     ((pipe.remote_peer || '?')+'').slice(0,4).padEnd(4),
-                     JSON.stringify(msg).substr(0, terminal_width() - 27))
-                // console.log(`Server -> ${ip}:`);
-                // console.group();
-                // console.dir(msg, {depth: 3});
-                // console.groupEnd();
+                nlogf('ws', 'server', '-->', peer_name().slice(0,6).padEnd(6), msg);
             }
-            conn.send(msgText);
+            conn.send(text);
         }
     })
     return s
