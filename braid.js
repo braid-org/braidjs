@@ -424,15 +424,12 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
             resource.acks_in_process[version] = {
                 origin: origin,
-                count: node.welcomed_peers(key).length - (origin ? 1 : 0)
+                count: Object.keys(resource.keepalive_peers).length
             }
-
-            // log('node.set:', node.pid, 'Initializing ACKs for', version, 'to',
-            //     `${node.joined_peers(key).length}-${(origin ? 1 : 0)}=${resource.acks_in_process[version].count}`)
-
-            // log('node.set: we will want',
-            //             node.citizens(key).length - (origin ? 1 : 0),
-            //             'acks, because we have citizens', node.citizens(key))
+            if (origin && resource.keepalive_peers[origin.id])
+                // If the origin is a keepalive_peer, then since we've already
+                // seen it from them, we can decrement count
+                resource.acks_in_process[version].count--
 
             assert(resource.acks_in_process[version].count >= 0,
                    node.pid, 'Acks have below zero! Proof:',
