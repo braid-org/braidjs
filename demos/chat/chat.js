@@ -119,7 +119,7 @@ let createListeners = function () {
         }
         let sendTime = new Date().getTime();
         let messageBody = JSON.stringify([{user: browserId, time: sendTime, body: messageParts}]);
-        node.set(msgKey, null, `[${nMessages}:${nMessages}] = ${messageBody}`);
+        node.setPatch(msgKey, `[-0:-0] = ${messageBody}`);
         sendbox.value = "";
     }
 
