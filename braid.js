@@ -1119,6 +1119,21 @@ module.exports = require.braid = function create_node(node_data = {}) {
                    // Reformat `versions` and `parents` as arrays
                    parents: Object.keys(fiss.parents),
                    versions: Object.keys(fiss.versions) }))
+    node.unmatched_fissures = (key) => {
+        var result = []
+        var fissures = node.resource_at(key).fissures
+        outer_loop:
+        for (fiss in fissures) {
+            for (fiss2 in fissures) {
+                if (   fissures[fiss].conn === fissures[fiss2].conn
+                    && fissures[fiss].a    === fissures[fiss2].b
+                    && fissures[fiss].b    === fissures[fiss2].a)
+                    continue outer_loop
+            }
+            result.push(fissures[fiss])
+        }
+        return result
+    }
 
     node.prune = (resource) => {
         var unremovable = {}
