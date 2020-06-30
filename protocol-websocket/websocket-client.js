@@ -22,19 +22,13 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock.onopen    = ()  => {
             pipe.connected()
         }
-        sock.onmessage = msg => {
-            msg = msg.data
-            var data = JSON.parse(msg)
-            var method = data.method.toUpperCase()
-            if (method !== "PING" && method !== "PONG") {
-                nlog('ws:',
-                     node.pid.slice(0,3).padEnd(3),
-                     'recvs',
-                     method.padEnd(7),
-                     ((pipe.remote_peer || data.my_name_is)+'').slice(0,4).padEnd(4),
-                     msg.substr(0, terminal_width() - 27))
+        sock.onmessage = message => {
+            var text = message.data;
+            var msg = JSON.parse(text);
+            if (msg.method != "ping" && msg.method != "pong") {
+                nlogf('ws', 'remote', '-->', 'local', msg);
             }
-            pipe.recv(data)
+            pipe.recv(msg)
         }
         var onclose_called_already = false
         var local_sock = sock
@@ -64,16 +58,11 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         connect,
         disconnect,
         send: (msg) => {
-            let method = msg.method.toUpperCase();
-            if (method != "PING" && method != "PONG") {
-                nlog('ws:',
-                     node.pid.slice(0,3).padEnd(3),
-                     'sends',
-                     method.padEnd(7),
-                     ((pipe.remote_peer || '?')+'').slice(0,4).padEnd(4),
-                     JSON.stringify(msg).substr(0, terminal_width() - 27))
+            let text = JSON.stringify(msg);
+            if (msg.method != "ping" && msg.method != "pong") {
+                nlogf('ws', 'local ', '-->', 'remote', msg);
             }
-            sock.send(JSON.stringify(msg))
+            sock.send(text);
         }
     })
     node.bind(prefix, pipe)

@@ -12,12 +12,13 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         id: u.random_id(), 
         send: send,
         recv: function(args) {
+            if (args.method != "ping" && args.method != "pong") {
+                nlogf('h1', 'remote', '=->', 'local', args);
+            }
             args.origin = pipe;
-            console.log("Passing to node: ", args)
             node[args.method](args);
         },
-        remote_peer: "server",
-        connection: "http"
+        //connection: "http"
     };
 
     node.bind(prefix, pipe)
@@ -29,8 +30,12 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         else if (args.method === 'set')
             send_set(args)
 
-        else
-            console.info('No http1 implementation for method', args.method.toUpperCase())
+        let symbol = (args.method === 'get' || args.method === 'set') ? '-=>' : '-|>';
+        if (args.method === 'error')
+            symbol = '-!>'
+        if (args.method != "ping" && args.method != "pong") {
+            nlogf('ws', 'local ', symbol, 'remote', msg);
+        }
     }
     // Read sets from a persistent stream
     function sets_from_stream(stream, callback, finished) {
@@ -179,17 +184,6 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                     }
                     sets_from_stream(res.body, 
                         callback = setMessage => {
-                            // When acking and pruning is disabled, the first SET implies a welcome.
-                            let resource = node.resource_at(msg.key)
-                            let welcomed = resource.we_welcomed;
-                            if (!welcomed[pipe.id]) {
-                                welcomed[pipe.id] = {
-                                    id: pipe.id,
-                                    connection: pipe.connection,
-                                    them: pipe.them
-                                }
-                            }
-                            resource.weve_been_welcomed = true;
                             // Insert the method and key into this
                             setMessage.method = "set";
                             setMessage.key = msg.key;
@@ -240,7 +234,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                             headers: new Headers(h)})
                 .then(function (res) {
                     res.text().then(function (text) {
-                        console.log('send_set got a ', res.status, text)
+                        console.debug(`Received SET response: status ${res.status}, body ${text}`)
                     })
                 })
                 .catch(function (err) {

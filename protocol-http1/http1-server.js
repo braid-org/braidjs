@@ -90,16 +90,16 @@ module.exports = function add_http_server(node) {
         const allowedMethods = ["set", "welcome"]
         // The node will call this method with JSON messages
         function sendVersions (args) {
-            if (args.method == "error") {
-                console.warn(`Node sent error`, args);
+            let symbol = allowedMethods.includes(args.method) ? '-=>' : '-|>';
+            if (args.method === 'error')
+                symbol = '-!>'
+            if (args.method != "ping" && args.method != "pong") {
+                nlogf('h1', 'server', symbol, id.slice(0,6).padEnd(6), args);
             }
             // The protocol doesn't support things like acks and fissures
             if (!allowedMethods.includes(args.method)) {
-                console.log("Node tried to send", args.method)
                 return;
             }
-            console.log("Sending a response: ")
-            console.dir(args, {depth: 4});
             // Extract the three relevant fields from JSON message
             let versions = [];
             if (args.method == "welcome") {
@@ -133,7 +133,6 @@ module.exports = function add_http_server(node) {
     // The entry point of the server.
     // Listen for requests
     function handleHttpResponse(req, res) {
-        console.log("Got a request:", req.method, req.url);
         // Apply hardcoded access control headers
         // The cors() method will return true if the request is an OPTIONS request
         // (It'll also respond 200 and end the stream)
@@ -158,8 +157,11 @@ module.exports = function add_http_server(node) {
             });
         };
         const recv = (id, msg) => {
-            msg.origin = openPipes[id].origin;
-            console.log(msg);
+            if (msg.method != "ping" && msg.method != "pong") {
+                nlogf('h1', id.slice(0,6).padEnd(6), '=->', 'server', msg);
+            }
+            if (openPipes[id])
+                msg.origin = openPipes[id].origin;
             node[msg.method](msg);
         }
         // Copy headers that have the same value in HTTP as Braid
@@ -214,16 +216,6 @@ module.exports = function add_http_server(node) {
                 res.setHeader("patches", "OK");
                 const clientID = `${req.headers['x-client-id'] || u.random_id()}=>${msg.key}`;
                 recv(clientID, msg);
-                /*// When pruning and fissures are disabled, we're allowed to accept from SETS from non-subscribed clients.
-                let resource = node.resource_at(msg.key)
-                let welcomed = resource.we_welcomed;
-                if (!welcomed[pipe.id]) {
-                    welcomed[pipe.id] = {
-                        id: pipe.id,
-                        connection: pipe.connection,
-                        them: pipe.them
-                    }
-                }*/
             })
         }
     }
@@ -241,18 +233,6 @@ module.exports = function add_http_server(node) {
         }
         return false;
     }
-
-    // If the process is closed, forget any open connections.
-    process.on('SIGINT', function() {
-        console.log("Forgetting connections...");
-        console.dir(openPipes, {depth: 10});
-        Object.values(openPipes).forEach(sub => {
-            
-            node.forget(sub);
-            sub.origin.disconnect();
-        });
-        process.exit();
-    });
 
     return handleHttpResponse;
 }
