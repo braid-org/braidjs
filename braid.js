@@ -284,8 +284,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (origin.remote_peer) resource.we_welcomed[origin.id] = {
             id: origin.id,
             connection: origin.connection,
-            them: origin.remote_peer,
-            // remote: origin.remote
+            them: origin.remote_peer
         }
         origin.send && origin.send({
             method: 'welcome', key, versions, fissures, parents: best_parents})
@@ -499,7 +498,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
         check_ack_count(key, resource, version)
         return version
     }
-    
+    node.set_patch = node.setPatch = (key, patch) => node.set({key, patches: [patch]})
+
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
         // guard against invalid welcomes..
         if (true) {
