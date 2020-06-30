@@ -275,7 +275,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                     k_a: this.keep_alive(key),
                     peer: this.remote_peer,
                     c: !!this.connection
-                    //r: this.remote
                    }
         }
     }
