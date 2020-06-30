@@ -334,7 +334,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             // If you're trying to join a persistent consistent group, then
             // you probably don't want to send any SETs before you actually
             // join and know what the current version is:
-            if (origin && && origin.keep_alive(key)
+            if (origin && origin.keep_alive && origin.keep_alive(key)
                 && !resource.keepalive_peers[origin.id])
                 return report('we did not welcome them yet')
 
