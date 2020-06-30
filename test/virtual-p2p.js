@@ -26,7 +26,7 @@ module.exports = require['virtual-p2p'] = (sim) => (
                     // The send function
                     send (args) {
                         if (!this.connection) {
-                            console.log('sim-pipe.send: starting connection cause it was null')
+                            log('sim-pipe.send: starting connection cause it was null on ', this)
                             this.connected()
                         }
                         // console.log('>> ', this.id, args)

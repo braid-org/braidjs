@@ -195,7 +195,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
             log('get:', node.pid, key)
 
             var resource = node.resource_at(key)
-            if (resource.we_welcomed[origin.id])
+            if (subscribe && subscribe.keep_alive
+                && resource.keepalive_peers[origin.id])
                 return report('we already welcomed them')
 
             if (version && typeof(version) != 'string')
@@ -281,11 +282,12 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // G: ok, here we actually send out the welcome
 
-        if (origin.remote_peer) resource.we_welcomed[origin.id] = {
-            id: origin.id,
-            connection: origin.connection,
-            them: origin.remote_peer
-        }
+        if (origin.keep_alive && origin.keep_alive(key))
+            resource.keepalive_peers[origin.id] = {
+                id: origin.id,
+                connection: origin.connection,
+                remote_peer: origin.remote_peer
+            }
         origin.send && origin.send({
             method: 'welcome', key, versions, fissures, parents: best_parents})
 
@@ -330,7 +332,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             var resource = node.resource_at(key)
 
             // Todo: Remove this?  Shouldn't we allow a SET from anyone if we can?
-            if (origin && !resource.we_welcomed[origin.id])
+            if (origin && !resource.keepalive_peers[origin.id])
                 return report('we did not welcome them yet')
 
             if (!patches || !Array.isArray(patches)
@@ -503,17 +505,22 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
         // guard against invalid welcomes..
         if (true) {
-            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for welcome: ' + x) }
-            if (!key || typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
+            function report(x) {
+                g_show_protocol_errors && console.log('PROTOCOL ERROR for welcome: '+x)
+            }
+            if (!key || typeof(key) != 'string')
+                return report('invalid key: ' + JSON.stringify(key))
 
             var resource = node.resource_at(key)
-            if (!resource.we_welcomed[origin.id])
+            if (!resource.keepalive_peers[origin.id])
                 return report('we did not welcome them yet')
 
             if (!Array.isArray(versions) || !versions.every(v => {
                 if (v.version && typeof(v.version) != 'string') return false
-                if (!v.parents || typeof(v.parents) != 'object' || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
-                if (!Array.isArray(v.changes) || v.changes.some(x => typeof(x) != 'string')) return false
+                if (!v.parents || typeof(v.parents) != 'object'
+                    || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
+                if (!Array.isArray(v.changes)
+                    || v.changes.some(x => typeof(x) != 'string')) return false
                 return true
             })) { return report('invalid versions: ' + JSON.stringify(versions)) }
 
@@ -522,13 +529,18 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 if (typeof(fissure.a) != 'string') return false
                 if (typeof(fissure.b) != 'string') return false
                 if (typeof(fissure.conn) != 'string') return false
-                if (!fissure.versions || typeof(fissure.versions) != 'object' || !Object.entries(fissure.versions).every(([k, v]) => v === true)) return false
-                if (!fissure.parents || typeof(fissure.parents) != 'object' || !Object.entries(fissure.parents).every(([k, v]) => v === true)) return false
+                if (!fissure.versions || typeof(fissure.versions) != 'object'
+                    || !Object.entries(fissure.versions).every(([k, v]) => v === true)) return false
+                if (!fissure.parents || typeof(fissure.parents) != 'object'
+                    || !Object.entries(fissure.parents).every(([k, v]) => v === true)) return false
                 if (typeof(fissure.time) != 'number') return false
                 return true
             })) { return report('invalid fissures: ' + JSON.stringify(fissures)) }
 
-            if (unack_boundary && (typeof(unack_boundary) != 'object' || !Object.entries(unack_boundary).every(([k, v]) => v === true))) { return report('invalid unack_boundary: ' + JSON.stringify(unack_boundary)) }
+            if (unack_boundary && (typeof(unack_boundary) != 'object'
+                                   || !Object.entries(unack_boundary).every(
+                                       ([k, v]) => v === true)))
+                return report('invalid unack_boundary: '+JSON.stringify(unack_boundary))
 
             if (min_leaves && (typeof(min_leaves) != 'object'
                                || !Object.entries(min_leaves).every(
@@ -898,7 +910,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         node.ons.forEach(on => on('forget', {key, origin}))
 
         var resource = node.resource_at(key)
-        delete resource.we_welcomed[origin.id]
+        delete resource.keepalive_peers[origin.id]
         node.unbind(key, origin)
         node.gets_in.delete(key, origin.id)
 
@@ -927,7 +939,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 return report('invalid key: ' + JSON.stringify(key))
 
             var resource = node.resource_at(key)
-            if (!resource.we_welcomed[origin.id])
+            if (!resource.keepalive_peers[origin.id])
                 return report('we did not welcome them yet')
 
             if (typeof(valid) != 'undefined')
@@ -1031,11 +1043,12 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // unbind them (but only if they are bound)
         if (node.bindings(key).some(p => p.id == origin.id)) node.unbind(key, origin)
 
-        // if we haven't sent them a welcome (or they are not remote), then no need to create a fissure
-        if (!origin.remote_peer || !node.resource_at(key).we_welcomed[origin.id]) return
+        // if we haven't sent them a welcome (or they are not remote), then no
+        // need to create a fissure
+        if (!origin.remote_peer || !node.resource_at(key).keepalive_peers[origin.id]) return
 
-        // now since we're disconnecting, we reset the we_welcomed flag
-        delete node.resource_at(key).we_welcomed[origin.id]
+        // now since we're disconnecting, we reset the keepalive_peers flag
+        delete node.resource_at(key).keepalive_peers[origin.id]
 
         assert(key && origin)
         // To do:
@@ -1101,6 +1114,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.current_version = (key) =>
         Object.keys(node.resource_at(key).current_version).join('-') || null
     node.versions = (key) => Object.keys(node.resource_at(key).time_dag)
+    node.fissures = (key) => Object.values(node.resource_at(key).fissures).map(
+        fiss => ({ ...fiss,
+                   // Reformat `versions` and `parents` as arrays
+                   parents: Object.keys(fiss.parents),
+                   versions: Object.keys(fiss.versions) }))
 
     node.prune = (resource) => {
         var unremovable = {}
@@ -1289,7 +1307,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         resource.mergeable = require('./merge-algos/sync9.js')(resource)
 
         // Peers that we have sent a welcome message to
-        if (!resource.we_welcomed) resource.we_welcomed = {}
+        if (!resource.keepalive_peers) resource.keepalive_peers = {}
 
         // Have we been welcomed yet?  (Has the data loaded?)
         if (!resource.weve_been_welcomed) resource.weve_been_welcomed = false
@@ -1393,7 +1411,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     node.welcomed_peers = (key) => {
         var r = node.resource_at(key)
-        return node.bindings(key).filter(pipe => pipe.remote_peer && r.we_welcomed[pipe.id])
+        return node.bindings(key).filter(pipe => pipe.remote_peer && r.keepalive_peers[pipe.id])
     }
 
 

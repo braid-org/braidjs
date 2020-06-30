@@ -14,8 +14,8 @@ node.default(usrKey, {});
 show_debug = true;
 g_show_protocol_errors = true;
 
-const socket = require('http1-client.js')({node, url: 'http://localhost:3009/'});
-//var socket = require('websocket-client.js')({node, url: 'ws://localhost:3009/'})
+//var socket = require('http1-client.js')({node, url: 'http://localhost:3009/'});
+var socket = require('websocket-client.js')({node, url: 'wss://invisible.college:3009/'})
 
 // UI Code
 let createListeners = function () {
@@ -119,7 +119,7 @@ let createListeners = function () {
         }
         let sendTime = new Date().getTime();
         let messageBody = JSON.stringify([{user: browserId, time: sendTime, body: messageParts}]);
-        node.set(msgKey, null, `[${nMessages}:${nMessages}] = ${messageBody}`);
+        node.setPatch(msgKey, `[-0:-0] = ${messageBody}`);
         sendbox.value = "";
     }
 
