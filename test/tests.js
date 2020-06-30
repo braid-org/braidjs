@@ -4,13 +4,16 @@ require('../util/utilities.js')
 //show_debug = true
 
 var n_peers = 3
-var n_steps_per_trial = 100
-var n_trials = 89
+var n_steps_per_trial = 40
+var n_trials = 189
 var rand = Math.create_rand('000_hi_001')
 
 var solo_trial = null
-if (!is_browser && process.argv.length >= 4 && process.argv[2] === 'solo')
+if (!is_browser && process.argv.length >= 4 && process.argv[2] === 'solo') {
     solo_trial = parseInt(process.argv[3])
+    show_debug = true
+    print_network = true
+}
 
 var sim = {
     n_peers,
@@ -266,6 +269,7 @@ run_trials.async = (cb) => {
     }
 }
 run_trial.async = (trial_num, cb) => {
+    rand = sim.rand = Math.create_rand(trial_num + '')
     setup_test()
     var t = -1
     function run_step () {
