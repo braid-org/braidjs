@@ -1111,6 +1111,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.current_version = (key) =>
         Object.keys(node.resource_at(key).current_version).join('-') || null
     node.versions = (key) => Object.keys(node.resource_at(key).time_dag)
+    node.fissures = (key) => Object.values(node.resource_at(key).fissures).map(
+        fiss => ({ ...fiss,
+                   // Reformat `versions` and `parents` as arrays
+                   parents: Object.keys(fiss.parents),
+                   versions: Object.keys(fiss.versions) }))
 
     node.prune = (resource) => {
         var unremovable = {}
