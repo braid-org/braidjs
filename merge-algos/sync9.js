@@ -462,7 +462,16 @@ function add_version(resource, version, parents, changes, is_anc) {
             if (parse.val instanceof Array && cur.t !== 'arr')
                 throw `Cannot splice array ${JSON.stringify(parse.val)} into non-array`
             if (parse.val instanceof Array) parse.val = parse.val.map(x => make_lit(x))
-            space_dag_add_version(cur.S, version, [[parse.range[0], parse.range[1] - parse.range[0], parse.val]], is_anc)
+
+            var r0 = parse.range[0]
+            var r1 = parse.range[1]
+            if (r0 < 0 || Object.is(r0, -0) || r1 < 0 || Object.is(r1, -0)) {
+                let len = space_dag_length(cur.S, is_anc)
+                if (r0 < 0 || Object.is(r0, -0)) r0 = len + r0
+                if (r1 < 0 || Object.is(r1, -0)) r1 = len + r1
+            }
+
+            space_dag_add_version(cur.S, version, [[r0, r1 - r0, parse.val]], is_anc)
         }
     })
 
