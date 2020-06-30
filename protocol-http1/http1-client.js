@@ -18,8 +18,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
             node[args.method](args);
         },
         remote: true,
-        connection: "http",
-        them: "server"
+        connection: "http"
     };
 
     node.bind(prefix, pipe)
@@ -163,7 +162,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         }
     }
     function send_get (msg) {
-        var h = {}
+        var h = {"x-client-id": node.pid};
         if (msg.version) h.version = JSON.stringify(msg.version)
         if (msg.parents) h.parents = Object.keys(msg.parents).map(JSON.stringify).join(', ')
         if (msg.subscribe) h.subscribe = "keep-alive"
@@ -215,7 +214,8 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
     function send_set (msg) {
         var h = {
             'content-type': 'application/json',
-            'merge-type': 'sync9'
+            'merge-type': 'sync9',
+            "x-client-id": node.pid
         }
         if (msg.version) h.version = JSON.stringify(msg.version)
         if (msg.parents) h.parents = Object.keys(msg.parents).map(JSON.stringify).join(', ')
@@ -252,7 +252,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         }
         trySend(20);
     }
-    document.addEventListener('unload', () => {controller.abort()});
+    document.addEventListener('beforeUnload', () => {controller.abort()});
     return {
         pipe,
         enabled() {return enabled},

@@ -10,11 +10,12 @@ const lib_path = "../../";
 const bundler = require(path.join(lib_path, './util/braid-bundler.js'));
 const sqlite = require(path.join(lib_path, './util/sqlite-store.js'));
 const braid = require(path.join(lib_path, './braid.js'));
-const braidWebsocketServer = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))
+const braidWebsocketServer = require(path.join(lib_path, './protocol-websocket/websocket-server.js'));
+const braidHttpServer = require(path.join(lib_path, './protocol-http1/http1-server.js'));
 
 const port = 3009;
 global.g_show_protocol_errors = true;
-global.show_debug = false;
+global.show_debug = true;
 
 // Static files we want to serve over http
 //  and where to find them on disk, and their mime types
@@ -45,6 +46,9 @@ Object.values(knownFiles).forEach(file => {
 })
 // A simple method to serve one of the known files
 function serveFile(req, res) {
+	if (knownKeys.hasOwnProperty(req.url))
+		return braidCallback(req, res);
+
 	const f = knownFiles[req.url];
 	if (f) {
 		res.writeHead(200, headers = {'content-type': f.mime});
@@ -76,11 +80,7 @@ Object.keys(knownKeys)
 	.filter(k => Object.keys(node.resource_at(k).current_version).length == 0)
 	.forEach(k => node.set(k, knownKeys[k]));
 
-const wss = new ws.Server({server});
-
-// require(path.join(lib_path, './protocol-http1/http1-server.js'))(node, server, cb)
-
-braidWebsocketServer(node, {wss})
+var braidCallback = braidHttpServer(node);
 
 console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 server.listen(port);
