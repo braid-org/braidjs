@@ -85,8 +85,8 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                 // We have a complete message ... 
                 let msg = {
                     version: headers.version ? JSON.parse(headers.version) : null,
-                    parents: headers.parents ? {} : null,
-                    patches: (patches && patches.length) ? patches.slice() : null
+                    patches: patches ? patches.slice() : null,
+                    parents: headers.parents ? {} : null
                 };
                 if (headers.parents)
                     headers.parents.split(", ").forEach(x => msg.parents[JSON.parse(x)] = true)
@@ -120,7 +120,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                 temp
             while (temp = regex.exec(stuff_to_parse))
                 headers[temp[1].toLowerCase()] = temp[2]
-    
+            // TODO: Parse key-value pair headers and list headers.
             return {headers: headers, consumeLength: end_of_headers + 2}
         }
         function parse_patches() {
@@ -169,7 +169,15 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         var h = {"x-client-id": node.pid};
         if (msg.version) h.version = JSON.stringify(msg.version)
         if (msg.parents) h.parents = Object.keys(msg.parents).map(JSON.stringify).join(', ')
-        if (msg.subscribe) h.subscribe = "keep-alive"
+        
+        if (msg.subscribe) {
+            if (msg.subscribe.keep_alive)
+                msg.subscribe.keep_alive = false;
+            h.subscribe = Object.entries(msg.subscribe)
+                .map(a => `${a[0].replace("_", "-")}=${a[1]}`)
+                .join(";");
+        }
+        
         const sendUrl = new URL(msg.key, url);
         function trySend(waitTime) {
             console.log(`Fetching ${sendUrl}`);
@@ -187,6 +195,8 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                             // Insert the method and key into this
                             setMessage.method = "set";
                             setMessage.key = msg.key;
+                            // TODO: Don't have to do this.
+                            node.resource_at(msg.key).weve_been_welcomed = true;
                             pipe.recv(setMessage);
                         },
                         finished = () => {
@@ -212,7 +222,9 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         }
         if (msg.version) h.version = JSON.stringify(msg.version)
         if (msg.parents) h.parents = Object.keys(msg.parents).map(JSON.stringify).join(', ')
-        if (msg.subscribe) {}
+        if (msg.subscribe) h.subscribe = Object.entries(msg.subscribe)
+            .map(a => `${a[0].replace("_", "-")}=${a[1]}`)
+            .join(";");
 
         let body = msg.patch;
         if (msg.patches) {
@@ -234,7 +246,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
                             headers: new Headers(h)})
                 .then(function (res) {
                     res.text().then(function (text) {
-                        console.debug(`Received SET response: status ${res.status}, body ${text}`)
+                        console.debug(`Received SET response: status ${res.status}, body "${text}"`)
                     })
                 })
                 .catch(function (err) {
@@ -245,7 +257,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         }
         trySend(20);
     }
-    document.addEventListener('beforeUnload', () => {controller.abort()});
+    document.addEventListener('beforeunload', () => {controller.abort()});
     return {
         pipe,
         enabled() {return enabled},
