@@ -28,7 +28,7 @@ module.exports = require.store = function create_store(node, options) {
                     Object.values(node.resources[k].keepalive_peers).forEach(pipe => {
                         pipe.remote = true
                         node.bind(k, pipe)
-                        node.gets_in.add(k, pipe.id, pipe)
+                        node.incoming_subscriptions.add(k, pipe.id, pipe)
                     })
                 } else node[d.method](d.arg)
             }

@@ -22,9 +22,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         node.ons = []
         node.on_errors = []
     
-        node.gets_in      = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
-        // var gets_out     = u.one_to_many()  // Maps `key' to `pipes' we get()ed `key' over
-        // var pending_gets = u.one_to_many()  // Maps `key' to `pipes' that haven't responded    
+        node.incoming_subscriptions = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
     }
     node.init(node_data)
 
@@ -212,12 +210,12 @@ module.exports = require.braid = function create_node(node_data = {}) {
         node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
 
         // Now record this subscription to the bus
-        node.gets_in.add(key, origin.id, origin)
+        node.incoming_subscriptions.add(key, origin.id, origin)
         // ...and bind the origin pipe to future sets
         node.bind(key, origin)
 
         // If this is the first subscription, fire the .on_get handlers
-        if (node.gets_in.count(key) === 1) {
+        if (node.incoming_subscriptions.count(key) === 1) {
             log('node.get:', node.pid, 'firing .on_get for',
                 node.bindings(key).length, 'pipes!')
             // This one is getting called afterward
@@ -906,7 +904,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             }
             if (!key || typeof(key) != 'string')
                 return report('invalid key: ' + JSON.stringify(key))
-            if (!node.gets_in.has(key, origin.id))
+            if (!node.incoming_subscriptions.has(key, origin.id))
                 return report('pipe did not get the key "'+key+'" yet')
         }
 
@@ -915,7 +913,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         var resource = node.resource_at(key)
         delete resource.keepalive_peers[origin.id]
         node.unbind(key, origin)
-        node.gets_in.delete(key, origin.id)
+        node.incoming_subscriptions.delete(key, origin.id)
 
         // todo: what are the correct conditions to send the forget?
         // for now, we just support the hub-spoke model, where only clients
