@@ -17,6 +17,7 @@ If you have nodejs installed, then set it up with:
 npm install
 ```
 
+### Chat demo
 You can run the chat server with:
 
 ```
@@ -24,10 +25,17 @@ cd demos/chat
 node chat-server.js
 ```
 
+Then open a web browser to `http://localhost:3009/chat.html`.
+
+### Wiki demo
+
 You can run the wiki server with:
 ```
 node demos/wiki/wiki-server.js
 ```
+And then open `http://localhost:3009/<any-path-here>`.
+
+### Seeing the guts
 
 For any command, you can tell it to print out all network traffic in a table
 by adding the command-line argument `network` to it, like this:
@@ -54,12 +62,20 @@ ws: C2  sends GET     ?    {"key":"my_key","subscribe":{"keep_alive":true},"meth
 npm test
 ```
 
-This will run through a bunch of trials, each initialized with a different
-random seed.  What if trial 68 fails?  You can run that single trial with:
+If you want to see what it's doing, print out the network traffic with:
+
+```
+npm test network
+```
+
+What if one of the trials crashes?  To debug it, re-run that particular trial
+with:
 
 ```
 npm test solo 68
 ```
 
-This will also print out full debugging information for that trial, so that
-you can see what caused the failure.
+This will re-run trial 68, and print out debugging info so you can find the
+problem and fix it.
+
+You can also configure parameters to test at the top of `test/tests.js`.
