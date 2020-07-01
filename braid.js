@@ -189,7 +189,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // Sanity-check the input
         {
-            function report(x, y) { g_show_protocol_errors && console.log('PROTOCOL ERROR for get: ' + x) }
+            function report(x, y) { g_show_protocol_errors && console.warn('PROTOCOL ERROR for get: ' + x) }
             if (!key || typeof(key) != 'string') { return report('invalid key' + JSON.stringify(key)) }
 
             log('get:', node.pid, key)
@@ -323,7 +323,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // Sanity-check the input
         {
             function report(x) {
-                g_show_protocol_errors && console.log('PROTOCOL ERROR for set: ' + x)
+                g_show_protocol_errors && console.warn('PROTOCOL ERROR for set: ' + x)
             }
 
             if (!key || typeof(key) != 'string')
@@ -507,7 +507,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // Sanity-check the input
         {
             function report(x) {
-                g_show_protocol_errors && console.log('PROTOCOL ERROR for welcome: '+x)
+                g_show_protocol_errors && console.warn('PROTOCOL ERROR for welcome: '+x)
             }
             if (!key || typeof(key) != 'string')
                 return report('invalid key: ' + JSON.stringify(key))
@@ -900,7 +900,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // guard against invalid forgets
         if (true) {
             function report(x) {
-                g_show_protocol_errors && console.error('PROTOCOL ERROR for forget: '+x)
+                g_show_protocol_errors && console.warn('PROTOCOL ERROR for forget: '+x)
             }
             if (!key || typeof(key) != 'string')
                 return report('invalid key: ' + JSON.stringify(key))
@@ -934,7 +934,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // guard against invalid messages
         if (true) {
             function report(x) {
-                g_show_protocol_errors && console.log('PROTOCOL ERROR for ack: ' + x)
+                g_show_protocol_errors && console.warn('PROTOCOL ERROR for ack: ' + x)
             }
             if (typeof(key) != 'string')
                 return report('invalid key: ' + JSON.stringify(key))
@@ -988,7 +988,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.fissure = ({key, fissure, origin}) => {
         // guard against invalid messages
         if (true) {
-            function report(x) { g_show_protocol_errors && console.log('PROTOCOL ERROR for fissure: ' + x) }
+            function report(x) { g_show_protocol_errors && console.warn('PROTOCOL ERROR for fissure: ' + x) }
             if (typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
 
             var resource = node.resource_at(key)
