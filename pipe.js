@@ -44,9 +44,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
         // It can Send and Receive messages
         send (args) {
             var we_welcomed = args.key && node.resource_at(args.key).keepalive_peers[this.id]
-            log('pipe.send:', args.method)
             assert(args.method !== 'hello')
-            log('...')
 
             // Record new keys
             if (args.method === 'get') {
@@ -102,9 +100,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             delete args.origin
 
             // And now send the message
-            log('pipe.send:', (this.id || node.pid), args.method,
-                args.version || '')
-
             if (this.connection)
                 send.call(this, args)
             else
@@ -112,10 +107,6 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
         },
         recv (args) {
             var we_welcomed = args.key && node.resource_at(args.key).keepalive_peers[this.id]
-            log(`pipe.RECV:`,
-                node.pid + '-' + (this.remote_peer || '?'),
-                args.method,
-                args.version || '')
 
             // ping/pong system
             if (args.method === 'ping') {
