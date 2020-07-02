@@ -25,7 +25,7 @@ cd demos/chat
 node chat-server.js
 ```
 
-Then open a web browser to `http://localhost:3009/chat.html`.
+Then open a web browser to `http://localhost:3009/braidchat` (for a websocket connection) or `.../braidchat?protocol=http` for a backwards-compatible http/1.1 connection.
 
 ### Wiki demo
 
@@ -38,22 +38,20 @@ And then open `http://localhost:3009/<any-path-here>`.
 ### Seeing the guts
 
 For any command, you can tell it to print out all network traffic in a table
-by adding the command-line argument `network` to it, like this:
+by adding the command-line argument `--network` to it, like this:
 
 ```
-node chat-server.js network
+node chat-server.js --network
 ```
 
 Then you'll see something like this:
 
 ```
-ws: hub Sends HELLO   ?    {"method":"hello","connection":"1k5kiyu5jrr","my_name_is":"hub"}
-ws: hub Sends HELLO   ?    {"method":"hello","connection":"h84e6dcy9ai","my_name_is":"hub"}
-ws: C1  sends HELLO   ?    {"method":"hello","connection":"lpdym7xf6u9","my_name_is":"C1"}
-ws: C1  sends GET     ?    {"key":"my_key","subscribe":{"keep_alive":true},"method":"get","parents":null}
-ws: C1  recvs HELLO   hub  {"method":"hello","connection":"1k5kiyu5jrr","my_name_is":"hub"}
-ws: C2  sends HELLO   ?    {"method":"hello","connection":"lkg3g6sbg6","my_name_is":"C2"}
-ws: C2  sends GET     ?    {"key":"my_key","subscribe":{"keep_alive":true},"method":"get","parents":null}
+ws: server --> C-j2lm GET     {"key":"/usr","parents":null,"subscribe":{"keep_alive":true}}
+ws: server --> C-j2lm WELCOME {"key":"/usr","versions":[{"version":null,"parents":{},"changes":[" = {\"B-0bnyC1mdA9\":\"FirefoxHTTP\"}"]}
+ws: C-j2lm --> server WELCOME {"key":"/chat","versions":[],"fissures":[],"parents":null}
+ws: C-j2lm --> server WELCOME {"key":"/usr","versions":[],"fissures":[],"parents":null}
+ws: C-j2lm --> server SET     {"key":"/usr","patches":["[\"B-0bnyC1mdA9\"] = \"FrefoxHTTP\""],"version":"bz2gyet9cv6","parents":{"66mn2f0vco8":true}}
 ```
 
 ## Running tests:

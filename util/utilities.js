@@ -66,7 +66,7 @@ log = function () {
     if (show_debug)
         return console.log.apply(console, arguments)
 }
-print_network = !is_browser && process.argv.find(x => x === 'network')
+print_network = !is_browser && process.argv.includes("--network")
 nlog = function () {
     if (show_debug || print_network)
         return console.log.apply(console, arguments)
