@@ -94,7 +94,7 @@ module.exports = function add_http_server(node) {
             if (args.method === 'error')
                 symbol = '-!>'
             if (args.method != "ping" && args.method != "pong") {
-                nlogf('h1', 'server', symbol, id.slice(0,6).padEnd(6), args);
+                nlogf('H1', 'server', symbol, id.slice(0,6).padEnd(6), args);
             }
             // The protocol doesn't support things like acks and fissures
             if (!allowedMethods.includes(args.method)) {
@@ -158,7 +158,7 @@ module.exports = function add_http_server(node) {
         };
         const recv = (id, msg) => {
             if (msg.method != "ping" && msg.method != "pong") {
-                nlogf('h1', id.slice(0,6).padEnd(6), '=->', 'server', msg);
+                nlogf('H1', id.slice(0,6).padEnd(6), '=->', 'server', msg);
             }
             if (openPipes[id])
                 msg.origin = openPipes[id].origin;
@@ -249,6 +249,17 @@ module.exports = function add_http_server(node) {
         }
         return false;
     }
-
+    process.on('SIGINT', function() {
+        if (Object.keys(openPipes).length) {
+            console.log("\nForgetting H1 connections:");
+            Object.values(openPipes).forEach(sub => {
+                console.log(`    pipe ${sub.origin.id} on resource${sub.key}`);
+                node.forget(sub);
+                sub.origin.disconnect();
+            });
+        }   
+        console.log("Closing process");
+        process.exit();
+    });
     return handleHttpResponse;
 }

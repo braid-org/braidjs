@@ -13,7 +13,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         send: send,
         recv: function(args) {
             if (args.method != "ping" && args.method != "pong") {
-                nlogf('h1', 'remote', '=->', 'local', args);
+                nlogf('H1', 'remote', '=->', 'local', args);
             }
             args.origin = pipe;
             node[args.method](args);
@@ -34,7 +34,7 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         if (args.method === 'error')
             symbol = '-!>'
         if (args.method != "ping" && args.method != "pong") {
-            nlogf('h1', 'local ', symbol, 'remote', args);
+            nlogf('H1', 'local ', symbol, 'remote', args);
         }
     }
     // Read sets from a persistent stream

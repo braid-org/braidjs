@@ -14,7 +14,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
         conn.on('message', (text) => {
             var msg = JSON.parse(text);
             if (msg.method != "ping" && msg.method != "pong") {
-                nlogf('ws', peer_name(msg).slice(0,6).padEnd(6), '-->', 'server', msg);
+                nlogf('WS', peer_name(msg).slice(0,6).padEnd(6), '-->', 'server', msg);
             }
             pipe.recv(msg)
         })
@@ -36,7 +36,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
         function send (msg) {
             let text = JSON.stringify(msg);
             if (msg.method != "ping" && msg.method != "pong") {
-                nlogf('ws', 'server', '-->', peer_name().slice(0,6).padEnd(6), msg);
+                nlogf('WS', 'server', '-->', peer_name().slice(0,6).padEnd(6), msg);
             }
             conn.send(text);
         }

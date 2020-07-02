@@ -26,7 +26,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
             var text = message.data;
             var msg = JSON.parse(text);
             if (msg.method != "ping" && msg.method != "pong") {
-                nlogf('ws', 'remote', '-->', 'local', msg);
+                nlogf('WS', 'remote', '-->', 'local', msg);
             }
             pipe.recv(msg)
         }
@@ -60,7 +60,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         send: (msg) => {
             let text = JSON.stringify(msg);
             if (msg.method != "ping" && msg.method != "pong") {
-                nlogf('ws', 'local ', '-->', 'remote', msg);
+                nlogf('WS', 'local ', '-->', 'remote', msg);
             }
             sock.send(text);
         }
