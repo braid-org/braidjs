@@ -177,28 +177,36 @@ module.exports = function add_http_server(node) {
         }
         // If we end up having more methods supported, maybe make this a switch
         if (req.method == "GET") {
-            let status = 200;
-            const persistent = req.headers.hasOwnProperty("subscribe");
-            if (persistent) {
-                // Set some headers needed to indicate a subscription.
-                status = 209;
-                res.setHeader("subscribe", req.headers.subscribe)
-                res.setHeader('content-type', 'text/plain');
-                res.setHeader('cache-control', 'no-cache, no-transform');
-                // res.setHeader('connection', 'Keep-Alive');
-                let subStr = req.headers.subscribe.match(/keep-alive=(\w+)/)[1];
-                let sub = false;
-                if (subStr == "true")
-                    sub = true;
-                else if (subStr != "false") // It's a number
-                    sub = parseInt(subStr);
-                msg.subscribe = {"keep-alive": sub};
+            res.setHeader('cache-control', 'no-cache, no-transform');
+            
+            if (!req.headers.hasOwnProperty("subscribe")) {
+                // Respond over plain http
+                res.setHeader('content-type', 'text/json');
+                res.statusCode = 200;
+                // If the origin is just an id, then there will be no callback or subscription.
+                msg.origin = {id: 'null-pipe'};
+                // And the node will just return the value of the resource at the specified version 
+                res.end(JSON.stringify(node.get(msg)));
+                return;
             }
-            res.statusCode = status;
+            // Set some headers needed to indicate a subscription.
+            status = 209;
+            res.setHeader("subscribe", req.headers.subscribe)
+            res.setHeader('content-type', 'text/braid-patches');
+            // res.setHeader('connection', 'Keep-Alive');
+            let subStr = req.headers.subscribe.match(/keep-alive=(\w+)/)[1];
+            let sub = false;
+            if (subStr == "true")
+                sub = true;
+            else if (subStr != "false") // It's a number
+                sub = parseInt(subStr);
+            msg.subscribe = {"keep-alive": sub};
+            res.statusCode = 209
             msg.method = "get"
             const clientID = `${req.headers['x-client-id'] || u.random_id()}=>${msg.key}`;
             create_pipe(clientID);
             recv(clientID, msg);
+            
         }
         else if (req.method == "PUT") {
             // We only support these headers right now...
