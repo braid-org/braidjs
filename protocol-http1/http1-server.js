@@ -257,8 +257,8 @@ module.exports = function add_http_server(node) {
                 node.forget(sub);
                 sub.origin.disconnect();
             });
+            console.log("Closing process");
         }   
-        console.log("Closing process");
         process.exit();
     });
     return handleHttpResponse;

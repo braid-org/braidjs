@@ -2,6 +2,7 @@
 const msgKey = "/chat";
 const usrKey = "/usr";
 const browserId = localStorage.browserId || 'B-'+randomString();
+const escapedId = JSON.stringify(browserId);
 localStorage.browserId = browserId;
 
 const node = require('braid.js')({pid: 'C-'+randomString()});
@@ -23,17 +24,21 @@ var socket = require(protocol == 'http' ? 'http1-client.js' : 'websocket-client.
 let createListeners = function () {
 
     // Local copy of variables
-    let nMessages = 0;
     let users = {};
     let messages = [];
+    // How many milliseconds each keypress flags us as typing for
+    const typingTimeout = 30000;
     // Subscribe for updates to a resource
     node.get(msgKey, update_messages);
     let usrKey_cb = newVal => {
         users = newVal;
-        if (!users[browserId])
+        if (!users.hasOwnProperty(browserId)) {
             setUsername(generatedUsername);
-        nameBox.value = users[browserId];
+            return;
+        }
+        nameBox.value = users[browserId].displayname;
         update_messages(messages);
+        // Display typing indicators
     }
     node.get(usrKey, usrKey_cb);
 
@@ -44,18 +49,18 @@ let createListeners = function () {
     
     //// ----- Messagebox rendering and interactability -----
     const messageBox = document.getElementById("react-messages");
-    let render_username = function(name) {
-        return (name && users[name]) ? users[name] : "Anonymous";
+    function render_username(userId) {
+        return (userId && users[userId]) ? users[userId].displayname : "Anonymous";
     }
     // Message formatting
-    let format_section = function(section, index) {
+    function format_section(section, index) {
         if (typeof(section) == "string" || !section.type)
             return React.createElement("span", {className: "msg-plain-text", key: index}, section);
         if (section.type == "usr")
             return React.createElement("span", {className: "msg-user-ref", key: index}, `@${render_username(section.user)}`);
         return React.createElement("span", {className: "msg-plain-text", key: index}, section);
     }
-    let format_header = function(msg) {
+    function format_header(msg) {
         let now = new Date();
         let msgDate = new Date(msg.time);
         let timestamp = now.getDate() == msgDate.getDate() ?
@@ -65,7 +70,7 @@ let createListeners = function () {
         return [React.createElement("span", {className: "user-id", key:"username"}, username),
                 React.createElement("span", {className: "timestamp", key: "time"}, timestamp)];
     }
-    let format_message = function(msg, i, msgs) {
+    function format_message(msg, i, msgs) {
         let collapse = i && (msgs[i-1].user == msg.user) && (msg.time - msgs[i-1].time < 1200000);
         // Parse the message
         
@@ -80,16 +85,43 @@ let createListeners = function () {
                  React.createElement("div", {className: "msg-body", key: "text"}, renderedMessage)]);
         }
     }
+    const typingTextElement = document.getElementById("typing-text");
+    const typingBox = document.getElementById("typing");
+    function draw_typing_indicator(names) {
+        const n = names.length;
+        typingBox.classList.toggle("hidden", n == 0);
+        let typing_names;
+        switch (n) {
+            case 0:
+                return;
+            case 1:
+                typing_names = names[0];
+                break;
+            case 2: 
+                typing_names = `${names[0]} and ${names[1]}`;
+                break;
+            case 3:
+            case 4:
+            case 5:
+                names[n-1] = 'and ' + names[n-1];
+                typing_names = names.join(", ");
+                break;
+            default:
+                typing_names = "Several people"
+        }
+        typingTextElement.textContent = `${typing_names} ${(n > 1) ? "are" : "is"} typing...`;
+    }
     function update_messages(newVal) {
         // Check scrolling 
         let shouldScroll = true;
-        if (nMessages) {
-            let furthest_scroll = document.getElementsByClassName("msg")[nMessages - 1].getBoundingClientRect().top;
+        let n_messages = messages.length;
+        if (n_messages) {
+            let furthest_scroll = document.getElementsByClassName("msg")[n_messages - 1].getBoundingClientRect().top;
             let box_bottom = messageBox.getBoundingClientRect().bottom;
             // If the last message is off the screen, we shouldn't scroll
-            shouldScroll = box_bottom > furthest_scroll;
+            should_scroll = box_bottom > furthest_scroll;
         }
-        let MessageList = React.createElement('div', {className: "messageBox"}, newVal.map(format_message));
+        let MessageList = React.createElement('div', {className: "messageBox", key: "messages"}, newVal.map(format_message));
         ReactDOM.render(
             MessageList,
             messageBox,
@@ -98,10 +130,13 @@ let createListeners = function () {
                     messageBox.scrollTop = messageBox.scrollHeight - messageBox.clientHeight;
             }
         );
-        
         messages = newVal;
-        nMessages = newVal.length;
 
+        // Update the typing indicator
+        let whos_typing = Object.entries(users)
+            .filter(user => user[1].typing && user[0] != browserId)
+            .map(user => user[1].displayname);
+        draw_typing_indicator(whos_typing);
     }
     //// ---- Input field handlers ----
     // Enable sending of messages
@@ -121,13 +156,31 @@ let createListeners = function () {
         }
         let sendTime = new Date().getTime();
         let messageBody = JSON.stringify([{user: browserId, time: sendTime, body: messageParts}]);
-        node.setPatch(msgKey, `[-0:-0] = ${messageBody}`);
+        setTimeout(() => node.setPatch(msgKey, `[-0:-0] = ${messageBody}`));
         sendbox.value = "";
+        // Remove typing indicator
+        setTyping(false);
+    }
+    let typingTimeoutId;
+    function setTyping(typing) {
+        if (!users.hasOwnProperty(browserId))
+            return;
+        clearTimeout(typingTimeoutId);
+        let alreadyTyping = users[browserId].typing;
+        // Don't want to spam 
+        if (alreadyTyping != typing) {
+            node.setPatch(usrKey, `[${escapedId}].typing = ${typing}`);
+            users[browserId].typing = typing;
+        }
+        if (typing)
+            typingTimeoutId = setTimeout(() => node.setPatch(usrKey, `[${escapedId}].typing = false`), typingTimeout);
     }
 
     document.getElementById("send-msg").addEventListener("click", submit);
-    sendbox.onkeydown = e => {
-        if (e.keyCode == 13 && !e.shiftKey) {e.preventDefault(); submit()}};
+    sendbox.addEventListener("keydown", e => {
+        if (e.keyCode == 13 && !e.shiftKey) {e.preventDefault(); submit()}
+    });
+    sendbox.addEventListener("input", e => setTyping(true));
 
     //// ---- Settings bar ----
     // Clicking on the settings icon toggles it
@@ -141,16 +194,19 @@ let createListeners = function () {
         nameBox.value = newName;
         setUsername(newName);
     };
-    // Username stuff
+    // Username generation stuff
     const names = ["Bob", "Alice", "Joe", "Fred", "Mary", "Linda", "Mike", "Greg", "Raf"];
     let name = names[Math.floor(Math.random() * names.length)];
     let number = Math.floor(Math.random() * 1000);
     const generatedUsername = `${name}${number}`;
 
     function setUsername(name) {
-        let escapedId = JSON.stringify(browserId);
         let escapedName = JSON.stringify(name);
-        setTimeout(() => node.set(usrKey, null, `[${escapedId}] = ${escapedName}`), 1);
+        const patch = users.hasOwnProperty(browserId) 
+            ? `[${escapedId}].displayname = ${escapedName}`
+            : `[${escapedId}] = {"displayname": ${escapedName}}`;
+
+        setTimeout(() => node.setPatch(usrKey, patch), 1);
     }
 }
 

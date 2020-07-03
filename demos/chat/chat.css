@@ -12,11 +12,12 @@ body {
     display: grid;
 
     grid-template-columns: auto;
-    grid-template-rows: 40px auto 10%;
+    grid-template-rows: 40px auto 10% 1.5em;
     grid-template-areas: 
     "title"
     "messages"
-    "input";
+    "input"
+    "typing";
 }
 .grid-container > * {
     padding: 0 10%;
@@ -143,4 +144,50 @@ header {
     background-color: #48d;
     border: 4px solid #7ac;
     user-select: none;
+}
+/* Typing Indicators */
+#typing {
+    grid-area: typing;
+}
+#typing.hidden {
+    display: none;
+}
+#typing-text {
+    line-height: 1.2em;
+    color: #666;
+    user-select: none;
+}
+@keyframes typing-dots {
+    from {
+        transform: translateY(0px) scale(1);
+        opacity: 40%;
+    }
+    to {
+        transform: translateY(-5px) scale(1.3);
+        opacity: 80%;
+    }
+    /*to: {
+        transform: translateY(0px) scale(1);
+        opacity: 40%;
+    }*/
+}
+.typing-anim span {
+    background-color: black;
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    vertical-align: middle;
+    border-radius: 2px;
+
+    animation-name: typing-dots;
+    animation-iteration-count: infinite;
+    animation-duration: 0.6s;
+    animation-direction: alternate;
+    animation-timing-function: cubic-bezier(1,-0.06,.87,1.13);
+}
+.typing-anim span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+.typing-anim span:nth-child(3) {
+    animation-delay: 0.4s;
 }
