@@ -148,6 +148,7 @@ header {
 /* Typing Indicators */
 #typing {
     grid-area: typing;
+    user-select: none;
 }
 #typing.hidden {
     display: none;
