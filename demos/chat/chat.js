@@ -180,7 +180,7 @@ let createListeners = function () {
     sendbox.addEventListener("keydown", e => {
         if (e.keyCode == 13 && !e.shiftKey) {e.preventDefault(); submit()}
     });
-    sendbox.addEventListener("input", e => setTyping(true));
+    sendbox.addEventListener("input", e => setTyping(sendbox.value.length > 0));
 
     //// ---- Settings bar ----
     // Clicking on the settings icon toggles it
