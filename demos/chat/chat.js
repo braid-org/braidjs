@@ -28,6 +28,8 @@ let createListeners = function () {
     let messages = [];
     // How many milliseconds each keypress flags us as typing for
     const typingTimeout = 30000;
+    // How often to send live typing updates.
+    const liveTypeUpdateFreq = 500;
     // Subscribe for updates to a resource
     node.get(msgKey, update_messages);
     let usrKey_cb = newVal => {
@@ -38,7 +40,6 @@ let createListeners = function () {
         }
         nameBox.value = users[browserId].displayname;
         update_messages(messages);
-        // Display typing indicators
     }
     node.get(usrKey, usrKey_cb);
 
@@ -52,37 +53,32 @@ let createListeners = function () {
     function render_username(userId) {
         return (userId && users[userId]) ? users[userId].displayname : "Anonymous";
     }
-    // Message formatting
-    function format_section(section, index) {
-        if (typeof(section) == "string" || !section.type)
-            return React.createElement("span", {className: "msg-plain-text", key: index}, section);
-        if (section.type == "usr")
-            return React.createElement("span", {className: "msg-user-ref", key: index}, `@${render_username(section.user)}`);
-        return React.createElement("span", {className: "msg-plain-text", key: index}, section);
-    }
+
     function format_header(msg) {
-        let now = new Date();
-        let msgDate = new Date(msg.time);
-        let timestamp = now.getDate() == msgDate.getDate() ?
-            msgDate.toLocaleTimeString() : msgDate.toLocaleDateString();
+        let timestamp = "Live";
+        if (msg.time) {
+            now = new Date();
+            msgDate = new Date(msg.time);
+            timestamp = now.getDate() == msgDate.getDate() ?
+                msgDate.toLocaleTimeString() : msgDate.toLocaleDateString();
+        }
 
         let username = render_username(msg.user);
         return [React.createElement("span", {className: "user-id", key:"username"}, username),
                 React.createElement("span", {className: "timestamp", key: "time"}, timestamp)];
     }
-    function format_message(msg, i, msgs) {
+    function format_message(msg, i, msgs, extra_classes) {
         let collapse = i && (msgs[i-1].user == msg.user) && (msg.time - msgs[i-1].time < 1200000);
         // Parse the message
-        
-        let renderedMessage = msg.body.map(format_section);
+        let body = React.createElement("div", {className: "msg-body", key: "text"}, msg.body);
+        let classList = (extra_classes || []).concat(collapse ? ["msg"] : ["msg", "msg-collapse"]).join(' ');
         if (collapse) {
-            return React.createElement('div', {className:"msg msg-collapse", key: i},
-                React.createElement("div", {className: "msg-body", key: "text"}, renderedMessage));
+            return React.createElement('div', {className: classList, key: i}, body);
         } else {
             let renderedHeader = format_header(msg);
-            return React.createElement('div', {className:"msg", key: i},
+            return React.createElement('div', {className: classList, key: i},
                 [React.createElement("div", {className: "msg-header", key: "head"}, renderedHeader),
-                 React.createElement("div", {className: "msg-body", key: "text"}, renderedMessage)]);
+                 body]);
         }
     }
     const typingTextElement = document.getElementById("typing-text");
@@ -121,7 +117,17 @@ let createListeners = function () {
             // If the last message is off the screen, we shouldn't scroll
             should_scroll = box_bottom > furthest_scroll;
         }
-        let MessageList = React.createElement('div', {className: "messageBox", key: "messages"}, newVal.map(format_message));
+        let message_elements = newVal.map(format_message);
+
+        const live_classes = ["live"]
+        Object.entries(users).forEach(user => {
+            if (user[1].typing && user[0] != browserId) {
+                let msg = {user: user[0], body: user[1].typing};
+                message_elements.push(format_message(msg, null, null, live_classes));
+            }
+        })
+
+        let MessageList = React.createElement('div', {className: "messageBox", key: "messages"}, message_elements);
         ReactDOM.render(
             MessageList,
             messageBox,
@@ -145,45 +151,57 @@ let createListeners = function () {
         if (!sendbox.value.length)
             return;
         // Preprocess outgoing message
-        let messageParts = sendbox.value.split(/(@\w+)/ig);
-        // Now, the odd-numbered indices contain the split tokens
-        for (let i = 1; i < messageParts.length; i+= 2) {
-            let x = messageParts[i];
-            let name = x.substring(1, x.length);
-            let nameId = Object.keys(users).find(key => users[key] == name);
-            if (nameId)
-                messageParts[i] = {type: "usr", user: nameId};
-        }
         let sendTime = new Date().getTime();
-        let messageBody = JSON.stringify([{user: browserId, time: sendTime, body: messageParts}]);
+        let messageBody = JSON.stringify([{user: browserId, time: sendTime, body: sendbox.value}]);
         setTimeout(() => node.setPatch(msgKey, `[-0:-0] = ${messageBody}`));
         sendbox.value = "";
         // Remove typing indicator
-        setTyping(false);
+        setNotTyping();
     }
+    
     let typingTimeoutId;
-    function setTyping(typing) {
+    let typing = false;
+    setInterval(updateTyping, liveTypeUpdateFreq);
+    function setTyping(text) {
+        // Refresh the AFK timeout
+        typing = true;
+        clearTimeout(typingTimeoutId);
+        typingTimeoutId = setTimeout(setNotTyping, typingTimeout);
+    };
+    function setNotTyping() {
         if (!users.hasOwnProperty(browserId))
             return;
-        clearTimeout(typingTimeoutId);
-        let alreadyTyping = users[browserId].typing;
-        // Don't want to spam 
-        if (alreadyTyping != typing) {
-            node.setPatch(usrKey, `[${escapedId}].typing = ${typing}`);
-            users[browserId].typing = typing;
+        if (users[browserId].typing)
+            node.setPatch(usrKey, `[${escapedId}].typing = false`);
+        users[browserId].typing = false;
+        typing = false;
+    };
+    function updateTyping() {
+        if (!users.hasOwnProperty(browserId))
+            return;
+        let lastCheck = users[browserId].typing;
+        let check = sendbox.value;
+        // If the user has changed the textbox since last tick, and the local UI typing hasn't timed out
+        if (typing && lastCheck != check) {
+            node.setPatch(usrKey, `[${escapedId}].typing = ${JSON.stringify(check)}`);
+            users[browserId].typing = check;
         }
-        if (typing)
-            typingTimeoutId = setTimeout(() => node.setPatch(usrKey, `[${escapedId}].typing = false`), typingTimeout);
-    }
+    };
 
     document.getElementById("send-msg").addEventListener("click", submit);
     sendbox.addEventListener("keydown", e => {
-        if (e.keyCode == 13 && !e.shiftKey) {e.preventDefault(); submit()}
+        if (e.keyCode == 13 && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+        }
     });
-    sendbox.addEventListener("input", e => setTyping(sendbox.value.length > 0));
+    sendbox.addEventListener("input", e => {
+            if (sendbox.value.length > 0)
+                setTyping();
+            else
+                setNotTyping();
+    });
 
-    //// ---- Settings bar ----
-    // Clicking on the settings icon toggles it
     // Username Changing
     let nameBox = document.getElementById("username-change");
 
