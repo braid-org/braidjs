@@ -1425,5 +1425,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
     // Give the node all methods of a pattern matcher, to bind keys and pipes
     Object.assign(node, pattern_matcher())
 
+    node.websocket_client = (args) => require('./protocol-websocket/websocket-client.js')({
+        ...args,
+        node: node,
+        create_websocket: () => new (require('ws'))(args.url)
+    })
+
     return node
 }
