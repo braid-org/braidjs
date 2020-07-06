@@ -107,8 +107,9 @@ header {
     font-size: 12px;
     margin-left: 5px;
 }
-.msg-user-ref {
-    color: #456;
+.msg.live {
+    opacity: 50%;
+    user-select: none;
 }
 .input {
     grid-area: input;

@@ -40,6 +40,8 @@ module.exports = function add_http_server(node) {
     function readPatches(n, stream, cb) {
         let patches = [];
         let curPatch = "";
+        if (n == 0)
+            return cb(patches);
         stream.on('data', function parse (chunk) {
             // Otherwise we'll have extra newline at the start. I'm not sure if this would mess up parse-headers.
             curPatch = (curPatch + chunk).trimStart();
@@ -162,7 +164,7 @@ module.exports = function add_http_server(node) {
             }
             if (openPipes[id])
                 msg.origin = openPipes[id].origin;
-            node[msg.method](msg);
+            return node[msg.method](msg);
         }
         // Copy headers that have the same value in HTTP as Braid
         let msg = {
@@ -190,10 +192,14 @@ module.exports = function add_http_server(node) {
                 return;
             }
             // Set some headers needed to indicate a subscription.
-            status = 209;
+            res.statusCode = 209;
             res.setHeader("subscribe", req.headers.subscribe)
             res.setHeader('content-type', 'text/braid-patches');
             // res.setHeader('connection', 'Keep-Alive');
+            // Parse the subscribe header. Options are:
+            // keep-alive=true    # this can actually be specified as just keep-alive, but we can support that later
+            // keep-alive=false
+            // keep-alive=number
             let subStr = req.headers.subscribe.match(/keep-alive=(\w+)/)[1];
             let sub = false;
             if (subStr == "true")
@@ -201,12 +207,15 @@ module.exports = function add_http_server(node) {
             else if (subStr != "false") // It's a number
                 sub = parseInt(subStr);
             msg.subscribe = {"keep-alive": sub};
-            res.statusCode = 209
             msg.method = "get"
+
+            // Receive the request
             const clientID = `${req.headers['x-client-id'] || u.random_id()}=>${msg.key}`;
             create_pipe(clientID);
-            recv(clientID, msg);
-            
+            // recv will call get(), which will return the value of the resource if successful and undefined otherwise
+            let result = recv(clientID, msg);
+            if (result == undefined)
+                res.end(500);
         }
         else if (req.method == "PUT") {
             // We only support these headers right now...
@@ -229,8 +238,11 @@ module.exports = function add_http_server(node) {
                 msg.patches = patches;
                 res.setHeader("patches", "OK");
                 const clientID = `${req.headers['x-client-id'] || u.random_id()}=>${msg.key}`;
-                recv(clientID, msg);
-                // TODO: use this stream to send back error.
+                // recv will call node.set, which will return `version` if successful and undefined otherwise
+                // TODO: Maybe return an error code from get/set?
+                let result = recv(clientID, msg);
+                if (result == undefined)
+                    res.statusCode = 500;
                 res.end();
             })
         }
