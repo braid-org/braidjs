@@ -1118,7 +1118,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.fissures = (key) => Object.values(node.resource_at(key).fissures).map(
         fiss => ({ ...fiss,
                    // Reformat `versions` and `parents` as arrays
-                   parents: Object.keys(fiss.parents),
+                   parents:  Object.keys(fiss.parents),
                    versions: Object.keys(fiss.versions) }))
     node.unmatched_fissures = (key) => {
         var result = []
@@ -1131,7 +1131,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
                     && fissures[fiss].b    === fissures[fiss2].a)
                     continue outer_loop
             }
-            result.push(fissures[fiss])
+            fiss = fissures[fiss]
+            result.push({...fiss,
+                         // Reformat `versions` and `parents` as arrays
+                         parents:  Object.keys(fiss.parents),
+                         versions: Object.keys(fiss.versions)})
         }
         return result
     }
