@@ -44,8 +44,9 @@ let createListeners = function () {
     node.get(usrKey, usrKey_cb);
 
     window.addEventListener('beforeunload', function () {
-        node.forget(msgKey, update_messages)
-        node.forget(usrKey, usrKey_cb)
+        node.forget(msgKey, update_messages);
+        node.forget(usrKey, usrKey_cb);
+        socket.disable();
     })
     
     //// ----- Messagebox rendering and interactability -----

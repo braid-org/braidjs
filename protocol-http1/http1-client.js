@@ -257,12 +257,12 @@ module.exports = require['http1-client'] = function add_http_client({node, url, 
         }
         trySend(20);
     }
-    document.addEventListener('beforeunload', () => {controller.abort()});
+    
     return {
         pipe,
         enabled() {return enabled},
         enable()  {nlog('ENABLING PIPE', pipe.id); enabled = true; }, // connect()
-        disable() {nlog('DISABLING PIPE',pipe.id); enabled = false; }, // disconnect()
+        disable() {nlog('DISABLING PIPE',pipe.id); enabled = false; controller.abort()}, // disconnect()
         toggle()  {if (enabled) {disable()} else enable()}
     }
 }
