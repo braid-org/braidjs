@@ -38,12 +38,6 @@ const knownKeys = {
 	'/usr': {},
 	'/chat': []
 };
-// Let's cache all of the known files. 
-// The chat, js, and css are each less than 10 KB
-// The bundle is about 150KB, so maybe we should add minification and sourcemap.
-Object.values(knownFiles).forEach(file => {
-	file.data = fs.readFileSync(file.path);
-})
 // A simple method to serve one of the known files
 function serveFile(req, res) {
 	if (knownKeys.hasOwnProperty(req.url))
@@ -52,7 +46,7 @@ function serveFile(req, res) {
 	const f = knownFiles[reqPath.pathname];
 	if (f) {
 		res.writeHead(200, headers = {'content-type': f.mime});
-		res.end(f.data);
+		fs.createReadStream(f.path).pipe(res);
 	} else {
 		res.writeHead(404);
 		res.end();
