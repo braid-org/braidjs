@@ -251,7 +251,7 @@ module.exports = function add_http_server(node) {
         const free_the_cors = {
             "Access-Control-Allow-Origin": "*"
             ,"Access-Control-Allow-Methods": "OPTIONS, HEAD, GET, PUT"
-            ,"Access-Control-Allow-Headers": "*"
+            ,"Access-Control-Allow-Headers": "subscribe, x-client-id, version, parents, merge-type, content-type"
         };
         Object.entries(free_the_cors).forEach(x => res.setHeader(x[0], x[1]));
         if ( req.method === 'OPTIONS' ) {
