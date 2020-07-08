@@ -396,9 +396,15 @@ function change_names(resource, name_changes, deleted) {
     }
     recurse(resource.space_dag)
 
-    resource.version_cache = Object.fromEntries(Object.entries(resource.version_cache).map(([version, c]) => {
-        return [name_changes[version] || version, (version != 'null') && c && !name_changes[version] && Object.keys(c.parents).every(p => !deleted[p] && !name_changes[p]) ? c : null]
-    }))
+    resource.version_cache = Object.fromEntries(Object.entries(resource.version_cache).map(
+        ([version, c]) => {
+            return [name_changes[version] || version,
+                    ((version !== 'null')
+                     && c
+                     && !name_changes[version]
+                     && Object.keys(c.parents).every(
+                         p => !deleted[p] && !name_changes[p]) ? c : null)]
+        }))
 }
 
 function space_dag_change_names(S, name_changes) {
