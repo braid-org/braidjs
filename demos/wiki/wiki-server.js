@@ -19,8 +19,8 @@ server.listen(port)
 var wss = new (require('ws').Server)({server})
 
 var node = require('../../braid.js')()
-require('../../util/sqlite-store.js')(node, 'db.sqlite')
-
+var store = require('../../util/sqlite-store.js')('db.sqlite')
+require('../../util/store.js')(node, store)
 node.fissure_lifetime = 1000*60*60*8 // 8 hours
 
 node.on_errors.push((key, origin) => node.unbind(key, origin))

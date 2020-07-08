@@ -6,8 +6,9 @@ const lib_path = "../../";
 
 // Bundler doesn't actually return anything, but calling it with require 
 //   generates the braid-bundle.js
-const bundler = require(path.join(lib_path, './util/braid-bundler.js'));
+require(path.join(lib_path, './util/braid-bundler.js'));
 const sqlite = require(path.join(lib_path, './util/sqlite-store.js'));
+const store = require(path.join(lib_path, './util/store.js'));
 const braid = require(path.join(lib_path, './braid.js'));
 const braidWebsocketServer = require(path.join(lib_path, './protocol-websocket/websocket-server.js'));
 const braidHttpServer = require(path.join(lib_path, './protocol-http1/http1-server.js'));
@@ -64,7 +65,8 @@ var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certifi
 var node = braid();
 node.fissure_lifetime = 1000 * 60 * 60 * 8;
 // Setup the braid sqlite store at a local db
-sqlite(node, 'db.sqlite');
+var db = sqlite('db.sqlite');
+store(node, db);
 // Unsubscribe on error
 // Maybe not needed
 node.on_errors.push((key, origin) => node.unbind(key, origin))

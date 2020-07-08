@@ -3,27 +3,61 @@
 //     table_name: 'store' // <-- default, a table of this name will be created in sqlite
 // }
 // options also passed down to 'store.js'
-module.exports = require['sqlite-store'] = function create_sqlite_store(node, filename_base, options) {
-    if (!options) options = {}
-    if (options.table_name == null) options.table_name = 'store'
+module.exports = require['sqlite-store'] = function create_sqlite_store(filename, tablename) {
+    var db = new (require('better-sqlite3'))(filename)
+    if (!tablename)
+        tablename = 'store'
 
-    var db = new (require('better-sqlite3'))(filename_base)
     db.pragma('journal_mode = WAL')
-    db.prepare(`create table if not exists ${options.table_name} (key text primary key, val text)`).run()
+    db.prepare(`create table if not exists ${tablename} (key text primary key, val text)`).run()
 
-    return require('./store.js')(node, Object.assign(options, {
-        get(key) {
-            var x = db.prepare(`select * from ${options.table_name} where key = ?`).get([key])
-            return x && x.val
+    const GET_STATEMENT = db.prepare(`select * from ${tablename} where key = ?`)
+    const SET_STATEMENT = db.prepare(`replace into ${tablename} (key, val) values (?, ?)`)
+    const DEL_STATEMENT = db.prepare(`delete from ${tablename} where key = ?`)
+    const LIST_STATEMENT = db.prepare(`select key from ${tablename}`);
+    return {
+        get(key, callback) {
+            // synchronously call the callback
+            let err = null,
+                row = null
+            try {
+                row = GET_STATEMENT.get([key])
+            }
+            catch (e) {
+                err = r
+            }
+            callback && callback(err, row && row.val)
         },
-        set(key, data) {
-            db.prepare(`replace into ${options.table_name} (key, val) values (?, ?)`).run([key, data])
+        set(key, data, callback) {
+            let err = null
+            try {
+                SET_STATEMENT.run([key, data])
+            }
+            catch (e) {
+                err = e
+            }
+            callback && callback(err, data)
         },
-        del(key) {
-            db.prepare(`delete from ${options.table_name} where key = ?`).run([key])
+        del(key, callback) {
+            let err = null
+            try {
+                DEL_STATEMENT.run([key])
+            }
+            catch (e) {
+                err = e;
+            }
+            callback && callback(err)
         },
-        list_keys() {
-            return db.prepare(`select key from ${options.table_name}`).all().map(x => x.key)
+        list_keys(callback) {
+            let err = null,
+                keys = null
+            try {
+                keys = LIST_STATEMENT.all().map(x => x.key);
+            }
+            catch (e) {
+                err = e
+            }
+            callback && callback(err, keys)
         }
-    }))
+    }
 }
