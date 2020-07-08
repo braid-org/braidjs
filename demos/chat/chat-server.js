@@ -32,7 +32,11 @@ const knownFiles = {
 		mime: 'text/javascript'},
 	'/chat.css': {
 		path: path.join('.', '/chat.css'),
-		mime: 'text/css'}
+		mime: 'text/css'},
+	'/favicon.ico': {
+		path: path.join('.', '/favicon.ico'),
+		mime: 'image/x-icon'
+	}
 };
 // Keys that braid knows about, and their default values.
 const knownKeys = {
