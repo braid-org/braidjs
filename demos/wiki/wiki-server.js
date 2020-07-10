@@ -20,12 +20,13 @@ var wss = new (require('ws').Server)({server})
 
 var node = require('../../braid.js')()
 var store = require('../../util/sqlite-store.js')('db.sqlite')
-require('../../util/store.js')(node, store)
-node.fissure_lifetime = 1000*60*60*8 // 8 hours
+require('../../util/store.js')(node, store).then(node => {
+    node.fissure_lifetime = 1000*60*60*8 // 8 hours
 
-node.on_errors.push((key, origin) => node.unbind(key, origin))
+    node.on_errors.push((key, origin) => node.unbind(key, origin))
 
-var ws = require('../../protocol-websocket/websocket-server.js')(node, {wss})
+    var ws = require('../../protocol-websocket/websocket-server.js')(node, {wss})
 
-console.log('keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
-console.log('serving on port: ' + port)
+    console.log('keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
+    console.log('serving on port: ' + port)
+})
