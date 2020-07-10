@@ -116,7 +116,7 @@ let createListeners = function () {
             let furthest_scroll = document.getElementsByClassName("msg")[n_messages - 1].getBoundingClientRect().top;
             let box_bottom = messageBox.getBoundingClientRect().bottom;
             // If the last message is off the screen, we shouldn't scroll
-            should_scroll = box_bottom > furthest_scroll;
+            shouldScroll = box_bottom > furthest_scroll;
         }
         let message_elements = newVal.map(format_message);
 
