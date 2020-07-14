@@ -23,19 +23,35 @@ const port = 3009;
 const knownFiles = {
 	'/braid-bundle.js': {
 		path: path.join(lib_path, `/builds/braid-bundle.js`),
-		mime: 'text/javascript'},
+		mime: 'text/javascript'
+	},
 	'/braidchat': {
 		path: path.join('.', '/chat.html'),
-		mime: 'text/html'},
+		mime: 'text/html'
+	},
 	'/chat.js': {
 		path: path.join('.', '/chat.js'),
-		mime: 'text/javascript'},
+		mime: 'text/javascript'
+	},
 	'/chat.css': {
 		path: path.join('.', '/chat.css'),
-		mime: 'text/css'},
+		mime: 'text/css'
+	},
 	'/favicon.ico': {
 		path: path.join('.', '/favicon.ico'),
 		mime: 'image/x-icon'
+	},
+	'/localforage.js': {
+		path: path.join(lib_path, 'node_modules/localforage/dist/localforage.js'),
+		mime: 'text/javascript'
+	},
+	'/http1-sw.js': {
+		path: path.join(lib_path, 'protocol-http1/http1-sw.js'),
+		mime: 'text/javascript'
+	},
+	'/websocket-sw.js': {
+		path: path.join(lib_path, 'protocol-websocket/websocket-sw.js'),
+		mime: 'text/javascript'
 	}
 };
 // Keys that braid knows about, and their default values.
@@ -50,7 +66,7 @@ function serveFile(req, res) {
 	const reqPath = new URL(req.url, `http://${req.headers.host}`);
 	const f = knownFiles[reqPath.pathname];
 	if (f) {
-		res.writeHead(200, headers = {'content-type': f.mime});
+		res.writeHead(200, headers = { 'content-type': f.mime });
 		fs.createReadStream(f.path).pipe(res);
 	} else {
 		res.writeHead(404);
@@ -59,30 +75,29 @@ function serveFile(req, res) {
 }
 // Create either an http or https server, depending on the existence of ssl certs
 var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certificate')) ?
-    require('https').createServer({
-        key: fs.readFileSync('certs/private-key'),
-        cert: fs.readFileSync('certs/certificate')
-    }, serveFile) :
-    require('http').createServer(serveFile);
+	require('https').createServer({
+		key: fs.readFileSync('certs/private-key'),
+		cert: fs.readFileSync('certs/certificate')
+	}, serveFile) :
+	require('http').createServer(serveFile);
 
-// Initialize a braid
-var node = braid();
-node.fissure_lifetime = 1000 * 60 * 60 * 8;
 // Setup the braid sqlite store at a local db
 var db = sqlite('db.sqlite');
-store(node, db);
-// Unsubscribe on error
-// Maybe not needed
-node.on_errors.push((key, origin) => node.unbind(key, origin))
-
-// For any of the default keys, if we have no versions for them, set an initial version.
-Object.keys(knownKeys)
-	.filter(k => Object.keys(node.resource_at(k).current_version).length == 0)
-	.forEach(k => node.set(k, knownKeys[k]));
-
+var node = braid();
 var braidCallback = braidHttpServer(node);
-var wss = new ws.Server({server})
-braidWebsocketServer(node, {port, wss})
+store(node, db).then(node => {
+	// Unsubscribe on error
+	// Maybe not needed
+	node.on_errors.push((key, origin) => node.unbind(key, origin))
 
-console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
-server.listen(port);
+	// For any of the default keys, if we have no versions for them, set an initial version.
+	Object.keys(knownKeys)
+		.filter(k => Object.keys(node.resource_at(k).current_version).length == 0)
+		.forEach(k => node.set(k, knownKeys[k]));
+
+	var wss = new ws.Server({ server })
+	braidWebsocketServer(node, { port, wss })
+
+	console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
+	server.listen(port);
+})

@@ -16,48 +16,18 @@ module.exports = require['sqlite-store'] = function create_sqlite_store(filename
     const DEL_STATEMENT = db.prepare(`delete from ${tablename} where key = ?`)
     const LIST_STATEMENT = db.prepare(`select key from ${tablename}`);
     return {
-        get(key, callback) {
-            // synchronously call the callback
-            let err = null,
-                row = null
-            try {
-                row = GET_STATEMENT.get([key])
-            }
-            catch (e) {
-                err = r
-            }
-            callback && callback(err, row && row.val)
+        async get(key) {
+            var row = GET_STATEMENT.get([key])
+            return row && row.val
         },
-        set(key, data, callback) {
-            let err = null
-            try {
-                SET_STATEMENT.run([key, data])
-            }
-            catch (e) {
-                err = e
-            }
-            callback && callback(err, data)
+        async set(key, data) {
+            SET_STATEMENT.run([key, data])
         },
-        del(key, callback) {
-            let err = null
-            try {
-                DEL_STATEMENT.run([key])
-            }
-            catch (e) {
-                err = e;
-            }
-            callback && callback(err)
+        async del(key) {
+            DEL_STATEMENT.run([key])
         },
-        list_keys(callback) {
-            let err = null,
-                keys = null
-            try {
-                keys = LIST_STATEMENT.all().map(x => x.key);
-            }
-            catch (e) {
-                err = e
-            }
-            callback && callback(err, keys)
+        async list_keys() {
+            return LIST_STATEMENT.all().map(x => x.key);
         }
     }
 }
