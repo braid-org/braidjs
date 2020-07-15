@@ -360,7 +360,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         for (p in parents) {
             if (!resource.time_dag[p]) {
                 // Todo: make this work with origin == null
-                origin.send && origin.send({
+                origin && origin.send && origin.send({
                     method: 'error',
                     key,
                     type: 'cannot merge: missing parents',
@@ -920,8 +920,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // send forget.
         // here is what the todo said before:
         // TODO: if this is the last subscription, send forget to all gets_out
-        // origin.send({method: 'forget', key})        
-        if (cb) {
+        // origin.send({method: 'forget', key})
+        if (cb && node.incoming_subscriptions.count(key) == 0) {
             node.bindings(key).forEach(pipe => {
                 pipe.send && pipe.send({
                     method:'forget', key, origin
