@@ -61,7 +61,9 @@ assert = function () {
     }
 }
 
-show_debug = false
+if (typeof show_debug === 'undefined')
+    // This defaults to false
+    show_debug = false
 log = function () {
     if (show_debug)
         return console.log.apply(console, arguments)
