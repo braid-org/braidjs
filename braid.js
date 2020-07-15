@@ -1231,6 +1231,17 @@ module.exports = require.braid = function create_node(node_data = {}) {
             return a && b && (tags[a].tag == tags[b].tag)
         }
         var seen_annotations = {}
+
+        /*
+        resource.mergeable.prune(
+            // Option 1: Pass in a set of versions    [xxxx eliminated xxxx]
+            // Option 2: Pass a set of sets of versions
+            // Option 3: Map each version to a shadow region (with an object or function)
+            //    a) Pass in the object/function
+            //    b) resource.time_shadows[version]   [xxxx eliminated xxxx]
+        )
+        */
+
         var deleted = resource.mergeable.prune(q, q, seen_annotations)
 
         // here we change the name of all the versions which are not frozen,
@@ -1250,15 +1261,18 @@ module.exports = require.braid = function create_node(node_data = {}) {
         })
         resource.mergeable.change_names(name_changes, deleted)
 
-        // todo: this code can maybe be moved into the resource.mergeable.prune function
+        // Now we check to see if we can collapse the spacedag down to a literal.
+        //
+        // Todo: Move this code to the resource.mergeable.prune function.
         //       (this code also assumes there is a God (a single first version adder))
         var leaves = Object.keys(resource.current_version)
         var acked_boundary = Object.keys(resource.acked_boundary)
         var fiss = Object.keys(resource.fissures)
-        if (leaves.length == 1 && acked_boundary.length == 1 && leaves[0] == acked_boundary[0] && fiss.length == 0 && !Object.keys(seen_annotations).length) {
-            resource.time_dag = {
-                [leaves[0]]: {}
-            }
+        if (leaves.length == 1 && acked_boundary.length == 1
+            && leaves[0] == acked_boundary[0] && fiss.length == 0
+            && !Object.keys(seen_annotations).length) {
+
+            resource.time_dag = { [leaves[0]]: {} }
             var val = resource.mergeable.read_raw()
             resource.space_dag = (val && typeof(val) == 'object') ? {t: 'lit', S: val} : val
         }
