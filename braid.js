@@ -1142,6 +1142,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     node.prune = (resource) => {
         var unremovable = {}
+
+        // First, let's prune old fissures
+
+        // Calculate which fissures we have to keep due to parenting
+        // rule... which we will be removing soon.
         Object.entries(resource.fissures).forEach(x => {
             if (!resource.fissures[x[1].b + ':' + x[1].a + ':' + x[1].conn]) {
                 function f(y) {
@@ -1157,22 +1162,31 @@ module.exports = require.braid = function create_node(node_data = {}) {
             }
         })
         
+        // Now remove the fissures
         var acked = resource.ancestors(resource.acked_boundary)
         var done = {}
         Object.entries(resource.fissures).forEach(x => {
             var other_key = x[1].b + ':' + x[1].a + ':' + x[1].conn
             var other = resource.fissures[other_key]
+            // If we have the other half of it and it's not in a parenting
+            // relationship
             if (other && !done[x[0]] && !unremovable[x[0]]) {
                 done[x[0]] = true
                 done[other_key] = true
                 
+                // We don't remove fissures if some of their versions have not
+                // been fully acknowledged.  But we aren't sure if that's
+                // actually necessary.  It might be good to try removing this
+                // check and see if anything breaks.
                 if (Object.keys(x[1].versions).every(x => acked[x] || !resource.time_dag[x])) {
+
                     delete resource.fissures[x[0]]
                     delete resource.fissures[other_key]
                 }
             }
         })
 
+        // Remove fissures that have expired due to time
         if (node.fissure_lifetime != null) {
             var now = Date.now()
             Object.entries(resource.fissures).forEach(([k, f]) => {
@@ -1183,6 +1197,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             })
         }
 
+        // Remove fissures that are beyond our max_fissures limit
         if (node.max_fissures != null) {
             let count = Object.keys(resource.fissures).length
             if (count > node.max_fissures) {
@@ -1196,6 +1211,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             }
         }
         
+        // Now compute the shadow regions
         var tags = {null: {tags: {}}}
         var maintain = {}
         Object.keys(resource.time_dag).forEach(version => {
