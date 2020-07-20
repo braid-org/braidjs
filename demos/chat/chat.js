@@ -44,6 +44,7 @@ let createListeners = function () {
     node.get(usrKey, usrKey_cb);
 
     window.addEventListener('beforeunload', function () {
+	setNotTyping();
         node.forget(msgKey, update_messages);
         node.forget(usrKey, usrKey_cb);
         socket.disable();
@@ -197,10 +198,10 @@ let createListeners = function () {
         }
     });
     sendbox.addEventListener("input", e => {
-            if (sendbox.value.length > 0)
-                setTyping();
-            else
-                setNotTyping();
+        if (sendbox.value.length > 0)
+            setTyping();
+        else
+            setNotTyping();
     });
 
     // Username Changing
