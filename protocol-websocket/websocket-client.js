@@ -26,7 +26,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
             var text = message.data;
             var msg = JSON.parse(text);
             if (msg.method != "ping" && msg.method != "pong") {
-                nlogf('WS', 'remote', '-->', 'local', msg);
+                nlogf('WS', 'remote', '-->', 'local ', msg);
             }
             pipe.recv(msg)
         }

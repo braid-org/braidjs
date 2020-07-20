@@ -6,7 +6,7 @@ const escapedId = JSON.stringify(browserId);
 localStorage.browserId = browserId;
 
 const node = require('braid.js')({pid: 'C-'+randomString()});
-node.fissure_lifetime = 1000 * 60 * 60 * 8 // Fissures can only last 8 hours...
+node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
 
 node.default(`${msgKey}/*`, path => []);
 node.default(msgKey, []);
