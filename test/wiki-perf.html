@@ -1,3 +1,9 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta charset="utf-8">
+</head>
 <body style="margin:0px"></body>
 <script src="../util/require.js"></script>
 <script src="../util/diff.js"></script>
@@ -100,8 +106,8 @@ async function main() {
             go_button.textContent = 'GO'
         } else {
             go_button.textContent = 'STOP'
-            pump = create_experiment(params)
-            pumper()
+            pump = create_experiment(params);
+            pumper();
             function pumper() {
                 var results = pump()
 
@@ -366,11 +372,11 @@ function create_experiment(params) {
                 toggle_server_cron()
             }, rand_range(params.server_on_time))
         } else {
-            setTimeout(() => {
+            setTimeout(async () => {
 
                 g_log_stuff && console.log(`opening server (t=${Date.now()})`)
 
-                server = create_server(db)
+                server = await create_server(db)
                 toggle_server_cron()
             }, rand_range(params.server_off_time))
         }
@@ -423,18 +429,28 @@ function create_experiment(params) {
 function create_db() {
     return g_db = {
         data: {},
-        get(key) { return this.data[key] },
-        set(key, val) { this.data[key] = val },
-        del(key) { delete this.data[key] },
-        list_keys() { return Object.keys(this.data) }
+        get(key) {
+            return Promise.resolve(this.data[key])
+        },
+        set(key, val) {
+            this.data[key] = val
+            return Promise.resolve();
+        },
+        del(key) {
+            delete this.data[key]
+            return Promise.resolve();
+        },
+        list_keys() {
+            return Promise.resolve(Object.keys(this.data))
+        }
     }
 }
 
-function create_server(db) {
+async function create_server(db) {
     var node = require('../braid.js')()
     node.fissure_lifetime = 1000 * 1000
     // node.max_fissures = 10
-    require('../util/store.js')(node, db)
+    await require('../util/store.js')(node, db)
 
     node.on_errors.push((key, origin) => {
         node.unbind(key, origin)
@@ -586,11 +602,11 @@ function create_sparkline(text, w, h, max_y) {
     function update_label() { label.textContent = text + ', max_y = ' + max_y }
     update_label()
 
-    var dd = make_html(`<div style="position:relative;width:${w};height:${h}"></div>`)
+    var dd = make_html(`<div style="position:relative;width:${w}px;height:${h}px"></div>`)
     d.append(dd)
     
     if (true) {
-        let back = make_html(`<canvas style="width:${w};height:${h};position:absolute;left:0px;top:0px"></canvas>`)
+        let back = make_html(`<canvas style="width:${w}px;height:${h}px;position:absolute;left:0px;top:0px"></canvas>`)
         back.width = w * devicePixelRatio
         back.height = h * devicePixelRatio
         dd.append(back)
@@ -603,7 +619,7 @@ function create_sparkline(text, w, h, max_y) {
         }
     }
     
-    var front = make_html(`<canvas style="width:${w};height:${h};position:absolute;left:0px;top:0px"></canvas>`)
+    var front = make_html(`<canvas style="width:${w}px;height:${h}px;position:absolute;left:0px;top:0px"></canvas>`)
     front.width = w * devicePixelRatio
     front.height = h * devicePixelRatio
     dd.append(front)
@@ -663,3 +679,4 @@ function lerp(t0, v0, t1, v1, t) { return (t - t0) * (v1 - v0) / (t1 - t0) + v0 
 main()
 
 </script>
+</html>

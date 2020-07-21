@@ -1140,6 +1140,72 @@ module.exports = require.braid = function create_node(node_data = {}) {
         return result
     }
 
+    function topoTag(dag, leaves) {
+        function eqSet(as, bs) {
+            if (Boolean(as) != Boolean(bs)) return false;
+            if (as.size !== bs.size) return false;
+            for (var a of as) if (!bs.has(a)) return false;
+            return true;
+        }
+        // First, create a topological order on the dag.
+        let order = new Array();
+        let seen = new Set();
+        // We're only going to cast shadows from the leaves
+        function visit(node) {
+            // Tag each node, and only visit it once
+            if (seen.has(node))
+                return;
+            seen.add(node);
+            Object.keys(dag[node]).forEach(visit);
+            order.unshift(node);
+        }
+        leaves.forEach(visit);
+        // Now run tagging bottom up.
+        let groups = {'root': new Set()};
+        let dirty = new Set();
+        leaves.forEach(l => {
+            groups[l] = new Set([l]);
+            groups['root'].add(l);
+        });
+        for (let node of order) {
+            for (let parent of Object.keys(dag[node])) {
+                // If this is the first child of the parent, just copy the reference
+                if (!groups.hasOwnProperty(parent)) {
+                    groups[parent] = groups[node];
+                    dirty.add(parent);
+                }
+                // If the parent's group object has more than one reference to it, clone it
+                else if (dirty.has(parent)) {
+                    // Copy both the parent and child to a new var
+                    let s = new Set(groups[parent]);                
+                    groups[node].forEach(p => s.add(s));
+                    groups[parent] = s;
+                    // Now parent has been copied, so it's clean
+                    dirty.delete(parent);
+                }
+                // If the parent exists and isn't a copy, modify it
+                else {            
+                    // Merge the groups
+                    groups[node].forEach(p => groups[parent].add(p));
+                }
+            }
+        }
+        return (a, b) => {
+            if (!a)
+                a = 'root';
+            let has_a = groups.hasOwnProperty(a);
+            let has_b = groups.hasOwnProperty(b);
+
+            if (!(has_a || has_b))
+                // Neither has been seen, so they're in the same group (no shadow)
+                return true;
+            if (!(has_a && has_b))
+                // One hasn't been seen, so one is in "no group" and one is in a group
+                return false;
+            return eqSet(groups[a], groups[b]);
+        }   
+    }
+
     node.prune = (resource) => {
         var unremovable = {}
 
@@ -1212,40 +1278,21 @@ module.exports = require.braid = function create_node(node_data = {}) {
         }
         
         // Now compute the shadow regions
-        var tags = {null: {tags: {}}}
-        var maintain = {}
-        Object.keys(resource.time_dag).forEach(version => {
-            tags[version] = {tags: {}}
-        })
-        function tag(version, t) {
-            if (!tags[version].tags[t]) {
-                tags[version].tags[t] = true
-                Object.keys(resource.time_dag[version]).forEach(version => tag(version, t))
-                tags[null].tags[t] = true
-            }
-        }
+        var shining = new Set();
+
         Object.values(resource.fissures).forEach(f => {
             Object.keys(f.versions).forEach(v => {
                 if (!resource.time_dag[v]) return
-                tag(v, v)
-                maintain[v] = true
+                shining.add(v);
             })
         })
         var acked = resource.ancestors(resource.acked_boundary)
         Object.keys(resource.time_dag).forEach(x => {
             if (!acked[x] || resource.acked_boundary[x]) {
-                tag(x, x)
-                maintain[x] = true
+                shining.add(x);
             }
         })
-        Object.values(tags).forEach(x => {
-            x.tag = Object.keys(x.tags).sort().join(',')
-        })
-        var q = (a, b) => {
-            // This code assumes there is a God (a single first version adder)
-            if (!a) a = 'null'
-            return a && b && (tags[a].tag == tags[b].tag)
-        }
+        var q = topoTag(resource.time_dag, shining);
         var seen_annotations = {}
 
         /*
@@ -1266,7 +1313,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // thinking that they possess the same information as before
         var name_changes = {}
         Object.keys(resource.time_dag).forEach(v => {
-            if (!maintain[v]) {
+            if (!shining.has(v)) {
                 var m = v.match(/^([^\-]+)\-/)
                 if (m) {
                     name_changes[v] = m[1] + '-' + Math.random().toString(36).slice(2)
