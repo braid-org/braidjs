@@ -1,6 +1,6 @@
 # Any certificates
-certs/*
-certificates/*
+certs/
+certificates/
 *.pem
 
 # Database stuff
@@ -8,7 +8,10 @@ db.sqlite*
 
 # Builds
 braid-bundle.js
-builds/*
+builds/
+
+# VS Code
+.vscode/
 
 # Basic Nodejs Gitignore
 # Logs
