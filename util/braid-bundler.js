@@ -5,9 +5,11 @@ var files = [
     'merge-algos/sync9.js',
     'braid.js',
     'pipe.js',
+    'util/diff.js',
+    'util/store.js',
     'protocol-websocket/websocket-client.js',
     'protocol-http1/http1-client.js',
-    'util/diff.js',
+    'util/braidshell-p2p.js',
 ]
 
 var fs = require('fs')

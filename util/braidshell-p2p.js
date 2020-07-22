@@ -2,6 +2,7 @@ var util = require('utilities.js');
 var store = require('store.js');
 
 const states = {
+    DISABLED: 0,
     // The leader exists and it is not us.
     // We should send any activity to the leader.
     CLIENT: 1, 
@@ -16,30 +17,36 @@ const states = {
     // We should apply incoming commands and broadcast new state.
     LEADER: 4
 };
-const signalTypes = {
+const signal_types = {
     // The leader has submitted their letter of resignation.
     // The leader is not going to handle events during the election.
     // This means we have to cache incoming events.
     LEADER_UNLOADING: "leader-unloading",
     // The election is starting.
     START_ELECTION: "start-election",
-    // The leader sends a 1-way ping, letting clients know it's alive.
-    LEADER_ALIVE: "ping",
+    // Any client can send a PING to the leader
+    PING: "ping",
+    // Only the leader responds to a ping, and it responds with a pong.
+    PONG: "pong",
     // A command sent by a client to the leader.
     COMMAND: "command",
     // The leader has received new state from the remote peer.
     STATE: "state"
 };
-const channelName = "braid-leadertab";
-const pingInterval = 250;
+const channel_name = "braid-leadertab";
+// We can basically make this as low as we want.
+// Since the leader tab has a websocket open (if alive), it can instantly respond to our ping
+// and it doesn't use timers.
+const ping_timeout = 200;
 
-const dbName = "braid-db";
+const db_name = "braid-db";
 // This table the state of the braid
-const dbNetworkStore = "braid-network";
+const db_network_store = "braid-network";
 // This table is just a mutex
-const dbElectionStore = "election";
-// This table stores subscriptions to things
-const dbSubscriptionStore = "subscriptions";
+const db_election_store = "election";
+// Every subscribed key gets a localstorage entry of the form prefix_key
+// This var is the prefix used (with the separator attached)
+const ls_sub_prefix = "braidsub" + "_";
 
 module.exports = require["braidshell-p2p"] = function(url) {
     // Our leaderId, probably not actually needed.
@@ -47,29 +54,17 @@ module.exports = require["braidshell-p2p"] = function(url) {
     // Timeout handle for leader activity
     let leader_alive_id;
     // The channel over which we will broadcast state and commands
-    const channel = new BroadcastChannel(channelName);
-    function sendRaw(obj) {
-        // Make sure we send something at most `pingInterval` ms from now
-        if (state === states.ELECTED || state === states.LEADER) {
-            clearTimeout(leader_alive_id);
-            leader_alive_id = setTimeout(() => sendRaw({type: signalTypes.LEADER_ALIVE}), pingInterval);
-        }
-        channel.postMessage(obj);
-    }
+    const channel = new BroadcastChannel(channel_name);
     // Buffer for commands received during leader initialization
-    const command_queue = [];
+    let command_queue = [];
     // Until we're sure who the leader is, we want to buffer things.
     let state = states.ELECTING;
     // Try to open the DB
-    const dbPromise = idb.openDB(dbName, 3, { upgrade(db) {
-        if (!db.objectStoreNames.contains(dbNetworkStore))
-            db.createObjectStore(dbNetworkStore);
-        if (!db.objectStoreNames.contains(dbElectionStore))
-            db.createObjectStore(dbElectionStore);
-        if (!db.objectStoreNames.contains(dbSubscriptionStore)) {
-            let subs = db.createObjectStore(dbSubscriptionStore, {keyPath: 'key'});
-            subs.createIndex('count', 'count', {unique: false});
-        }
+    const dbPromise = idb.openDB(db_name, 4, { upgrade(db) {
+        if (!db.objectStoreNames.contains(db_network_store))
+            db.createObjectStore(db_network_store);
+        if (!db.objectStoreNames.contains(db_election_store))
+            db.createObjectStore(db_election_store);
     }})
     // Try to become the leader ASAP
     dbPromise.then(becomeLeader());
@@ -77,37 +72,46 @@ module.exports = require["braidshell-p2p"] = function(url) {
     // Stuff for the leader
     let node;
     let socket;
-    const remote_get_handlers = {};
+    // The pipe.id for each registered subscription callback
+    // This is a local variable because when the connection is migrated, subscriptions
+    // will be recreated with new IDs.
+
+    // The pipe created in websocket-client.js is capable of managing subscriptions,
+    // but to use it we'd have to store the pipe in the db.
+    // TODO: Storing the pipe in the db might actually be good
+    let remote_get_handlers = {};
 
     /** 
      * Route an incoming message to various handlers
      */
     channel.addEventListener('message', (event) => {
-        // Reset the leader_alive timer
-        if (state === states.CLIENT || state === states.ELECTING) {
-            clearTimeout(leader_alive_id);
-            leader_alive_id = setTimeout(startElection, pingInterval*2);
-        }
+        if (state === states.DISABLED)
+            return;
+        
         switch (event.data.type) {
-            // If the 
-            case signalTypes.LEADER_UNLOADING:
-                // If multiple elections get called really fast
-                if (state === states.CLIENT)
-                    state = states.ELECTING;
-                break;
-            case signalTypes.START_ELECTION:
-                if (state === states.ELECTING)
-                    becomeLeader();
-                break;
-            case signalTypes.COMMAND:
+            // Communication about braid objects
+            case signal_types.COMMAND:
                 if (state !== states.CLIENT)
                     handleCommand(event.data);
                 break;
-            case signalTypes.STATE:
-                // Output the new state
+            case signal_types.STATE:
                 recvState(event.data);
                 break;
-            case signalTypes.LEADER_ALIVE:
+            // Leader-alive verification
+            case signal_types.PING:
+                if (state === states.LEADER || state === states.ELECTED)
+                    channel.postMessage({type: signal_types.PONG})
+                break;
+            case signal_types.PONG:
+                clearTimeout(leader_alive_id);
+                break;
+            // Leader changing
+            case signal_types.LEADER_UNLOADING:
+                state = states.ELECTING;
+                break;
+            case signal_types.START_ELECTION:
+                if (state === states.ELECTING)
+                    becomeLeader();
                 break;
             default:
                 console.warn("Unknown signal type in message", event.data);
@@ -116,47 +120,47 @@ module.exports = require["braidshell-p2p"] = function(url) {
     /**
      * When the leader tab is closed, it will inform other clients and start an election
      */
-    async function startElection() {
-        sendRaw({type: signalTypes.LEADER_UNLOADING});
+    async function startElection(local_eligible) {
+        channel.postMessage({type: signal_types.LEADER_UNLOADING});
+        if (local_eligible)
+            state = states.ELECTING;
         // Unset the leader
         const db = await dbPromise;
         try {
-            await db.delete(dbElectionStore, "leader");
+            await db.delete(db_election_store, "leader");
         } catch (e) {
-            console.error("Failed to delete leader", e);Object.values(resource.fissures).forEach(f => {
-            Object.keys(f.versions).forEach(v => {
-                if (!resource.time_dag[v]) return
-                tag(v, v)
-                maintain[v] = true
-            })
-        })
+            console.error("Failed to delete leader. \nThis is most likely because someone else managed to do it first.");
+            console.error(e);
         }
         // Start an election
-        sendRaw({type: signalTypes.START_ELECTION});
+        channel.postMessage({type: signal_types.START_ELECTION});
+        if (local_eligible)
+            becomeLeader();
     }
-    self.addEventListener('beforeunload', async () => {
-        // If this tab is the leader
+    function abdicate() {
+        // The only case in which we'll have a socket and not be the leader
+        // is if we were the leader and we were impeached for inactivity
+        if (socket)
+            socket.disable();
+
+        // If this tab is the leader, it should trigger an election
         if (state === states.LEADER || state === states.ELECTED) {
             // TODO: Is there a way to make sure the browser doesn't shut down the JS thread
             // before we've had a chance to call for an election?
-            await startElection();
+            startElection().then(() => state = states.DISABLED);
         }
-        // Also, unload listeners on the chat should get fired before this one.
-        // Unsubscribe to the broadcast channel
-        //channel.close()
-        // Make sure this tab won't try to do anything.
-        state = states.CLIENT;
-    })
+    }
     /**
      * Using the electionstore as a mutex, attempt to set ourselves as the leader.
      * On success, prepare the leader responsibilities.
      * On failure, make ourselves a client.
      */
     async function becomeLeader() {
+        console.log("Trying to become leader...")
         // Try to set ourselves as the leader
         try {
             const db = await dbPromise;
-            const tx = db.transaction(dbElectionStore, "readwrite");
+            const tx = db.transaction(db_election_store, "readwrite");
             // This promise will reject if leaderKey is already set.
             await Promise.all([
                 tx.store.add(id, "leader"),
@@ -168,62 +172,65 @@ module.exports = require["braidshell-p2p"] = function(url) {
                 console.error(e);
             // So we're a client.
             state = states.CLIENT;
+            console.log("We're a client.")
             // We can also forget the command queue.
             command_queue.length = 0;
-            // Finally, start checking the elected leader for inactivity
-            clearTimeout(leader_alive_id);
-            leader_alive_id = setTimeout(startElection, pingInterval*2);
+            // Finally, check the leader for activity.
+            pingLeader();
             return;
         }
+        console.log("We became the leader.")
         // If we get here, then we successfully added our id to the store, making us the leader.
         state = states.ELECTED;
-        // Tell clients we're alive
-        sendRaw({type: signalTypes.LEADER_ALIVE});
         // Create a node
         node = require("braid.js")();
         // Fast forward the node using the db
         await store(node, {
             async get(key) {
-                return (await dbPromise).get(dbNetworkStore, key);
+                return (await dbPromise).get(db_network_store, key);
             },
             async set(key, data) {
-                return (await dbPromise).put(dbNetworkStore, data, key);
+                return (await dbPromise).put(db_network_store, data, key);
             },
             async del(key) {
-                return (await dbPromise).delete(dbNetworkStore, key);
+                return (await dbPromise).delete(db_network_store, key);
             },
             async list_keys() {
-                return (await dbPromise).getAllKeys(dbNetworkStore);
+                return (await dbPromise).getAllKeys(db_network_store);
             }
         });
         // Connect the node to the db
         socket = require(url.startsWith("http") ? 'http-client.js' : 'websocket-client.js')({node, url});
-        // Resend any GETs
-        /*(await 
-            (await dbPromise) // Get the DB
-            .transaction(dbSubscriptionStore, "readonly") // Open a read-only transaction
-            .store.index("count") // Get the subscriptionStore, and open the index by count
-        .getAll(IDBKeyRange.lowerBound(0, true))) // Get all entries with nonzero count
-        .forEach(({key}) => 
-            remote_get_handlers[key] = subscribe(key)); */
+        socket.addEventListener("connect", () => {
+            // Resend any GETs
+            Object.keys(localStorage)
+                .filter(k => k.startsWith(ls_sub_prefix))
+                .forEach(storage_key => {
+                    let braid_key = storage_key.substring(ls_sub_prefix.length);
+                    // see https://stackoverflow.com/q/12862624
+                    if ((+localStorage.getItem(storage_key)) > 0)
+                        remote_get_handlers[braid_key] = subscribe(braid_key)
+                })
 
-        // Now we're done, so we can start leading.
-        state = states.LEADER;
-        
-        while (command_queue.length)
-            handleCommand(command_queue.shift());
+            // Now we're done, so we can start leading.
+            state = states.LEADER;
+            
+            while (command_queue.length)
+                handleCommand(command_queue.shift());
+        });
+        socket.enable();
     }
     /**
      * Create a subscription to a remote key, and send the results over the broacast channel.
      */
     function subscribe(key) {
-        if (node.incoming_subscriptions.count(key))
-            return console.warn("We tried to resub to", key);
+        if (remote_get_handlers.hasOwnProperty(key))
+            throw `Attempted double-subscription of ${key}`
         function cb(val) {
             // Whenever we get a new version of key
-            let outMessage = {type: signalTypes.STATE, key, val};
+            let outMessage = {type: signal_types.STATE, key, val};
             // Send it to everyone else
-            sendRaw(outMessage);
+            channel.postMessage(outMessage);
             // Receive it ourselves
             recvState(outMessage);
         };
@@ -234,61 +241,51 @@ module.exports = require["braidshell-p2p"] = function(url) {
      * Apply commands send over the broadcast channel to the node.
      */
     function handleCommand(command) {
+        // During the election, we don't know who will end up as the leader.
+        // If it could be us, we want to enqueue messages, and process or discard them later.
         if (state === states.ELECTING || state === states.ELECTED) {
             command_queue.push(command);
             return;
         }
         // Have the node receive the command
         switch (command.method) {
-            case "get":
-                // Get a handle on the db
-                dbPromise.then(async db => {
-                    const tx = db.transaction(dbSubscriptionStore, "readwrite");
-                    // Get the current sub object, or create it if it doesn't exist
-                    let sub = await tx.store.get(command.key) || {key: command.key, count: 0};
-                    // If this is the first subscription, send the actual subscription.
-                    if (sub.count++ === 0)
-                        remote_get_handlers[id] = subscribe(command.key);
-                    // Otherwise, rebroadcast the current state for the new client.
-                    else
-                        sendRaw({
-                            type: signalTypes.STATE,
-                            key: command.key,
-                            val: node.resource_at(command.key).mergeable.read()
-                        })
-                    // Count this subscription
-                    return Promise.all([
-                        tx.store.put(sub),
-                        tx.done
-                    ]);
-                })
+            case "get": {
+                let ls_sub_key = ls_sub_prefix + command.key
+                // Localstorage returns null for unknown properties
+                // and +null == 0
+                let sub_count = +localStorage.getItem(ls_sub_key);
+                if (sub_count++ === 0)
+                    remote_get_handlers[command.key] = subscribe(command.key);
+                else 
+                    channel.postMessage({
+                        type: signal_types.STATE,
+                        key: command.key,
+                        val: node.resource_at(command.key).mergeable.read()
+                    })
+                localStorage.setItem(ls_sub_key, sub_count);
                 break;
+            }
             case "set":
                 node.setPatch(command.key, command.patch);
                 break;
-            case "forget":
+            case "forget": {
                 // This is going to look very similar to the "get" code
-                // Get a handle on the db
-                dbPromise.then(async db => {
-                    const tx = db.transaction(dbSubscriptionStore, "readwrite");
-                    // Get the current sub object, or create it if it doesn't exist
-                    let sub = await tx.store.get(command.key);
-                    if (!sub || sub.count <= 0)
-                        throw "Someone tried to forget a key that we're not subscribed to"
-                    // Remove this subscription
-                    // If this was the last subscription, forget it.
-                    let id = remote_get_handlers[command.key];
-                    if (--sub.count === 0)
-                        node.forget(command.key, {pipe: {id}});
-                    
-                    return Promise.all([
-                        tx.store.put(sub),
-                        tx.done
-                    ]);
-                })
+                let ls_sub_key = ls_sub_prefix + command.key
+                let sub_count = +localStorage.getItem(ls_sub_key);
+                if (sub_count <= 0)
+                    throw `Can't unsub from ${command.key} because we aren't subscribed to it`
+                
+                let id = remote_get_handlers[command.key];
+                // If this was the last sub, send the forget upstream
+                if (--sub_count === 0) {
+                    node.forget(command.key, {pipe: {id}});
+                    delete remote_get_handlers[command.key];
+                }
+                localStorage.setItem(ls_sub_key, sub_count)
                 break;
+            }
             default:
-                console.log("Can't handle message", command);
+                console.warn("Can't handle message", command);
         }
     }
 
@@ -296,10 +293,10 @@ module.exports = require["braidshell-p2p"] = function(url) {
      * Send a command when requested by the local frontend.
      */
     function send(message) {
-        message.type = signalTypes.COMMAND;
+        message.type = signal_types.COMMAND;
         // Unless we're definitely the leader, broadcast stuff
-        if (state === states.CLIENT || state === states.ELECTING);
-            sendRaw(message)
+        if (state === states.CLIENT || state === states.ELECTING)
+            channel.postMessage(message);
         if (state !== states.CLIENT)
             handleCommand(message);
     }
@@ -310,10 +307,25 @@ module.exports = require["braidshell-p2p"] = function(url) {
         if (local_get_handlers.hasOwnProperty(message.key))
             local_get_handlers[message.key].forEach(f => f(message.val));
     }
+    /**
+     * Ping the leader to make sure it's alive
+     */
+    function pingLeader(time) {
+        if (state !== states.CLIENT || document.visibilityState !== "visible")
+            return;
+        clearTimeout(leader_alive_id);
+        channel.postMessage({type: signal_types.PING});
+        // Start the election, and tell this tab that it's a candidate
+        leader_alive_id = setTimeout(() => startElection(true), time || ping_timeout);
+    }
+    document.addEventListener("visibilitychange", () => pingLeader(), false);
     // Bind the shell methods
     let braidShell = {};
     let local_get_handlers = {};
     
+    braidShell.ping = pingLeader;
+    // It is the responsibility of the programmer to call close() before the page unloads!
+    braidShell.close = abdicate;
     braidShell.get = (key, cb) => {
         // TODO
         if (!cb)
