@@ -13,7 +13,26 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
     }
 
     var reconnect_timeout = null
+    var listeners = {};
+
+    var addEventListener = (type, cb) => {
+        if (!(type in listeners)) {
+            listeners[type] = [];
+        }
+        listeners[type].push(cb);
+    }
+    var dispatchEvent = (event) => {
+        if (!(event.type in listeners)) {
+            return true;
+        }
+        var stack = listeners[event.type].slice();
     
+        for (var i = 0, l = stack.length; i < l; i++) {
+            stack[i].call(this, event);
+        }
+        return !event.defaultPrevented;
+    }
+
     var connect = () => {
         clearTimeout(reconnect_timeout)
         if (!enabled) { return }
@@ -21,6 +40,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock           = create_websocket()
         sock.onopen    = ()  => {
             pipe.connected()
+            dispatchEvent({type: "connect"})
         }
         sock.onmessage = message => {
             var text = message.data;
@@ -43,6 +63,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
                     g_debug_WS_messages_delayed.push(connect)
                 else reconnect_timeout = setTimeout(connect, 5000)
             }
+            dispatchEvent({type: "disconnect"});
         }
         sock.onerror = () => {}
     }
@@ -69,6 +90,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
 
     return {
         pipe,
+        addEventListener,
         enabled() {return enabled},
         enable()  {nlog('ENABLING PIPE', pipe.id);enabled = true; connect()},
         disable() {nlog('DISABLING PIPE',pipe.id);enabled = false; sock.close()},
