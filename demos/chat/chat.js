@@ -5,12 +5,7 @@ const browserId = localStorage.browserId || 'B-'+randomString();
 const escapedId = JSON.stringify(browserId);
 localStorage.browserId = browserId;
 
-const node = require('braid.js')({pid: 'C-'+randomString()});
-node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
-
-node.default(`${msgKey}/*`, path => []);
-node.default(msgKey, []);
-node.default(usrKey, {});
+var node;
 
 show_debug = true;
 g_show_protocol_errors = true;
@@ -18,10 +13,16 @@ const params = new URLSearchParams(window.location.search);
 const protocol = params.get("protocol") === 'http' ? 'http' : 'ws';
 const is_secure = window.location.protocol === 'https:';
 const braid_url = `${protocol}${is_secure ? 's' : ''}://${window.location.host}/`
-var socket = require(protocol == 'http' ? 'http1-client.js' : 'websocket-client.js')({node, url: braid_url});
+//var socket = require(protocol == 'http' ? 'http1-client.js' : 'websocket-client.js')({node, url: braid_url});
 
 // UI Code
 let createListeners = function () {
+    node = require('braidshell-p2p.js')(braid_url);
+    node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
+
+    node.default(`${msgKey}/*`, path => []);
+    node.default(msgKey, []);
+    node.default(usrKey, {});
 
     // Local copy of variables
     let users = {};
@@ -44,10 +45,10 @@ let createListeners = function () {
     node.get(usrKey, usrKey_cb);
 
     window.addEventListener('beforeunload', function () {
-	setNotTyping();
+	    setNotTyping();
         node.forget(msgKey, update_messages);
         node.forget(usrKey, usrKey_cb);
-        socket.disable();
+        node.close();
     })
     
     //// ----- Messagebox rendering and interactability -----
