@@ -280,14 +280,17 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         var fissures = Object.values(resource.fissures)
 
-        // G: ok, here we actually send out the welcome
-
+        // Remember this subscription from origin so that we can fissure if
+        // our connection to origin breaks
         if (origin.keep_alive && origin.keep_alive(key))
             resource.keepalive_peers[origin.id] = {
                 id: origin.id,
                 connection: origin.connection,
                 remote_peer: origin.remote_peer
             }
+
+        // G: ok, here we actually send out the welcome
+
         origin.send && origin.send({
             method: 'welcome', key, versions, fissures, parents: best_parents})
 
