@@ -40,18 +40,6 @@ const knownFiles = {
 	'/favicon.ico': {
 		path: path.join('.', '/favicon.ico'),
 		mime: 'image/x-icon'
-	},
-	'/localforage.js': {
-		path: path.join(lib_path, 'node_modules/localforage/dist/localforage.js'),
-		mime: 'text/javascript'
-	},
-	'/http1-sw.js': {
-		path: path.join(lib_path, 'protocol-http1/http1-sw.js'),
-		mime: 'text/javascript'
-	},
-	'/websocket-sw.js': {
-		path: path.join(lib_path, 'protocol-websocket/websocket-sw.js'),
-		mime: 'text/javascript'
 	}
 };
 // Keys that braid knows about, and their default values.
