@@ -1100,7 +1100,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 time
             }
 
-            // delete resource.subscriptions[origin.id]
+            // This might be a problem for nodes being able to go offline...
+            node.incoming_subscriptions.delete(key, origin.id)
         }
 
         node.fissure({key, origin, fissure})
