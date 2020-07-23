@@ -184,6 +184,7 @@ module.exports = require["braidshell-p2p"] = function(url) {
         state = states.ELECTED;
         // Create a node
         node = require("braid.js")();
+        window.master_node = node
         // Fast forward the node using the db
         await store(node, {
             async get(key) {
