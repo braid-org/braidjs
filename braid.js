@@ -902,10 +902,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
             function report(x) {
                 g_show_protocol_errors && console.warn('PROTOCOL ERROR for forget: '+x)
             }
+            log(`forget: ${node.pid}, ${key}->${origin.id}`)
             if (!key || typeof(key) != 'string')
                 return report('invalid key: ' + JSON.stringify(key))
             if (!node.incoming_subscriptions.has(key, origin.id))
-                return report('pipe did not get the key "'+key+'" yet')
+                return report(`pipe "${origin.id}" did not get the key "${key}" yet`)
         }
 
         node.ons.forEach(on => on('forget', {key, origin}))
@@ -1046,7 +1047,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // if we haven't sent them a welcome (or they are not remote), then no
         // need to create a fissure
-        if (!origin.remote_peer || !node.resource_at(key).keepalive_peers[origin.id]) return
+        if (!origin.remote_peer|| !node.resource_at(key).keepalive_peers[origin.id]) return
+        
+        // This might be a problem for pipes being able to go offline...
+        node.incoming_subscriptions.delete(key, origin.id)
 
         // now since we're disconnecting, we reset the keepalive_peers flag
         delete node.resource_at(key).keepalive_peers[origin.id]
@@ -1100,8 +1104,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 time
             }
 
-            // This might be a problem for nodes being able to go offline...
-            node.incoming_subscriptions.delete(key, origin.id)
         }
 
         node.fissure({key, origin, fissure})

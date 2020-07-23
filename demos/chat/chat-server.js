@@ -84,6 +84,8 @@ store(node, db).then(node => {
 	Object.keys(knownKeys)
 		.filter(k => Object.keys(node.resource_at(k).current_version).length == 0)
 		.forEach(k => node.set(k, knownKeys[k]));
+	Object.keys(knownKeys)
+		.forEach(k => node.get(k));
 
 	var wss = new ws.Server({ server })
 	braidWebsocketServer(node, { port, wss })
