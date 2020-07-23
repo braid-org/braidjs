@@ -2,6 +2,7 @@ var util = require('utilities.js');
 var store = require('store.js');
 
 const states = {
+    // Don't process incoming commands and don't send outgoing ones
     DISABLED: 0,
     // The leader exists and it is not us.
     // We should send any activity to the leader.
@@ -137,18 +138,19 @@ module.exports = require["braidshell-p2p"] = function(url) {
         if (local_eligible)
             becomeLeader();
     }
-    function abdicate() {
-        // The only case in which we'll have a socket and not be the leader
-        // is if we were the leader and we were impeached for inactivity
-        if (socket)
-            socket.disable();
-
+    function resign() {
         // If this tab is the leader, it should trigger an election
         if (state === states.LEADER || state === states.ELECTED) {
             // TODO: Is there a way to make sure the browser doesn't shut down the JS thread
             // before we've had a chance to call for an election?
-            startElection().then(() => state = states.DISABLED);
+            startElection();
         }
+
+        // The only case in which we'll have a socket and not be the leader
+        // is if we were the leader and we were impeached for inactivity
+        if (socket)
+            socket.disable();
+        state = states.DISABLED;
     }
     /**
      * Using the electionstore as a mutex, attempt to set ourselves as the leader.
@@ -312,7 +314,8 @@ module.exports = require["braidshell-p2p"] = function(url) {
      * Ping the leader to make sure it's alive
      */
     function pingLeader(time) {
-        if (state !== states.CLIENT || document.visibilityState !== "visible")
+        if ((state !== states.CLIENT  && state !== states.ELECTING)
+            || document.visibilityState !== "visible")
             return;
         clearTimeout(leader_alive_id);
         channel.postMessage({type: signal_types.PING});
@@ -326,7 +329,7 @@ module.exports = require["braidshell-p2p"] = function(url) {
     
     braidShell.ping = pingLeader;
     // It is the responsibility of the programmer to call close() before the page unloads!
-    braidShell.close = abdicate;
+    braidShell.close = resign;
     braidShell.get = (key, cb) => {
         // TODO
         if (!cb)
