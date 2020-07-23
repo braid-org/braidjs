@@ -17,7 +17,7 @@ const braid_url = `${protocol}${is_secure ? 's' : ''}://${window.location.host}/
 
 // UI Code
 let createListeners = function () {
-    node = require('braidshell-p2p.js')(braid_url);
+    node = require('leadertab-shell.js')(braid_url);
     node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
 
     node.default(`${msgKey}/*`, path => []);

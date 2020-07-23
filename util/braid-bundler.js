@@ -9,7 +9,7 @@ var files = [
     'util/store.js',
     'protocol-websocket/websocket-client.js',
     'protocol-http1/http1-client.js',
-    'util/braidshell-p2p.js',
+    'util/leadertab-shell.js',
 ]
 
 var fs = require('fs')

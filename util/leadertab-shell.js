@@ -49,7 +49,7 @@ const db_election_store = "election";
 // This var is the prefix used (with the separator attached)
 const ls_sub_prefix = "braidsub" + "_";
 
-module.exports = require["braidshell-p2p"] = function(url) {
+module.exports = require["leadertab-shell"] = function(url) {
     // Our leaderId, probably not actually needed.
     const id = util.random_id();
     // Timeout handle for leader activity
@@ -81,6 +81,7 @@ module.exports = require["braidshell-p2p"] = function(url) {
     // but to use it we'd have to store the pipe in the db.
     // TODO: Storing the pipe in the db might actually be good
     let remote_get_handlers = {};
+    let local_defaults = {};
 
     /** 
      * Route an incoming message to various handlers
@@ -185,7 +186,7 @@ module.exports = require["braidshell-p2p"] = function(url) {
         // If we get here, then we successfully added our id to the store, making us the leader.
         state = states.ELECTED;
         // Create a node
-        node = require("braid.js")();
+        node = braidShell.node = require("braid.js")();
         // Fast forward the node using the db
         await store(node, {
             async get(key) {
@@ -201,27 +202,31 @@ module.exports = require["braidshell-p2p"] = function(url) {
                 return (await dbPromise).getAllKeys(db_network_store);
             }
         });
-        // Connect the node to the db
+        Object.entries(local_defaults)
+            .map(([key, value]) => node.default(key, value))
+        
+        // Connect the node to the network
         socket = require(url.startsWith("http") ? 'http-client.js' : 'websocket-client.js')({node, url});
         socket.addEventListener("connect", () => {
-            // Resend any GETs
+            // Resend GETs that we might have lost while migrating
             Object.keys(localStorage)
-                .filter(k => k.startsWith(ls_sub_prefix))
-                .forEach(storage_key => {
-                    let braid_key = storage_key.substring(ls_sub_prefix.length);
-                    // see https://stackoverflow.com/q/12862624
-                    if ((+localStorage.getItem(storage_key)) > 0)
-                        remote_get_handlers[braid_key] = subscribe(braid_key)
-                })
+            .filter(k => k.startsWith(ls_sub_prefix))
+            .forEach(storage_key => {
+                let braid_key = storage_key.substring(ls_sub_prefix.length);
+                // see https://stackoverflow.com/q/12862624
+                if ((+localStorage.getItem(storage_key)) > 0)
+                    remote_get_handlers[braid_key] = subscribe(braid_key)
+            })
 
             // Now we're done, so we can start leading.
             state = states.LEADER;
-            
+            // Do anything that we might have queued up during the election.
             while (command_queue.length)
                 handleCommand(command_queue.shift());
         });
         socket.enable();
     }
+
     /**
      * Create a subscription to a remote key, and send the results over the broacast channel.
      */
@@ -329,6 +334,9 @@ module.exports = require["braidshell-p2p"] = function(url) {
     braidShell.ping = pingLeader;
     // It is the responsibility of the programmer to call close() before the page unloads!
     braidShell.close = resign;
+    // Allow the frontend to get the state
+    braidShell.getState = () => state;
+
     braidShell.get = (key, cb) => {
         // TODO
         if (!cb)
@@ -357,7 +365,9 @@ module.exports = require["braidshell-p2p"] = function(url) {
             send({method: "forget", key});
     };
     braidShell.default = (key, val) => {
-        //send({method: "default", key, value: val});
+        local_defaults[key] = val;
+        if ((state === states.LEADER || state === states.ELECTED) && node)
+            node.default(key, val);
     }
     return braidShell;
 };
