@@ -189,7 +189,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // Sanity-check the input
         {
-            function report(x, y) { g_show_protocol_errors && console.warn('PROTOCOL ERROR for get: ' + x) }
+            function report(x) { g_show_protocol_errors && console.warn('PROTOCOL ERROR for get: ' + x) }
             if (!key || typeof(key) != 'string') { return report('invalid key' + JSON.stringify(key)) }
 
             log('get:', node.pid, key)
@@ -651,7 +651,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // let's also check to make sure we have the min_leaves and unack_boundary,
         // if they are specified..
-        if ((min_leaves && Object.keys(min_leaves).some(k => !resource.time_dag[k])) || (unack_boundary && Object.keys(unack_boundary).some(k => !resource.time_dag[k]))) return send_error()
+        if (((min_leaves && Object.keys(min_leaves).some(k => !resource.time_dag[k]))
+             || (unack_boundary && Object.keys(unack_boundary).some(k => !resource.time_dag[k]))))
+            return send_error()
         
         // G: next we process the incoming fissures, and like before,
         // we only want to add new ones, and there's also this gen_fissures
