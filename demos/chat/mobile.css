@@ -1,0 +1,97 @@
+#send-msg img{   
+    width:100px;
+    height:100px;
+}
+#send-msg {
+    background-color:rgb(255,255,255,0);
+    border-radius: 0%;
+    border: 0px solid #7ac;
+    margin-top:-40px;
+}
+/* css for phones */
+@media only screen and (max-device-width: 640px) {
+    .grid-container {
+        width: 100%;
+        height: 100%;
+        display: grid;
+    
+        grid-template-columns: auto;
+        grid-template-rows: 100px auto 5% 1.5em;
+        grid-template-areas: 
+        "title"
+        "messages"
+        "input"
+        "typing";
+    }
+    .grid-container > * {
+        padding: 0 5%;
+    }
+    /* Header size */
+    header {
+        font-size: 35px;
+        padding:30px;
+        height:100px;
+    }
+    #react-messages {
+    }
+    input {
+        width:200px;
+        padding:15px;
+        font-size:27px;
+        font-family: "Times New Roman", Times, serif;
+    }
+    #settings-hover-container {
+       margin-left:20px;
+    }
+    /* Messages */
+    .messageBox .msg .user-id {
+        font-weight: 600;
+        font-size:30px;
+    }
+    .messageBox .msg .timestamp {
+        font-size: 14px;
+        margin-left: 10px;
+    }
+    .messageBox .msg {
+        font-size: 27px;
+        margin-left: 5px;
+    }
+    .messageBox {
+        margin-bottom:15px;
+    }
+    #send-box {
+        font-size: 27px;
+    }
+    /* Input and send */
+    #send-box {
+        font-family: "Times New Roman", Times, serif;
+        height: auto;
+        flex-grow: 3;
+        font-size: 35px;
+        padding: 20px;
+    }
+
+    #send-msg { 
+        position:absolute;
+        right:10%;
+        display: inline-block;
+        background-color:rgb(255,255,255,0);
+        border-radius: 0%;
+        border: 0px solid #7ac;
+        
+        text-align: center;
+        align-self: center;
+        margin: 6px;
+
+        cursor: pointer;
+        user-select: none;
+        margin-top:-40px;
+        /* margin-left:-450px; */
+    }
+    #send-msg img{   
+        width:70px;
+        height:65px;
+        margin-top:15px;
+        /* margin-left:-150px; */
+    }
+}
