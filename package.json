@@ -21,8 +21,10 @@
   ],
   "dependencies": {
     "better-sqlite3": "^5.4.3",
+    "expo-server-sdk": "^3.5.1",
     "idb": "^5.0.4",
     "parse-headers": "^2.0.3",
+    "web-push": "^3.4.4",
     "ws": "^7.3.1"
   }
 }
