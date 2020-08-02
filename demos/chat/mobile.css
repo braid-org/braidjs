@@ -1,12 +1,22 @@
 #send-msg img{   
-    width:100px;
-    height:100px;
+    width:75px;
+    height:75px;
+    
 }
 #send-msg {
+    position:absolute;
+    right:12%;
     background-color:rgb(255,255,255,0);
     border-radius: 0%;
-    border: 0px solid #7ac;
-    margin-top:-40px;
+    border: 0px solid #fff;
+    margin-left:-100px;
+    margin-top:-20px;
+}
+#send-box {
+    padding-right:110px;
+    padding-left:5px;
+
+    
 }
 /* css for phones */
 @media only screen and (max-device-width: 640px) {
@@ -16,7 +26,7 @@
         display: grid;
     
         grid-template-columns: auto;
-        grid-template-rows: 100px auto 5% 1.5em;
+        grid-template-rows: 100px auto 85px 1.5em;
         grid-template-areas: 
         "title"
         "messages"
@@ -28,7 +38,7 @@
     }
     /* Header size */
     header {
-        font-size: 35px;
+        font-size: 40px;
         padding:30px;
         height:100px;
     }
@@ -59,16 +69,19 @@
     .messageBox {
         margin-bottom:15px;
     }
-    #send-box {
-        font-size: 27px;
-    }
     /* Input and send */
     #send-box {
         font-family: "Times New Roman", Times, serif;
         height: auto;
         flex-grow: 3;
-        font-size: 35px;
-        padding: 20px;
+        font-size: 45px;
+        /* padding: 20px; */
+        padding-right:120px;
+        padding-left:15px;
+        line-height:45px;
+        padding-top:17.5px;
+        padding-bottom:0px;
+        margin-bottom:0;
     }
 
     #send-msg { 
@@ -77,7 +90,7 @@
         display: inline-block;
         background-color:rgb(255,255,255,0);
         border-radius: 0%;
-        border: 0px solid #7ac;
+        border: 0px solid #fff;
         
         text-align: center;
         align-self: center;
@@ -85,13 +98,17 @@
 
         cursor: pointer;
         user-select: none;
-        margin-top:-40px;
+        margin-top:-15px;
         /* margin-left:-450px; */
     }
-    #send-msg img{   
+    #send-msg img{  
+        /* for the white airplane */
         width:70px;
         height:65px;
-        margin-top:15px;
-        /* margin-left:-150px; */
+/*         
+        width:90px;
+        height:90px;
+        margin-left:12px;
+        margin-top:0px; */
     }
 }

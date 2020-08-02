@@ -14,7 +14,7 @@ body {
     display: grid;
 
     grid-template-columns: auto;
-    grid-template-rows: 40px auto 10% 1.5em;
+    grid-template-rows: 40px auto 85px 1.5em;
     grid-template-areas: 
     "title"
     "messages"
