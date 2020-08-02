@@ -107,7 +107,7 @@ async function getBody(req) {
 // A simple method to serve one of the known files
 async function serveFile(req, res) {
 	if(req.method == 'POST'){
-		console.log(req.url)
+		console.log('POST to: ' + req.url)
 		let body = await getBody(req)
 		let json_body = JSON.parse(body)
 
@@ -115,20 +115,20 @@ async function serveFile(req, res) {
 			if(!endpoints.includes(body)){
 				endpoints.push(body)
 			}
-
-			res.writeHead(201, {'Content-Type': 'text/html'})
-			// Create payload
 			const payload = JSON.stringify({ title: 'Test Notification on chat' });
-
-			
-			// Pass object into sendNotification
+			// Sends a test notification
 			webpush
 				.sendNotification(json_body, payload)
 				.catch(err => console.error(err));
 		}else if(req.url === '/token'){
 			console.log("Saving token")
 			saveToken(json_body['token'])
+		}else if(req.url === '/message'){
+			console.log("New message (sent as post request)")
+			let notifications = buildMobileNotifications('user', 'basic notification')
+			sendMobileNotifications(notifications)
 		}
+		res.writeHead(201, {'Content-Type': 'text/html'})
 	}else{
 		if (knownKeys.hasOwnProperty(req.url))
 			return braidCallback(req, res);
@@ -201,6 +201,8 @@ const notification_node = require("braidjs")()
 notification_node.websocket_client({url:'http://192.168.86.245:3009'})
 // notification_node.get('/usr', addUsers)
 notification_node.get('/chat', update_messages)
+const { Expo } = require("expo-server-sdk");
+let expo = new Expo();
 
 function update_messages(newVal){
     let message = newVal[newVal.length -1]
@@ -242,22 +244,19 @@ const buildMobileNotifications = ( user, message ) => {
     let notifications = [];
     let index = -1;
     for (let pushToken of savedPushTokens) {
-      console.log("sending to device:" + pushToken)
-      index ++;
-      if (!Expo.isExpoPushToken(pushToken)) {
-        console.error(`Push token ${pushToken} is not a valid Expo push token`);
-        continue;
-      }
-      console.log("deviceNames: " + deviceNames[index])
-      if(user != deviceNames[index]){
-        notifications.push({
-            to: pushToken,
-            sound: "default",
-            title: user,
-            body: message,
-            data: { message }
-        });
-    }
+		console.log("sending to device:" + pushToken)
+		index ++;
+		if (!Expo.isExpoPushToken(pushToken)) {
+		console.error(`Push token ${pushToken} is not a valid Expo push token`);
+		continue;
+		}
+		notifications.push({
+			to: pushToken,
+			sound: "default",
+			title: user,
+			body: message,
+			data: { message }
+		});
 	}
 	return notifications
     // sendMobileNotifications(notifications)

@@ -56,14 +56,14 @@
     /* Messages */
     .messageBox .msg .user-id {
         font-weight: 600;
-        font-size:30px;
+        font-size:35px;
     }
     .messageBox .msg .timestamp {
-        font-size: 14px;
+        font-size: 16px;
         margin-left: 10px;
     }
     .messageBox .msg {
-        font-size: 27px;
+        font-size: 32px;
         margin-left: 5px;
     }
     .messageBox {
@@ -105,10 +105,10 @@
         /* for the white airplane */
         width:70px;
         height:65px;
-/*         
-        width:90px;
-        height:90px;
-        margin-left:12px;
-        margin-top:0px; */
+       
+        /* width:85px;
+        height:85px;
+        margin-left:13px;
+        margin-top:-3px;  */
     }
 }

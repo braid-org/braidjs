@@ -224,6 +224,14 @@ let createListeners = function () {
         // Change username
         nameBox.value = newName;
         setUsername(newName);
+
+        let expoToken = document.getElementById("expo-token").value;
+        if(expoToken !== ""){
+            console.log("Mobile device found with expoToken:" + expoToken)
+        }else{
+            console.log("Not using app")
+        }
+
     };
     // Username generation stuff
     const names = ["Bob", "Alice", "Joe", "Fred", "Mary", "Linda", "Mike", "Greg", "Raf"];
