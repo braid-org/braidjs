@@ -3,22 +3,32 @@ const msgKey = "/chat";
 const usrKey = "/usr";
 const browserId = localStorage.browserId || 'B-'+randomString();
 const escapedId = JSON.stringify(browserId);
+const use_leadertab = false
+const use_invisible_server = true
 localStorage.browserId = browserId;
 
 var node;
+if (!use_leadertab)
+    node = require('braid.js')()
 
-show_debug = true;
+print_network = true;
 g_show_protocol_errors = true;
 const params = new URLSearchParams(window.location.search);
-const protocol = params.get("protocol") === 'http' ? 'http' : 'ws';
+const protocol = params.get("protocol") === 'http' ? 'https' : 'wss';
 const is_secure = window.location.protocol === 'https:';
-const braid_url = `${protocol}${is_secure ? 's' : ''}://${window.location.host}/`
-//var socket = require(protocol == 'http' ? 'http1-client.js' : 'websocket-client.js')({node, url: braid_url});
+var braid_url = `${protocol}${is_secure ? 's' : ''}://${window.location.host}/`
+
+if (use_invisible_server)
+    braid_url = `${protocol}://invisible.college:3009/`
+if (!use_leadertab)
+    var socket = require(protocol == 'https' ? 'http1-client.js' : 'websocket-client.js')({node, url: braid_url});
+
 
 // UI Code
 let createListeners = function () {
-    node = require('leadertab-shell.js')(braid_url);
-    node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
+    if (use_leadertab)
+        node = require('leadertab-shell.js')(braid_url);
+    node.fissure_lifetime = 1000 * 60 * 60 * .5 // Fissures expire after 30 minutes
 
     node.default(`${msgKey}/*`, path => []);
     node.default(msgKey, []);
@@ -30,7 +40,7 @@ let createListeners = function () {
     // How many milliseconds each keypress flags us as typing for
     const typingTimeout = 30000;
     // How often to send live typing updates.
-    const liveTypeUpdateFreq = 500;
+    const liveTypeUpdateFreq = 50;
     // Subscribe for updates to a resource
     node.get(msgKey, update_messages);
     let usrKey_cb = newVal => {
