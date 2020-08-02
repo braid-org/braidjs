@@ -10,6 +10,21 @@ async function updateWebSlider() {
     }       
 }
 
+async function sendNotification() {
+    await fetch("/message", {
+        method: "POST",
+        body: JSON.stringify({
+            message: {
+                user: "User",
+                text:"Message"
+            }
+        }),
+        headers: {
+          "content-type": "application/json"
+        }
+      });
+}
+
 //Subscibes the user and sends a test notification
 async function subscribe() {
   const subscription_str = await getSubscriptionString();

@@ -198,8 +198,8 @@ store(node, db).then(node => {
 
 //App notifications
 const notification_node = require("braidjs")()
-notification_node.websocket_client({url:'http://192.168.86.245:3009'})
-// notification_node.get('/usr', addUsers)
+notification_node.websocket_client({url:'wss://invisible.college:3009'})
+notification_node.get('/usr', addUsers)
 notification_node.get('/chat', update_messages)
 const { Expo } = require("expo-server-sdk");
 let expo = new Expo();
@@ -212,7 +212,7 @@ function update_messages(newVal){
 	  //web notifications
 	  sendPushNotifications()
 	  //mobile notifications
-	  let notifications = buildMobileNotifications('user', message['body'])
+	  let notifications = buildMobileNotifications(getName(message), message['body'])
 	  sendMobileNotifications(notifications)
       lastSent = message['body']
       console.log("Sent message")
@@ -220,6 +220,23 @@ function update_messages(newVal){
       console.log("Didn't send push notification:" +  message['body'])
     }
 }
+
+let savedUsers = {}
+function addUsers(userDict){
+	savedUsers = JSON.parse(JSON.stringify(userDict)); //new json object here
+	// console.log("add users" + JSON.stringify(savedUsers))
+}
+
+function getName(message){
+	let name = savedUsers[message['user']]
+	if(name == undefined){
+		name = "unknown"
+	}else{
+		name = name['displayname']
+	}
+	return name
+}
+
 let savedPushTokens = []
 function saveToken(token) {
 	console.log(token.value, savedPushTokens);

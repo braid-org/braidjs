@@ -15,8 +15,14 @@
 #send-box {
     padding-right:110px;
     padding-left:5px;
+}
 
-    
+#settings-icon {
+    position:absolute;
+    right:5px;
+    /* top:5px; */
+    width:30px;
+    height:30px;
 }
 /* css for phones */
 @media only screen and (max-device-width: 640px) {
@@ -24,6 +30,7 @@
         width: 100%;
         height: 100%;
         display: grid;
+        font-family: sans-serif;
     
         grid-template-columns: auto;
         grid-template-rows: 100px auto 85px 1.5em;
@@ -42,16 +49,22 @@
         padding:30px;
         height:100px;
     }
-    #react-messages {
-    }
+
     input {
         width:200px;
         padding:15px;
         font-size:27px;
         font-family: "Times New Roman", Times, serif;
+        font-family: sans-serif;
     }
     #settings-hover-container {
        margin-left:20px;
+    }
+    #settings-icon {
+        float:right;
+        right:14px;
+        width:45px;
+        height:45px;
     }
     /* Messages */
     .messageBox .msg .user-id {
@@ -72,6 +85,7 @@
     /* Input and send */
     #send-box {
         font-family: "Times New Roman", Times, serif;
+        font-family: sans-serif;
         height: auto;
         flex-grow: 3;
         font-size: 45px;
@@ -103,12 +117,13 @@
     }
     #send-msg img{  
         /* for the white airplane */
-        width:70px;
-        height:65px;
+        /* width:70px;
+        height:65px; */
        
-        /* width:85px;
+        /*for the black airplane*/
+        width:85px;
         height:85px;
         margin-left:13px;
-        margin-top:-3px;  */
+        margin-top:-3px; 
     }
 }
