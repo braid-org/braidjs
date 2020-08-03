@@ -225,9 +225,9 @@ let createListeners = function () {
         nameBox.value = newName;
         setUsername(newName);
 
-        let expoToken = document.getElementById("expo-token").value;
-        if(expoToken !== ""){
-            console.log("Mobile device found with expoToken:" + expoToken)
+        let expoToken = document.getElementById("expo-token");
+        if(expoToken.value !== ""){
+            console.log("Mobile device found with expoToken:" + expoToken.value)
         }else{
             console.log("Not using app")
         }

@@ -41,7 +41,6 @@
          textarea.style.height = taHeight; // This line is optional, I included it so you can more easily count the lines in an expanded textarea
          var numberOfLines = Math.floor(taHeight/taLineHeight);
          console.log( "there are " + numberOfLines + " lines in the text area");
-         
          if(numberOfLines == 1){
             gridContainer.style.gridTemplateRows = `${headerSize}px auto 85px 1.5em`
          }else if(numberOfLines == 2){
@@ -58,7 +57,7 @@
 <body>
    <div class="grid-container" id = "grid-container">
       <header>
-         <h2 class="title">Braid Chat</h2>
+         <h2 class="title" style = "display:inline;">Braid Chat</h2>
          <div id="settings-hover-container">
             <span class="settings-expand" id="username-btn">Username:</span>
             <input id="username-change" class="settings-expand settings-input-collapse collapsed"></input>
@@ -68,7 +67,7 @@
       <div id="react-messages"></div>
       <div class="input">
          <textarea id="send-box" oninput="inputSize()"></textarea>
-         <span id="send-msg" onclick="resetText()"><img src ='black-airplane.png'></span>
+         <span id="send-msg" onclick="resetText()"><img src ='white-airplane.png'></span>
       </div>
       <div id="typing" class="hidden">
          <span class="typing-anim">

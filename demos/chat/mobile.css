@@ -1,11 +1,11 @@
 #send-msg img{   
-    width:75px;
-    height:75px;
+    width:65px;
+    height:65px;
     
 }
 #send-msg {
     position:absolute;
-    right:12%;
+    right:13%;
     background-color:rgb(255,255,255,0);
     border-radius: 0%;
     border: 0px solid #fff;
@@ -117,13 +117,13 @@
     }
     #send-msg img{  
         /* for the white airplane */
-        /* width:70px;
-        height:65px; */
+        width:70px;
+        height:65px;
        
         /*for the black airplane*/
-        width:85px;
+        /* width:85px;
         height:85px;
         margin-left:13px;
-        margin-top:-3px; 
+        margin-top:-3px;  */
     }
 }

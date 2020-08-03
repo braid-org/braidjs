@@ -129,6 +129,7 @@ async function serveFile(req, res) {
 			sendMobileNotifications(notifications)
 		}
 		res.writeHead(201, {'Content-Type': 'text/html'})
+		res.end();
 	}else{
 		if (knownKeys.hasOwnProperty(req.url))
 			return braidCallback(req, res);
@@ -252,6 +253,7 @@ function saveToken(token) {
     }
 };
 
+//creates the mobile notifications. One for every device
 const buildMobileNotifications = ( user, message ) => {
     if(message == undefined){
       console.log("message is undefined")
@@ -276,10 +278,9 @@ const buildMobileNotifications = ( user, message ) => {
 		});
 	}
 	return notifications
-    // sendMobileNotifications(notifications)
 };
 
-
+//Sends the notification list 
 const sendMobileNotifications = (notifications) => {
   if(!notifications || notifications.length == 0){
 	console.log("no devices linked")

@@ -1,3 +1,15 @@
+body {
+  font-family: sans-serif;
+  padding:10%;
+  text-align:center;
+}
+
+#home-icon {
+  display:inline;
+  width:30px;
+  height:30px;
+}
+
 .switch {
   position: relative;
   display: inline-block;
