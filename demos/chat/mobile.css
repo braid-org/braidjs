@@ -1,0 +1,129 @@
+#send-msg img{   
+    width:65px;
+    height:65px;
+    
+}
+#send-msg {
+    position:absolute;
+    right:13%;
+    background-color:rgb(255,255,255,0);
+    border-radius: 0%;
+    border: 0px solid #fff;
+    margin-left:-100px;
+    margin-top:-20px;
+}
+#send-box {
+    padding-right:110px;
+    padding-left:5px;
+}
+
+#settings-icon {
+    position:absolute;
+    right:5px;
+    /* top:5px; */
+    width:30px;
+    height:30px;
+}
+/* css for phones */
+@media only screen and (max-device-width: 640px) {
+    .grid-container {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        font-family: sans-serif;
+    
+        grid-template-columns: auto;
+        grid-template-rows: 100px auto 85px 1.5em;
+        grid-template-areas: 
+        "title"
+        "messages"
+        "input"
+        "typing";
+    }
+    .grid-container > * {
+        padding: 0 5%;
+    }
+    /* Header size */
+    header {
+        font-size: 40px;
+        padding:30px;
+        height:100px;
+    }
+
+    input {
+        width:200px;
+        padding:15px;
+        font-size:27px;
+        font-family: "Times New Roman", Times, serif;
+        font-family: sans-serif;
+    }
+    #settings-hover-container {
+       margin-left:20px;
+    }
+    #settings-icon {
+        float:right;
+        right:14px;
+        width:45px;
+        height:45px;
+    }
+    /* Messages */
+    .messageBox .msg .user-id {
+        font-weight: 600;
+        font-size:35px;
+    }
+    .messageBox .msg .timestamp {
+        font-size: 16px;
+        margin-left: 10px;
+    }
+    .messageBox .msg {
+        font-size: 32px;
+        margin-left: 5px;
+    }
+    .messageBox {
+        margin-bottom:15px;
+    }
+    /* Input and send */
+    #send-box {
+        font-family: "Times New Roman", Times, serif;
+        font-family: sans-serif;
+        height: auto;
+        flex-grow: 3;
+        font-size: 45px;
+        /* padding: 20px; */
+        padding-right:120px;
+        padding-left:15px;
+        line-height:45px;
+        padding-top:17.5px;
+        padding-bottom:0px;
+        margin-bottom:0;
+    }
+
+    #send-msg { 
+        position:absolute;
+        right:10%;
+        display: inline-block;
+        background-color:rgb(255,255,255,0);
+        border-radius: 0%;
+        border: 0px solid #fff;
+        
+        text-align: center;
+        align-self: center;
+        margin: 6px;
+
+        cursor: pointer;
+        user-select: none;
+        margin-top:-15px;
+        /* margin-left:-450px; */
+    }
+    #send-msg img{  
+        /* for the white airplane */
+        width:70px;
+        height:65px;
+       
+        /*for the black airplane*/
+        /* width:85px;
+        height:85px;
+        margin-left:13px;
+        margin-top:-3px;  */
+    }
+}

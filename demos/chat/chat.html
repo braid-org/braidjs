@@ -5,6 +5,7 @@
    <meta charset="utf-8">
    <title>Braid Chat</title>
    <link rel="stylesheet" href="chat.css" type="text/css">
+   <link rel="stylesheet" href="mobile.css" type="text/css">
 
    <!-- Load libraries-->
    <script type="module">
@@ -18,21 +19,23 @@
    <script src="https://unpkg.com/react@16/umd/react.development.js"></script> 
    <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
    <script src="chat.js" type="text/javascript"></script>
+   <script src="client.js" type="text/javascript"></script>
 </head>
 
 <body>
-   <div class="grid-container">
+   <div class="grid-container" id = "grid-container">
       <header>
-         <h2 class="title">Braid Chat</h2>
+         <h2 class="title" style = "display:inline;">Braid Chat</h2>
          <div id="settings-hover-container">
             <span class="settings-expand" id="username-btn">Username:</span>
             <input id="username-change" class="settings-expand settings-input-collapse collapsed"></input>
+            <a href="/settings"><img src ="https://image.flaticon.com/icons/png/512/126/126472.png" id = "settings-icon"></a>
          </div>
       </header>
       <div id="react-messages"></div>
       <div class="input">
-         <textarea id="send-box"></textarea>
-         <span id="send-msg">Send</span>
+         <textarea id="send-box" oninput="inputSize()"></textarea>
+         <span id="send-msg" onclick="resetText()"><img src ='white-airplane.png'></span>
       </div>
       <div id="typing" class="hidden">
          <span class="typing-anim">
@@ -43,6 +46,7 @@
          <span id="typing-text"></span>
       </div>
    </div>
+   <input id="expo-token" style="display:none"></input>
    
 </body>
 </html>

@@ -224,6 +224,14 @@ let createListeners = function () {
         // Change username
         nameBox.value = newName;
         setUsername(newName);
+
+        let expoToken = document.getElementById("expo-token");
+        if(expoToken.value !== ""){
+            console.log("Mobile device found with expoToken:" + expoToken.value)
+        }else{
+            console.log("Not using app")
+        }
+
     };
     // Username generation stuff
     const names = ["Bob", "Alice", "Joe", "Fred", "Mary", "Linda", "Mike", "Greg", "Raf"];
@@ -236,7 +244,7 @@ let createListeners = function () {
         const patch = users.hasOwnProperty(browserId) 
             ? `[${escapedId}].displayname = ${escapedName}`
             : `[${escapedId}] = {"displayname": ${escapedName}}`;
-
+            
         setTimeout(() => node.setPatch(usrKey, patch), 1);
     }
 }
