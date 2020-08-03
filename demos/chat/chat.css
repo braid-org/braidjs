@@ -124,7 +124,7 @@ header {
     flex-grow: 1;
     resize: none;
     font-size: 16px;
-    /* font-family: sans-serif; */
+    font-family: sans-serif;
     padding: 5px;
     border-radius: 4px;
 }
@@ -141,7 +141,7 @@ header {
 
     cursor: pointer;
 
-    /* font-family: sans-serif; */
+    font-family: sans-serif;
     color: white;
     background-color: #48d;
     border: 4px solid #7ac;
@@ -194,4 +194,3 @@ header {
 .typing-anim span:nth-child(3) {
     animation-delay: 0.4s;
 }
-

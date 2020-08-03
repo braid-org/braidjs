@@ -238,11 +238,13 @@ let createListeners = function () {
     let name = names[Math.floor(Math.random() * names.length)];
     let number = Math.floor(Math.random() * 1000);
     const generatedUsername = `${name}${number}`;
+
     function setUsername(name) {
         let escapedName = JSON.stringify(name);
         const patch = users.hasOwnProperty(browserId) 
             ? `[${escapedId}].displayname = ${escapedName}`
             : `[${escapedId}] = {"displayname": ${escapedName}}`;
+            
         setTimeout(() => node.setPatch(usrKey, patch), 1);
     }
 }
