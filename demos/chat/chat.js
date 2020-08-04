@@ -14,7 +14,7 @@ if (!use_leadertab)
 print_network = true;
 g_show_protocol_errors = true;
 const params = new URLSearchParams(window.location.search);
-const protocol = params.get("protocol") === 'wss' ? 'wss' : 'https';
+const protocol = params.get("protocol") === 'http' ? 'https' : 'wss';
 const is_secure = window.location.protocol === 'https:';
 var braid_url = `${protocol}${is_secure ? 's' : ''}://${window.location.host}/`
 
