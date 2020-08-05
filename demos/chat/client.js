@@ -44,8 +44,8 @@ async function subscribe() {
 //Returns a token for sending notifications to client
 async function getSubscriptionString(){
   console.log("Registering service worker...");
-  const register = await navigator.serviceWorker.register("/worker.js", {
-    scope: "/"
+  const register = await navigator.serviceWorker.register("worker.js", {
+    scope: "/chat/"
   });
   console.log("Service Worker Registered...");
   console.log("Registering Push...");
