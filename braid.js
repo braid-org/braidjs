@@ -506,6 +506,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
     }
     node.set_patch = node.setPatch = (key, patch) => node.set({key, patches: [patch]})
 
+    // Todo:
+    //  - Rename min_leaves and unack_boundary to unack_from and unack_to
     node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
         // Sanity-check the input
         {
