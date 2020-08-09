@@ -83,8 +83,8 @@ const knownFiles = {
 		mime: 'text/javascript'
 	},
 	'/icon.png': {
-		path: path.join('.', '/worker.js'),
-		mime: 'text/javascript'
+		path: path.join('.', '/icon.png'),
+		mime: 'image/png'
 	}
 };
 // Keys that braid knows about, and their default values.
@@ -111,8 +111,10 @@ async function serveFile(req, res) {
 		let body = await getBody(req)
 		let json_body = JSON.parse(body)
 
-		if(req.url === '/subscribe'){
+		if(req.url === '/subscribe')
+		{
 			if(!endpoints.includes(body)){
+				console.log("Adding new endpoint");
 				endpoints.push(body)
 			}
 			const payload = JSON.stringify({ title: 'Test Notification on chat' });
@@ -152,9 +154,10 @@ const sendPushNotifications = () => {
 	  sendTo.push(JSON.parse(endpoints[i]));
 	}
 	const payload = JSON.stringify({ title: 'New message on BraidChat', click_action: 'https://invisible.college/chat/',  body: "BraidChat", icon: "https://ibb.co/p4wKfsR"});
-	
+        console.log("Sending message: " + JSON.stringify(payload));	
 	for(let i = 0; i < sendTo.length; i++){
 	  sendTo[i]['click_action'] = 'https://invisible.college/chat/'
+	  console.log("sending webpush to user");
 	  webpush
 		.sendNotification(sendTo[i], payload)
 		.catch(err => console.error(err));

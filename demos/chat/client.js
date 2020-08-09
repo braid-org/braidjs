@@ -64,7 +64,7 @@ async function unsubscribe() {
   const subscription_str = await getSubscriptionString();
   // Send Push Notification
   console.log("Sending Push for removal...");
-  await fetch("/unsubscribe", {
+  await fetch("/chat/unsubscribe", {
     method: "POST",
     body: subscription_str,
     headers: {
@@ -124,3 +124,18 @@ function resetText(){
        gridContainer.style.gridTemplateRows = `${headerSize}px auto 220px 1.5em`
     }
  }
+
+ //If safari mobile, then the screen needs to be cut at the bottom
+function screenSize(){
+    if(screen.width < 800){
+        var ua = navigator.userAgent.toLowerCase();
+        if (ua.indexOf('safari') != -1) {
+            if (ua.indexOf('chrome') > -1) {
+                // Chrome
+            } else {
+                console.log("safari movbile")
+                document.body.style.height = '90vh';
+            }
+        }
+    }
+}
