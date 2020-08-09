@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const ws = require('ws');
+require('dotenv').config();
+
+console.log(process.env)
+
 // When we have the npm version, this can be improved
 const lib_path = "../../";
 
@@ -21,9 +25,9 @@ const braidHttpServer = require(path.join(lib_path, './protocol-http1/http1-serv
 const webpush = require("web-push");
 
 webpush.setVapidDetails(
-  "mailto:jakearmendariz99@gmail.com",//Needs email address to send from (does not need further authentification from email)
-  "BB2ikt9eLJydNI-1LpnaRYiogis3ydcUEw6O615fhaHsOsRRHcMZUfVSTNqun6HVb44M6PdfviDJkMWsdTO7XcM",//public vapid key
-  "EcN0D3BSowNyoxnGFgPrDHlvGzJdaTamcZ5wtkYwx4Q"//private vapid key
+  process.env.MAIL_TO, //Needs email address to send from (does not need further authentification from email)
+  process.env.WEB_PUSH_PUBLIC,
+  process.env.WEB_PUSH_PRIVATE
 );
 
 const port = 3009;
@@ -298,7 +302,7 @@ const sendMobileNotifications = (notifications) => {
           let receipts = await expo.sendPushNotificationsAsync(chunk);
           console.log(receipts);
         } catch (error) {
-          console.log("Fuck, theres an error with sendPushNotificationsAsync");
+          console.log("Error: sendPushNotificationsAsync");
           console.error(error);
         }
       }

@@ -1,6 +1,7 @@
 const publicVapidKey =
   "BB2ikt9eLJydNI-1LpnaRYiogis3ydcUEw6O615fhaHsOsRRHcMZUfVSTNqun6HVb44M6PdfviDJkMWsdTO7XcM"
 
+
 async function updateWebSlider() {
     console.log("updateWebSlider")
     if(document.getElementById("webSlider").checked){
@@ -22,7 +23,7 @@ async function sendNotification() {
         headers: {
           "content-type": "application/json"
         }
-      });
+    });
 }
 
 //Subscibes the user and sends a test notification
