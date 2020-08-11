@@ -177,7 +177,7 @@ let createListeners = function () {
         // Preprocess outgoing message
         let sendTime = new Date().getTime();
         let messageBody = JSON.stringify([{user: browserId, time: sendTime, body: sendbox.value}]);
-        // setTimeout(() => node.setPatch(msgKey, `[-0:-0] = ${messageBody}`));
+        setTimeout(() => node.setPatch(msgKey, `[-0:-0] = ${messageBody}`));
         resetText();
         sendbox.value = "";
         // Remove typing indicator
