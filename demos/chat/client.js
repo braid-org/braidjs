@@ -90,15 +90,7 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-function resetText(){
-    console.log("reset text");
-    let gridContainer = document.getElementById("grid-container");
-    let headerSize = 40
-    if(screen.width < 800){
-        headerSize = '100';
-     }
-     gridContainer.style.gridTemplateRows = `${headerSize}px auto 85px 1.5em`
- }
+
  function inputSize(){
     let textarea = document.getElementById("send-box");
     let headerSize = '40'

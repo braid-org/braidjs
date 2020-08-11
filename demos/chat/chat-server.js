@@ -3,8 +3,6 @@ const path = require('path');
 const ws = require('ws');
 require('dotenv').config();
 
-console.log(process.env)
-
 // When we have the npm version, this can be improved
 const lib_path = "../../";
 
@@ -232,7 +230,6 @@ function update_messages(newVal){
 let savedUsers = {}
 function addUsers(userDict){
 	savedUsers = JSON.parse(JSON.stringify(userDict)); //new json object here
-	// console.log("add users" + JSON.stringify(savedUsers))
 }
 
 function getName(message){
@@ -253,10 +250,8 @@ function saveToken(token) {
     if (!exists) {
         console.log("new device saved for push notifications")
         savedPushTokens.push(token.value);
-        // deviceNames.push(token.name);
     }else{
       console.log("Device was already saved")
-    //   deviceNames[savedPushTokens.indexOf(token.value)] = token.name
     }
 };
 
