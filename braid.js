@@ -1150,69 +1150,74 @@ module.exports = require.braid = function create_node(node_data = {}) {
         return result
     }
 
-    function topoTag(dag, leaves) {
-        function eqSet(as, bs) {
-            if (Boolean(as) != Boolean(bs)) return false;
-            if (as.size !== bs.size) return false;
-            for (var a of as) if (!bs.has(a)) return false;
-            return true;
+    function topo_tag(dag, leaves) {
+        function sets_equal(as, bs) {
+            if (Boolean(as) !== Boolean(bs)) return false
+            if (as.size !== bs.size) return false
+            for (var a of as) if (!bs.has(a)) return false
+            return true
         }
+
         // First, create a topological order on the dag.
-        let order = new Array();
-        let seen = new Set();
+        let order = new Array()
+        let seen = new Set()
+
         // We're only going to cast shadows from the leaves
         function visit(node) {
             // Tag each node, and only visit it once
             if (seen.has(node))
-                return;
-            seen.add(node);
-            Object.keys(dag[node]).forEach(visit);
-            order.unshift(node);
+                return
+            seen.add(node)
+            Object.keys(dag[node]).forEach(visit)
+            order.unshift(node)
         }
-        leaves.forEach(visit);
+        leaves.forEach(visit)
+
         // Now run tagging bottom up.
-        let groups = {'root': new Set()};
-        let dirty = new Set();
+        let groups = {'root': new Set()}
+        let dirty = new Set()
         leaves.forEach(l => {
-            groups[l] = new Set([l]);
-            groups['root'].add(l);
-        });
+            groups[l] = new Set([l])
+            groups['root'].add(l)
+        })
         for (let node of order) {
             for (let parent of Object.keys(dag[node])) {
+
                 // If this is the first child of the parent, just copy the reference
                 if (!groups.hasOwnProperty(parent)) {
-                    groups[parent] = groups[node];
-                    dirty.add(parent);
+                    groups[parent] = groups[node]
+                    dirty.add(parent)
                 }
+
                 // If the parent's group object has more than one reference to it, clone it
                 else if (dirty.has(parent)) {
                     // Copy both the parent and child to a new var
-                    let s = new Set(groups[parent]);                
-                    groups[node].forEach(p => s.add(s));
-                    groups[parent] = s;
+                    let s = new Set(groups[parent])
+                    groups[node].forEach(p => s.add(s))
+                    groups[parent] = s
                     // Now parent has been copied, so it's clean
-                    dirty.delete(parent);
+                    dirty.delete(parent)
                 }
+
                 // If the parent exists and isn't a copy, modify it
-                else {            
+                else
                     // Merge the groups
-                    groups[node].forEach(p => groups[parent].add(p));
-                }
+                    groups[node].forEach(p => groups[parent].add(p))
             }
         }
         return (a, b) => {
             if (!a)
-                a = 'root';
-            let has_a = groups.hasOwnProperty(a);
-            let has_b = groups.hasOwnProperty(b);
+                a = 'root'
+            let has_a = groups.hasOwnProperty(a)
+            let has_b = groups.hasOwnProperty(b)
 
             if (!(has_a || has_b))
                 // Neither has been seen, so they're in the same group (no shadow)
-                return true;
+                return true
             if (!(has_a && has_b))
                 // One hasn't been seen, so one is in "no group" and one is in a group
-                return false;
-            return eqSet(groups[a], groups[b]);
+                return false
+            return sets_equal(groups[a], groups[b])
         }   
     }
 
@@ -1302,7 +1307,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 shining.add(x);
             }
         })
-        var q = topoTag(resource.time_dag, shining);
+        var q = topo_tag(resource.time_dag, shining);
         var seen_annotations = {}
 
         /*
