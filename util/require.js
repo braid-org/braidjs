@@ -5,5 +5,5 @@ function require (thing) {
     console.assert(require[thing], `require("${thing}") failed because <script src="${thing}"> is not working.`)
     return require[thing]
 }
-global = self
+//global = self
 module = {exports: {}}

@@ -22,11 +22,14 @@ const braidWebsocketServer = require(path.join(lib_path, './protocol-websocket/w
 const braidHttpServer = require(path.join(lib_path, './protocol-http1/http1-server.js'));
 const webpush = require("web-push");
 
-webpush.setVapidDetails(
-  process.env.MAIL_TO, //Needs email address to send from (does not need further authentification from email)
-  process.env.WEB_PUSH_PUBLIC,
-  process.env.WEB_PUSH_PRIVATE
-);
+if (process.env.MAIL_TO
+    && process.env.WEB_PUSH_PUBLIC
+    && process.env.WEB_PUSH_PRIVATE)
+    webpush.setVapidDetails(
+        process.env.MAIL_TO,  // Needs email address to send from
+        process.env.WEB_PUSH_PUBLIC,
+        process.env.WEB_PUSH_PRIVATE
+    );
 
 const port = 3009;
 //global.g_show_protocol_errors = true;
@@ -204,7 +207,7 @@ store(node, db).then(node => {
 
 //App notifications
 const notification_node = require("../../braid.js")()
-notification_node.websocket_client({url:'wss://invisible.college:3009'})
+//notification_node.websocket_client({url:'wss://invisible.college:3009'})
 notification_node.get('/usr', addUsers)
 notification_node.get('/chat', update_messages)
 const { Expo } = require("expo-server-sdk");

@@ -1046,6 +1046,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
     }
 
     node.disconnected = ({key, name, versions, parents, time, origin}) => {
+        // Todo:
+        //  - rename "name" to "fissure".
+        //  - rename "time" to "disconnect_time"
         if (time == null) time = Date.now()
         node.ons.forEach(on => on('disconnected', {key, name, versions, parents, time, origin}))
 

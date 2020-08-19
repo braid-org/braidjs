@@ -51,15 +51,19 @@ module.exports = require.utilities = {
     deep_equals,
 }
 
-assert = function () {
-    if (!arguments[0]) {
-        console.trace.apply(console, ['-Assert-', ...[...arguments].slice(1)])
-        // if (this.process)
-        //     process.exit()
-        // else
-            throw 'Bad'
-    }
-}
+if (is_browser)
+    assert = console.assert
+else
+    assert = require('assert')
+// assert = function () {
+//     if (!arguments[0]) {
+//         console.trace.apply(console, ['-Assert-', ...[...arguments].slice(1)])
+//         // if (this.process)
+//         //     process.exit()
+//         // else
+//             throw 'Bad'
+//     }
+// }
 
 if (typeof show_debug === 'undefined')
     // This defaults to false
