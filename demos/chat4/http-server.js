@@ -222,8 +222,7 @@ function send_version({res, version, parents, patches, body}) {
 // var without_res = x => ({...x, ...{res:x.res && true,
 //                                    req:x.req && true}})
 
-var recv = (msg) =>
-    module.exports.braid_handlers[msg.method](msg)
+var recv = (msg) => module.exports.braid_handlers[msg.method](msg)
 
 var default_receiver = (...args) => console.log('HTTP:', args)
 
