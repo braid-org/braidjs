@@ -1,0 +1,153 @@
+<script type=coffee>
+# ##########################
+# UI written in coffeescript
+# 
+
+fetcz = bus.fetch
+save = bus.save
+fontFamily = 'avenext, avenir, sans'
+
+
+dom.BODY = ->
+  window.send = ->
+    # Reset the input box
+    new_message = fetcz('new-message').val
+    save({key: 'new-message', val: ''})
+
+    # Save the post
+    post_id = Math.random().toString(36).substr(2)
+    save({key: '/post/' + post_id, val: {body: new_message}})
+
+    # Add it to the blog
+    blog = fetcz('/blog')
+    blog.val.push({link: 'post/' + post_id})
+    save(blog)
+
+  DIV
+    fontFamily: fontFamily
+    fontSize: 14
+
+    H1 "it's a blog!"
+    for m, i in fetcz('/blog').val
+      m = fetcz('/' + m.link)
+      DIV
+        backgroundColor: '#eee'
+        padding: 5
+        margin: 5
+        DIV p for p in m.val.body.split('\n')
+    DIV
+      padding: 5
+      AUTOSIZEBOX
+        id: 'new-message'
+        fontFamily: fontFamily
+        width: 'calc(100% - 50px)'
+        padding: 5
+        backgroundColor: '#eee'
+        value: fetcz('new-message').val
+        onChange: (e) ->
+          save({key: 'new-message', val: e.target.value})
+        onKeyDown: (e) ->
+          if (e.keyCode == 13 and not (e.ctrlKey or e.shiftKey))
+            e.preventDefault()
+            e.stopPropagation()
+            send()
+      BUTTON
+        position: 'relative'
+        bottom: 9
+        height: 27
+        width: 48
+        onClick: send
+        'Send'
+
+# Auto-focus the message input box
+dom.BODY.refresh = ->
+  document.getElementById('new-message')?.focus()
+
+
+## An auto-resizing <textarea>
+dom.AUTOSIZEBOX = ->
+  props = bus.clone(@props)
+  props.ref = 'textbox'
+  props.rows = 1
+  delete props['data-widget']
+  delete props['data-key']
+  TEXTAREA(props)
+
+dom.AUTOSIZEBOX.up = ->
+  target = @refs.textbox.getDOMNode()
+  resizebox(target)
+
+dom.AUTOSIZEBOX.refresh = ->
+  target = @refs.textbox.getDOMNode()
+  resizebox(target)
+
+resizebox = (target) ->
+  while (target.rows > 1 && target.scrollHeight < target.offsetHeight)
+    target.rows--
+  while (target.scrollHeight > target.offsetHeight && target.rows < 10000)
+    target.rows++
+
+</script>
+<script>
+//var base_url = 'https://invisible.college:3099/'
+var base_url = 'https://localhost:3009/'
+
+// Connect the Braid Blog as a state backend to Statebus
+var curr_version = {}
+window.statebus_ready = _=> {
+
+    // This is how we fetch the /blog state
+    bus('/*').to_fetch = (key, old, t) => {
+        var url = new URL(key, base_url)
+        braid_fetch(url, {subscribe: {keep_alive: true}},
+                    response => {
+                        console.assert(
+                            (parseInt(curr_version[key]) + 1
+                             === parseInt(response.version))
+                                || !curr_version[key],
+                            'Bad versions:' + JSON.stringify(
+                                {curr_version, res_ver:response.version}
+                            )
+                        )
+
+                        curr_version[key] = response.version
+                        t.return(apply_patches(response.patches, old))
+                    })
+    }
+
+    // This is how we save the /blog state
+    bus('/*').to_save = (o, t) => {
+        curr_version++
+        if (o.key === '/blog')
+            var patches = ['[-0:-0] = ' + JSON.stringify(o.val[o.val.length-1])]
+        else
+            var patches = ['= ' + JSON.stringify(o.val)]
+        var url = new URL(o.key, base_url)
+        braid_put(url, {
+            headers: {'Content-Type': 'application/json'},
+            patches,
+        }).then(res => {
+            if (res.status === 200)
+                console.debug('braid_put complete')
+            else
+                console.debug('braid_put failed with', res.status)
+        }).catch(err => console.error('braid_put error', err))
+        t.done()
+    }
+}
+
+// This is how we apply a braid patch to our blog state
+function apply_patches (patches, object) {
+    for (patch of patches)
+        // There are only two types of patches we could receive
+        if (patch.range === '')
+            // The entire blog in one patch
+            return {val: JSON.parse(patch.value)}
+        else
+            // A single new message, appended to the end
+            object.val.push(JSON.parse(patch.value))
+    return object
+}
+</script>
+<script src="statebus/client.js" server=none globals=false></script>
+<script src="http-client.js"></script>
