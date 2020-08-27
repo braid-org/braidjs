@@ -90,7 +90,7 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-
+ //handles the size of input
  function inputSize(){
     let textarea = document.getElementById("send-box");
     let headerSize = '40'
@@ -103,10 +103,8 @@ function urlBase64ToUint8Array(base64String) {
     let gridContainer = document.getElementById("grid-container");
     gridContainer.style.gridTemplateRows = `${headerSize}px auto 85px 1.5em`
     var taHeight = textarea.scrollHeight; // Get the scroll height of the textarea
-    // console.log("scroll height" + taHeight)
-    textarea.style.height = taHeight; // This line is optional, I included it so you can more easily count the lines in an expanded textarea
+    textarea.style.height = taHeight;
     var numberOfLines = Math.floor(taHeight/taLineHeight);
-    // console.log( "there are " + numberOfLines + " lines in the text area");
     if(numberOfLines == 1){
        gridContainer.style.gridTemplateRows = `${headerSize}px auto 85px 1.5em`
     }else if(numberOfLines == 2){
@@ -116,6 +114,9 @@ function urlBase64ToUint8Array(base64String) {
     }else if(numberOfLines >= 4){
        gridContainer.style.gridTemplateRows = `${headerSize}px auto 220px 1.5em`
     }
+
+    var message_view = document.getElementById("react-messages");
+    message_view.scrollTop = message_view.scrollHeight;
  }
 
  //If safari mobile, then the screen needs to be cut at the bottom
