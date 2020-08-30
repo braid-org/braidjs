@@ -12,7 +12,7 @@ module.exports = {
         for (var k in subscriptions) {
             var [client, url] = JSON.parse(k)
             if (!(client === msg.client && url === msg.url))
-                send({...msg, res: subscriptions[k]})
+                subscriptions[k].sendPatch(msg)
         }
     }
 }

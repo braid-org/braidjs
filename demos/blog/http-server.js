@@ -168,6 +168,9 @@ function handle_request(req, res) {
                             ? {keep_alive: true}
                             : {keep_alive: parseInt(match[1])}
         
+        res.sendPatch = ({version, parents, patches, body}) =>
+            send_version({res, version, parents, patches, body})
+
         res.on('close', () => {
             console.log(`Connection closed on ${req.url}`)
             // exports.handlers.unsubscribe({res, client, url})

@@ -200,7 +200,7 @@ function handle_request(req, res) {
 }
 
 function braidify (req, res, next) {
-    console.log('\n## Braidifying', req.url, req.method, req.headers.client)
+    console.log('\n## Braidifying', req.method, req.url, req.headers.client)
 
     // First, declare that we support CORS and JSON ranges!
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
@@ -233,11 +233,17 @@ function braidify (req, res, next) {
 
     // Add the braidly request/response helper methods
     res.sendVersion = (stuff) => send_version({res: res, ...stuff})
+    res.sendVersion = (stuff) => send_version({res: res, ...stuff})
     req.patches = () => new Promise(
         (done, err) => parse_patches(req, (patches) => done(patches))
     )
     req.jsonPatches = () => new Promise(
-        (done, err) => parse_patches(req, (patches) => done(JSON.parse(patches)))
+        (done, err) => parse_patches(
+            req,
+            (patches) => done(patches.map(
+                p => ({...p, value: JSON.parse(p.value)})
+            ))
+        )
     )
     req.startSubscription = res.startSubscription =
         function startSubscription () {

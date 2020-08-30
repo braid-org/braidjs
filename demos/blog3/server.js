@@ -1,5 +1,5 @@
 var pubsub = require('./pubsub.js')
-assert = console.assert
+assert = require('assert')
 
 // Chat Data
 var state = {
@@ -43,7 +43,7 @@ var braid_data = {
         // If parents specified, parse it as a number, and send a patch from
         // that region in the blog to the end of the blog
         else {
-            assert(msg.parents && msg.parents.length > 0)
+            assert(msg.parents && msg.parents.length > 0, 'Blah!')
             msg.res.sendPatch({
                 version: curr_version(),
                 patches: this.get(msg)
@@ -90,40 +90,54 @@ app.get('/blog', (req, res) => {
 
     // Todo: return a slice if parents is specified.
 })
-
 app.put('/blog', async (req, res) => {
-    var patches = await req.patches()
-    console.log('We got patches!', patches)
+    var patches = await req.jsonPatches()
+
+    assert(patches.length === 1)
+    assert(patches[0].range === '[-0:-0]')
+
+    state.blog.push(patches[0].value)
+
     patches.forEach(patch => {
         for (var k in subscriptions) {
             var [client, url] = JSON.parse(k)
             if (client !== req.headers.client && url === req.url)
-                subscriptions[k].sendVersion(req)
+                subscriptions[k].sendVersion({
+                    version: curr_version(),
+                    patches: patches.map(
+                        p => ({...p, value: JSON.stringify(p.value)})
+                    )
+                })
         }
     })
     res.statusCode = 200
     res.end()
 })
 app.get('/post/:id', (req, res) => {
+    if (req.subscribe) {
+        res.startSubscription()
+        subscriptions[req_hash(req)] = res
+    } else
+        res.statusCode = 200
+
     res.sendVersion({
         version: curr_version(),
         body: JSON.stringify(state[req.url.substr(1)])
     })
-    // res.write(JSON.stringify(
-    //     state[req.url.substr(1)]
-    // ))
     res.end()
 })
 app.put('/post/:id', async (req, res) => {
-    var stuff = await req.patches()
-    state[req.url.substr(1)] = stuff
+    var patches = await req.jsonPatches()
+
+    assert(patches.length === 1)
+    assert(patches[0].range === '')
+
+    state[req.url.substr(1)] = patches[0].value
+
     res.sendVersion({
         version: curr_version(),
-        body: stuff
+        body: JSON.stringify(patches[0].value)
     })
-    // res.write(JSON.stringify(
-    //     state[req.url.substr(1)]
-    // ))
     res.end()
 })
 

@@ -35,20 +35,18 @@ var braid_data = {
 
         // If no parents specified, send the whole thing
         if (!msg.parents || msg.parents.length === 0)
-            send({
-                ...msg,
-                ...{body: JSON.stringify(this.get(msg))},
-                version: curr_version()
+            msg.res.sendPatch({
+                version: curr_version(),
+                body: JSON.stringify(this.get(msg))
             })
 
         // If parents specified, parse it as a number, and send a patch from
         // that region in the blog to the end of the blog
         else {
             assert(msg.parents && msg.parents.length > 0)
-            send({
-                ...msg,
-                ...{patches: this.get(msg)},
-                version: curr_version()
+            msg.res.sendPatch({
+                version: curr_version(),
+                patches: this.get(msg)
             })
         }
     },
@@ -89,7 +87,7 @@ var braid_handlers = {
 // Start the server
 var http = require('./http-server.js')
 http.braid_handlers = braid_handlers
-send = http.send
+//send = http.send
 
 var type = 'spdy'
 
