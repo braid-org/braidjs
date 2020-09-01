@@ -430,18 +430,16 @@ function create_db() {
     return g_db = {
         data: {},
         get(key) {
-            return Promise.resolve(this.data[key])
+            return this.data[key]
         },
         set(key, val) {
             this.data[key] = val
-            return Promise.resolve();
         },
         del(key) {
             delete this.data[key]
-            return Promise.resolve();
         },
         list_keys() {
-            return Promise.resolve(Object.keys(this.data))
+            return Object.keys(this.data)
         }
     }
 }
