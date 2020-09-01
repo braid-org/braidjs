@@ -16,17 +16,17 @@ module.exports = require['sqlite-store'] = function create_sqlite_store(filename
     const DEL_STATEMENT = db.prepare(`delete from ${tablename} where key = ?`)
     const LIST_STATEMENT = db.prepare(`select key from ${tablename}`);
     return {
-        async get(key) {
+        get(key) {
             var row = GET_STATEMENT.get([key])
             return row && row.val
         },
-        async set(key, data) {
+        set(key, data) {
             SET_STATEMENT.run([key, data])
         },
-        async del(key) {
+        del(key) {
             DEL_STATEMENT.run([key])
         },
-        async list_keys() {
+        list_keys() {
             return LIST_STATEMENT.all().map(x => x.key);
         }
     }
