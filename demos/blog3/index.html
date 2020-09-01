@@ -20,7 +20,7 @@ dom.BODY = ->
 
     # Add it to the blog
     blog = fetz('/blog')
-    blog.val.push({link: 'post/' + post_id})
+    blog.val.push({link: '/post/' + post_id})
     save(blog)
 
   DIV
@@ -28,13 +28,8 @@ dom.BODY = ->
     fontSize: 14
 
     H1 "it's a blog!"
-    for m, i in fetz('/blog').val
-      m = fetz('/' + m.link)
-      DIV
-        backgroundColor: '#eee'
-        padding: 5
-        margin: 5
-        DIV p for p in m.val.body.split('\n')
+    for post in fetz('/blog').val
+      POST(url: post.link)
     DIV
       padding: 5
       AUTOSIZEBOX
@@ -63,6 +58,15 @@ dom.BODY = ->
 dom.BODY.refresh = ->
   document.getElementById('new-message')?.focus()
 
+
+dom.POST = (url) ->
+  m = fetz(url)
+  DIV
+    backgroundColor: '#eee'
+    padding: 5
+    margin: 5
+    DIV p for p in m.val.body.split('\n')
+  
 
 ## An auto-resizing <textarea>
 dom.AUTOSIZEBOX = ->

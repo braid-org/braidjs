@@ -3,100 +3,66 @@ assert = require('assert')
 
 // Chat Data
 var state = {
-    blog: [
-        {link: 'post/1'},
-        {link: 'post/2'},
-        {link: 'post/3'}
+    '/blog': [
+        {link: '/post/1'},
+        {link: '/post/2'},
+        {link: '/post/3'}
     ],
-    'post/1': {body: 'First post madafakaaaa!!!!'},
-    'post/2': {body: `And now it\'s time for something serious.
+    '/post/1': {body: 'First post madafakaaaa!!!!'},
+    '/post/2': {body: `And now it\'s time for something serious.
 
 Two men today were caught demonizing a small child.  The child kicked their butt, and the story ended there.`},
-    'post/3': {body: "It's nice when things come in threes."}
+    '/post/3': {body: "It's nice when things come in threes."}
 }
-var curr_version = () => state.blog.length + ''
+var curr_version = () => state['/blog'].length + ''
 
 
-// Braid interface to the Data
-var braid_data = {
-    get (msg) {
-        console.log('get msg.url:', {url: msg.url, state: state[msg.url]})
-        if (msg.url === 'blog')
-            if (msg.parents && msg.parents.length > 0)
-                return state.blog.slice(parseInt(msg.parents[0]))
-            else
-                return state.blog
-        else
-            return state[msg.url]
-    },
 
-    subscribe (msg) {
-        console.log('Subscribing', this.get(msg), pretty_msg(msg))
-
-        // If no parents specified, send the whole thing
-        if (!msg.parents || msg.parents.length === 0)
-            msg.res.sendPatch({
-                version: curr_version(),
-                body: JSON.stringify(this.get(msg))
-            })
-
-        // If parents specified, parse it as a number, and send a patch from
-        // that region in the blog to the end of the blog
-        else {
-            assert(msg.parents && msg.parents.length > 0, 'Blah!')
-            msg.res.sendPatch({
-                version: curr_version(),
-                patches: this.get(msg)
-            })
-        }
-    },
-    
-    change (msg) {
-        msg.parents = msg.parents || [curr_version()]
-        state.blog.push(JSON.parse(msg.patches[0].value))
-        msg.version = msg.version || curr_version()
-
-        console.log('server.js: We got an update!',
-                    {version: msg.version, parents: msg.parents,
-                     patches: msg.patches, body: msg.body})
-    },
-    
-    curr_version,
-}
-
-
+// Subscription data
 var subscriptions = {}
-var req_hash = (req) => JSON.stringify([req.headers.client, req.url])
+var rhash = (req) => JSON.stringify([req.headers.client, req.url])
 
-// Define the HTTP routes
+
+// Create our HTTP bindings!
 var braidify = require('./braidify-server')
 var app = require('express')()
-//app.use((req, res, next) => console.log('Got requiest!', req.method, req.url), next())
+
+// Middleware
 app.use(free_cors)
 app.use(braidify)
-app.get('/blog', (req, res) => {
+
+// HTTP Routes
+function getter (req, res) {
+    // Make sure URL is valid
+    if (!(req.url in state)) {
+        res.statusCode = 404
+        res.end()
+        return
+    }
+
     // Honor any subscription request
     if (req.subscribe) {
-        res.startSubscription()
-        subscriptions[req_hash(req)] = res
+        res.startSubscription({ onClose: _=> delete subscriptions[rhash(req)] })
+        subscriptions[rhash(req)] = res
     } else
         res.statusCode = 200
-    
-    // Now return the current value
+
+    // Send the current version
     res.sendVersion({
         version: curr_version(),
-        body: JSON.stringify(state.blog)
+        body: JSON.stringify(state[req.url])
     })
+}
+app.get('/blog',     getter)
+app.get('/post/:id', getter)
 
-    // Todo: return a slice if parents is specified.
-})
 app.put('/blog', async (req, res) => {
     var patches = await req.jsonPatches()
 
     assert(patches.length === 1)
     assert(patches[0].range === '[-0:-0]')
 
-    state.blog.push(patches[0].value)
+    state['/blog'].push(patches[0].value)
 
     patches.forEach(patch => {
         for (var k in subscriptions) {
@@ -113,45 +79,24 @@ app.put('/blog', async (req, res) => {
     res.statusCode = 200
     res.end()
 })
-app.get('/post/:id', (req, res) => {
-    if (req.subscribe) {
-        res.startSubscription()
-        subscriptions[req_hash(req)] = res
-    } else
-        res.statusCode = 200
-
-    res.sendVersion({
-        version: curr_version(),
-        body: JSON.stringify(state[req.url.substr(1)])
-    })
-    res.end()
-})
 app.put('/post/:id', async (req, res) => {
     var patches = await req.jsonPatches()
 
     assert(patches.length === 1)
     assert(patches[0].range === '')
 
-    state[req.url.substr(1)] = patches[0].value
+    state[req.url] = patches[0].value
 
-    res.sendVersion({
-        version: curr_version(),
-        body: JSON.stringify(patches[0].value)
-    })
-    res.end()
-})
+    for (var k in subscriptions) {
+        var [client, url] = JSON.parse(k)
+        if (client !== req.headers.client && url === req.url)
+            subscriptions[k].sendVersion({
+                version: curr_version(),
+                body: JSON.stringify(patches[0].value)
+            })
+    }
 
-app.unsubscribe('/blog', (req, res) => {
-    console.log('---yeeeeeeehaw!!!!!----')
-    console.log('This is some shit!')
-    // Forget:
-    //  - passed the same req, res from the get
-    //  - called automatically when a non-subscription
-    delete subscriptions[req_hash(req)]
-    res.statusCode = 200
-    res.write('good!')
     res.end()
-    console.log('ok we unsubscribed')
 })
 
 
@@ -174,14 +119,14 @@ function free_cors (req, res, next) {
 }
 
 // Launch the https server
-require('spdy').createServer(
+var server = require('spdy').createServer(
     {
         cert:       require('fs').readFileSync('./certificate'),
         key:        require('fs').readFileSync('./private-key'),
         allowHTTP1: true
     },
     app
-).listen(3009, _=> console.log('listening on port 3009...'))
-
-// var pretty_msg = x => ({...x, ...{res:x.res && true,
-//                                   req:x.req && true}})
+)
+server.setTimeout(0, x => console.log('Server timeout!', x))
+console.log('Server timeouts:', server.timeout, server.keepAliveTimeout)
+server.listen(3009, _=> console.log('listening on port 3009...'))

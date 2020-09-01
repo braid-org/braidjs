@@ -246,8 +246,16 @@ function braidify (req, res, next) {
         )
     )
     req.startSubscription = res.startSubscription =
-        function startSubscription () {
+        function startSubscription (args) {
             console.log('Starting subscription!!')
+            console.log('Timeouts are:',
+                        req.socket.server.timeout,
+                        req.socket.server.keepAliveTimeout)
+
+            // Let's disable the timeouts
+            req.socket.server.timeout = 0.0
+            req.setTimeout(0, x => console.log('Request timeout!', x))
+            res.setTimeout(0, x => console.log('Response timeout!', x))
 
             // We have a subscription!
             res.statusCode = 209
@@ -258,21 +266,18 @@ function braidify (req, res, next) {
             var connected = true
             function disconnected () {
                 console.log(`Connection closed on ${req.url}`)
-                console.log(`Sending unsubscribe event`)
 
                 if (!connected) return
-                require('http').request({
-                    hostname: req.hostname,
-                    path: req.url,
-                    // add client id
-                    method: 'UNSUBSCRIBE'
-                }).end()
+                connected = false
+
+                // Now call the callback
+                if (args.onClose)
+                    args.onClose()
             }
 
             res.on('close',   disconnected)
             res.on('finish',  disconnected)
             req.on('abort',   disconnected)
-            req.on('timeout', disconnected)
 
             // exports.handlers.subscribe({version, parents, res, client, url})
             // recv({method: 'subscribe',
