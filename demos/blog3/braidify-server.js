@@ -110,95 +110,6 @@ function parse_patches (req, cb) {
     })
 }
 
-// The entry point of the server.
-// Listen for requests
-function handle_request(req, res) {
-    console.log('\n\nXXXXXXXX handling request', req.method, req.url)
-
-    // First, declare that we support CORS and JSON ranges!
-    res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
-    res.setHeader('Range-Request-Allow-Units', 'json')
-    res.setHeader("Patches", "OK")
-    var free_the_cors = {
-        "Access-Control-Allow-Origin": "*"
-        ,"Access-Control-Allow-Methods": "OPTIONS, HEAD, GET, PUT"
-        ,"Access-Control-Allow-Headers": "subscribe, client, version, parents, merge-type, content-type, patches, cache-control"
-    }
-    Object.entries(free_the_cors).forEach(x => res.setHeader(x[0], x[1]))
-    if (req.method === 'OPTIONS') {
-        console.log('They want OPTIONS -- responding with FREE CORS!!')
-        res.writeHead(200)
-        res.end()
-        return
-    }
-
-    // Extract braid info from headers
-    var version = req.headers.version && JSON.parse(req.headers.version),
-        parents = req.headers.parents && JSON.parse('['+req.headers.parents+']'),
-        client = req.headers['client'],
-        url = req.url.substr(1)
-
-    // Process GET requests
-    if (req.method === "GET") {
-        console.log('processing a GET with headers', req.headers)
-        res.setHeader('cache-control', 'no-cache, no-transform')
-        res.setHeader('content-type', 'application/json')
-        
-        // GET a single version if no subscribe header
-        if (!('subscribe' in req.headers)) {
-            res.statusCode = 200
-
-            console.log('Ending the response!!')
-            res.end(exports.braid_handlers.get({url, version}))
-            return
-        }
-
-        // Then we have a subscription!
-        res.statusCode = 209
-        res.setHeader("subscribe", req.headers.subscribe)
-
-        // Now parse the subscribe header as one of these forms:
-        //
-        //   keep-alive
-        //   keep-alive=number
-        //
-        var match = req.headers.subscribe.match(/keep-alive(=\w+)?/)
-        if (match)
-            var subscribe = match[1]
-                            ? {keep_alive: true}
-                            : {keep_alive: parseInt(match[1])}
-        
-        res.sendPatch = ({version, parents, patches, body}) =>
-            send_version({res, version, parents, patches, body})
-
-        res.on('close', () => {
-            console.log(`Connection closed on ${req.url}`)
-            // exports.handlers.unsubscribe({res, client, url})
-            recv({method: 'unsubscribe', res, client, url})
-        })
-
-        // exports.handlers.subscribe({version, parents, res, client, url})
-        recv({method: 'subscribe',
-              version, parents, res, client, url})
-    }
-
-    // Process PUT requests
-    else if (req.method == "PUT") {
-        // Parse patches from the request body
-        parse_patches(req, (patches) => {
-            // And announce the result!
-            // exports.handlers.change({version, parents, patches, req, res, client, url})
-            recv({method: 'change',
-                  version, parents, patches, req, res, client, url})
-
-
-            // Now tell the client that everything's coo.
-            res.statusCode = 200
-            res.end()
-        })
-    }
-}
-
 function braidify (req, res, next) {
     console.log('\n## Braidifying', req.method, req.url, req.headers.client)
 
@@ -278,10 +189,6 @@ function braidify (req, res, next) {
             res.on('close',   disconnected)
             res.on('finish',  disconnected)
             req.on('abort',   disconnected)
-
-            // exports.handlers.subscribe({version, parents, res, client, url})
-            // recv({method: 'subscribe',
-            //       version, parents, res, client, url})
         }
 
     next()

@@ -46,11 +46,11 @@ function braid_fetch (url, options = {}, callback) {
                 //res.text().then(x=>console.log('Hooooooo', x))
                 parse_response(res.body, callback,
                                () => console.warn(`Goodbye!`),
-                               () => setTimeout(go, 15000))
+                               () => setTimeout(go, 5000))
             })
             .catch((err) => {
                 //console.error("GET fetch failed: ", err)
-                setTimeout(go, 15000)
+                setTimeout(go, 5000)
             })
     }
     go()
