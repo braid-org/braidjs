@@ -260,11 +260,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // of any new edits made by them... we strive to enforce this fact with
         // the pruning algorithm)
 
-        if (parents) {
-            var anc = resource.ancestors(parents, true)
-            anc[null] = true
-        } else { var anc = {} }
-        var versions = resource.mergeable.generate_braid(x => anc[x])
+        var welcome_msg = node.create_welcome_message(key, parents)
 
         var best_t = -Infinity
         var best_parents = null
@@ -274,15 +270,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 best_parents = f.versions
             }
         })
-
-        // G: oh yes, we also send them all of our fissures, so they can know to keep
-        // those versions alive
-
-        var fissures = Object.values(resource.fissures)
+        welcome_msg.parents = best_parents
 
         // Remember this subscription from origin so that we can fissure if
         // our connection to origin breaks
-        if (origin.keep_alive && origin.keep_alive(key))
+        if (u.has_keep_alive(origin, key))
             resource.keepalive_peers[origin.id] = {
                 id: origin.id,
                 connection: origin.connection,
@@ -291,10 +283,34 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // G: ok, here we actually send out the welcome
 
-        origin.send && origin.send({
-            method: 'welcome', key, versions, fissures, parents: best_parents})
+        origin.send && origin.send(welcome_msg)
 
         return resource.mergeable.read(version)
+    }
+
+    node.create_welcome_message = (key, parents) => {
+        var resource = node.resource_at(key)
+        if (parents && Object.keys(parents).length) {
+            var anc = resource.ancestors(parents, true)
+        } else { var anc = {} }
+        var versions = resource.mergeable.generate_braid(x => anc[x])
+        versions = JSON.parse(JSON.stringify(versions))
+
+        versions.forEach(x => {
+            // we want to put some of this stuff in a "hint" field,
+            // as per the protocol
+            if (x.sort_keys) {
+                x.hint = {sort_keys: x.sort_keys}
+                delete x.sort_keys
+            }
+        })
+
+        // G: oh yes, we also send them all of our fissures, so they can know to keep
+        // those versions alive
+
+        var fissures = Object.values(resource.fissures)
+
+        return {method: 'welcome', key, versions, fissures}
     }
     
     node.error = ({key, type, in_response_to, origin}) => {
@@ -337,7 +353,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             // If you're trying to join a persistent consistent group, then
             // you probably don't want to send any SETs before you actually
             // join and know what the current version is:
-            if (origin && origin.keep_alive && origin.keep_alive(key)
+            if (origin && u.has_keep_alive(origin, key)
                 && !resource.keepalive_peers[origin.id])
                 return report('we did not welcome them yet')
 
@@ -527,6 +543,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
                     || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
                 if (!Array.isArray(v.changes)
                     || v.changes.some(x => typeof(x) != 'string')) return false
+                if (v.hint) {
+                    if (!v.hint.sort_keys) return false
+                    if (typeof(v.hint.sort_keys) != 'object') return false
+                    if (!Object.entries(v.hint.sort_keys).every(([index, key]) => (''+index).match(/^\d+$/) && typeof(key) == 'string')) return false
+                }
                 return true
             })) { return report('invalid versions: ' + JSON.stringify(versions)) }
 
@@ -560,36 +581,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // `versions` is actually array of set messages. Each one has a version.
         var new_versions = []
         
-        // G: this next section deals with the special case of information
-        // that is so acknowledged by everyone, and so pruned, that it
-        // has no version -- it sort of exists as a background version.
-        // we can identify such a version because it will have no version id,
-        // and if it exists, it will always be the first version in the list;
-        // however, even if it does exist, we may not want to actually apply
-        // it to our datastructure -- we only apply it to our datastructure
-        // if we have absolutely nothing else in it (if we already have some
-        // "background" version, then we just ignore this new "background" version,
-        // in the hopes that it doesn't tell us anything new, which it shouldn't
-        // if our protocol is working correctly)
-
-        var v = versions[0]
-        if (v && !v.version) {
-            // G: so we get rid of this "background" version..
-
-            var null_version = versions.shift()
-
-            // G: ..but we only add it to our datastructure if we don't
-            // already have a "background" version (namely any version information at all)
-
-            if (!Object.keys(resource.time_dag).length) {
-                new_versions.push(v)
-                resource.mergeable.add_version(v.version, v.parents, v.changes)
-            }
-        }
-        
-        // G: now that the "background" version is out of the way,
-        // the rest of the version are real.. but that doesn't mean we
-        // want to add them all. Some of them we may already have.
+        // G: Some of the incoming versions we may already have.
         // So one might ask, why don't we just filter the versions
         // according to which ones we already have? why this versions_T
         // nonsense? The issue is that there may be versions which
@@ -624,21 +616,13 @@ module.exports = require.braid = function create_node(node_data = {}) {
             if (versions_T[v.version]) {
                 new_versions.push(v)
 
-                var bad = false
-                if (Object.keys(v.parents).length == 0) {
-                    bad = new_versions[0].version
-                } else for (p in v.parents) {
-                    bad = !resource.time_dag[p]
-                    if (bad) break
-                }
-                if (bad) return send_error()
+                if (!Object.keys(v.parents).every(p => resource.time_dag[p])) return send_error()
 
-                resource.mergeable.add_version(v.version, v.parents, v.changes)
+                resource.mergeable.add_version(v.version, v.parents, v.changes, v.hint && v.hint.sort_keys)
             }
         }
 
         function send_error() {
-            versions.unshift(null_version)
             origin.send && origin.send({
                 method: 'error',
                 key,
@@ -887,8 +871,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
         gen_fissures.forEach(f => node.fissure({key, fissure:f}))
 
         // Now that we processed the welcome, set defaults if we have one
-        if (default_val_for(key) && !node.current_version(key))
-            node.set(key, default_val_for(key))
+        var default_val = default_val_for(key)
+        if (default_val && !node.current_version(key)) {
+            node.set({key, patches: [` = ${JSON.stringify(default_val)}`], version: 'default_version', parents: {}})
+        }
     }
     
     // Can be called as:
@@ -1059,9 +1045,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // need to create a fissure
         if (!origin.remote_peer|| !node.resource_at(key).keepalive_peers[origin.id]) return
         
-        // This might be a problem for pipes being able to go offline...
-        node.incoming_subscriptions.delete(key, origin.id)
-
         // now since we're disconnecting, we reset the keepalive_peers flag
         delete node.resource_at(key).keepalive_peers[origin.id]
 
@@ -1153,77 +1136,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
         return result
     }
 
-    function topo_tag(dag, leaves) {
-        function sets_equal(as, bs) {
-            if (Boolean(as) !== Boolean(bs)) return false
-            if (as.size !== bs.size) return false
-            for (var a of as) if (!bs.has(a)) return false
-            return true
-        }
-
-        // First, create a topological order on the dag.
-        let order = new Array()
-        let seen = new Set()
-
-        // We're only going to cast shadows from the leaves
-        function visit(node) {
-            // Tag each node, and only visit it once
-            if (seen.has(node))
-                return
-            seen.add(node)
-            Object.keys(dag[node]).forEach(visit)
-            order.unshift(node)
-        }
-        leaves.forEach(visit)
-
-        // Now run tagging bottom up.
-        let groups = {'root': new Set()}
-        let dirty = new Set()
-        leaves.forEach(l => {
-            groups[l] = new Set([l])
-            groups['root'].add(l)
-        })
-        for (let node of order) {
-            for (let parent of Object.keys(dag[node])) {
-
-                // If this is the first child of the parent, just copy the reference
-                if (!groups.hasOwnProperty(parent)) {
-                    groups[parent] = groups[node]
-                    dirty.add(parent)
-                }
-
-                // If the parent's group object has more than one reference to it, clone it
-                else if (dirty.has(parent)) {
-                    // Copy both the parent and child to a new var
-                    let s = new Set(groups[parent])
-                    groups[node].forEach(p => s.add(s))
-                    groups[parent] = s
-                    // Now parent has been copied, so it's clean
-                    dirty.delete(parent)
-                }
-
-                // If the parent exists and isn't a copy, modify it
-                else
-                    // Merge the groups
-                    groups[node].forEach(p => groups[parent].add(p))
-            }
-        }
-        return (a, b) => {
-            if (!a)
-                a = 'root'
-            let has_a = groups.hasOwnProperty(a)
-            let has_b = groups.hasOwnProperty(b)
-
-            if (!(has_a || has_b))
-                // Neither has been seen, so they're in the same group (no shadow)
-                return true
-            if (!(has_a && has_b))
-                // One hasn't been seen, so one is in "no group" and one is in a group
-                return false
-            return sets_equal(groups[a], groups[b])
-        }   
-    }
-
     node.prune = (resource) => {
         var unremovable = {}
 
@@ -1247,23 +1159,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
         })
         
         // Now remove the fissures
-        var acked = resource.ancestors(resource.acked_boundary)
-        var done = {}
         Object.entries(resource.fissures).forEach(x => {
             var other_key = x[1].b + ':' + x[1].a + ':' + x[1].conn
             var other = resource.fissures[other_key]
-            // If we have the other half of it and it's not in a parenting
-            // relationship
-            if (other && !done[x[0]] && !unremovable[x[0]]) {
-                done[x[0]] = true
-                done[other_key] = true
-                
-                // We don't remove fissures if some of their versions have not
-                // been fully acknowledged.  But we aren't sure if that's
-                // actually necessary.  It might be good to try removing this
-                // check and see if anything breaks.
-                if (Object.keys(x[1].versions).every(x => acked[x] || !resource.time_dag[x])) {
-
+            if (other) {
+                if (unremovable[x[0]]) {
+                    resource.fissures[x[0]].versions = {}
+                    resource.fissures[other_key].versions = {}
+                } else {
                     delete resource.fissures[x[0]]
                     delete resource.fissures[other_key]
                 }
@@ -1296,22 +1199,130 @@ module.exports = require.braid = function create_node(node_data = {}) {
         }
         
         // Now compute the shadow regions
-        var shining = new Set();
+        var tags = {}
+        var shining = {}
+        Object.keys(resource.time_dag).forEach(version => tags[version] = {})
+        function tag(version, t) {
+            if (!tags[version][t]) {
+                tags[version][t] = true
+                Object.keys(resource.time_dag[version]).forEach(version => tag(version, t))
+            }
+        }
 
         Object.values(resource.fissures).forEach(f => {
             Object.keys(f.versions).forEach(v => {
                 if (!resource.time_dag[v]) return
-                shining.add(v);
+                tag(v, v)
+                shining[v] = true
             })
         })
+
         var acked = resource.ancestors(resource.acked_boundary)
         Object.keys(resource.time_dag).forEach(x => {
             if (!acked[x] || resource.acked_boundary[x]) {
-                shining.add(x);
+                tag(x, x)
+                shining[x] = true
             }
         })
-        var q = topo_tag(resource.time_dag, shining);
-        var seen_annotations = {}
+
+        var inv_tags = {}
+        Object.entries(tags).forEach(([v, tags]) => {
+            tags = Object.keys(tags).sort().join(':')
+            if (!inv_tags[tags]) inv_tags[tags] = {}
+            inv_tags[tags][v] = true
+        })
+
+        // compute "children" (the sort of inverse of resource.time_dag),
+        // where values in time_dag represent "parents" of a node
+        var children = {}
+        Object.entries(resource.time_dag).forEach(([v, parents]) => {
+            Object.keys(parents).forEach(parent => {
+                if (!children[parent]) children[parent] = {}
+                children[parent][v] = true
+            })
+        })
+
+        // we'll aggregate bubble's to bloop here..
+        var to_bubble = {}
+        Object.entries(inv_tags).forEach(([_, members]) => {
+            // members comprise a "shadow region",
+            // but we now are going to find "bubble"s within it..
+
+            // we start by assembling an appropriate dag to pass to find_bubbles..
+            // it should look like {node_id_a: {parents: {}, children: {}}, ...}
+            var dag = Object.fromEntries(Object.keys(members).map(member => [member, {
+                parents: resource.time_dag[member],
+                children: children[member]
+            }]))
+
+            // we'll get back a mapping from versions to their bubble's version (if they're in a bubble)
+            Object.assign(to_bubble, find_bubbles(dag))
+        })
+
+        function find_bubbles(dag) {
+            var to_bubble = {}
+            var bubble_tops = {}
+            var bubble_bottoms = {}
+            
+            function mark_bubble(bottom, top, tag) {
+                if (!to_bubble[bottom]) {
+                    to_bubble[bottom] = tag
+                    if (bottom != top) Object.keys(dag[bottom].parents).forEach(p => mark_bubble(p, top, tag))
+                }
+            }
+            
+            var done = {}
+            function f(cur) {
+                var n = dag[cur]
+                if (!n) return
+                if (done[cur]) return
+                done[cur] = true
+                
+                if (!to_bubble[cur] || bubble_tops[cur]) {
+                    var bubble_top = find_one_bubble(dag, cur)
+                    if (bubble_top) {
+                        delete to_bubble[cur]
+                        mark_bubble(cur, bubble_top, bubble_tops[cur] || cur)
+                        bubble_tops[bubble_top] = bubble_tops[cur] || cur
+                        bubble_bottoms[bubble_tops[cur] || cur] = bubble_top
+                    }
+                }
+        
+                Object.keys(n.parents).forEach(f)
+            }
+            Object.keys(find_leaves(dag)).forEach(f)
+        
+            return Object.fromEntries(Object.entries(to_bubble).map(([v, bub]) => [v, [bub, bubble_bottoms[bub]]]))
+        }
+        
+        function find_one_bubble(dag, cur) {
+            var seen = {[cur]: true}
+            var q = Object.keys(dag[cur].parents)
+            var expecting = Object.fromEntries(q.map(x => [x, true]))
+            while (q.length) {
+                cur = q.pop()
+                if (!dag[cur]) return null
+                if (Object.keys(dag[cur].children).every(c => seen[c])) {
+                    seen[cur] = true
+                    delete expecting[cur]
+                    if (!Object.keys(expecting).length) return cur
+                    
+                    Object.keys(dag[cur].parents).forEach(p => {
+                        q.push(p)
+                        expecting[p] = true
+                    })
+                }
+            }
+            return null
+        }
+        
+        function find_leaves(dag) {
+            var leaves = Object.fromEntries(Object.keys(dag).map(k => [k, true]))
+            Object.entries(dag).forEach(([k, node]) => {
+                Object.keys(node.parents).forEach(p => delete leaves[p])
+            })
+            return leaves
+        }
 
         /*
         resource.mergeable.prune(
@@ -1323,24 +1334,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
         )
         */
 
-        var deleted = resource.mergeable.prune(q, q, seen_annotations)
+        var seen_annotations = {}
 
-        // here we change the name of all the versions which are not frozen,
-        // meaning they might have changed,
-        // so we want to give them different names to avoid the confusion of
-        // thinking that they possess the same information as before
-        var name_changes = {}
-        Object.keys(resource.time_dag).forEach(v => {
-            if (!shining.has(v)) {
-                var m = v.match(/^([^\-]+)\-/)
-                if (m) {
-                    name_changes[v] = m[1] + '-' + Math.random().toString(36).slice(2)
-                } else {
-                    name_changes[v] = v + '-' + Math.random().toString(36).slice(2)
-                }
-            }
-        })
-        resource.mergeable.change_names(name_changes, deleted)
+        resource.mergeable.prune(to_bubble, seen_annotations)
 
         // Now we check to see if we can collapse the spacedag down to a literal.
         //
@@ -1401,8 +1397,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // The version history
         if (!resource.time_dag) resource.time_dag = {}
         if (!resource.current_version) resource.current_version = {}
-        if (!resource.version_cache)
-            resource.version_cache = {null: {version: null, parents: {}, changes: [' = null']}}
+        if (!resource.version_cache) resource.version_cache = {}
         resource.ancestors = (versions, ignore_nonexistent) => {
             var result = {}
             // console.log('ancestors:', versions)

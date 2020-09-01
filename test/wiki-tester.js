@@ -116,7 +116,7 @@ debug_WS = function (id) {
                             self.onmessage({data: msg})
                         })
                     }
-                })
+                }, {socket: {remoteAddress: 'fake-ip-address'}})
             })
             self.onopen && self.onopen()
         } else {
@@ -184,9 +184,7 @@ async function main() {
         let sttt = performance.now()
         
 
-        var seed = '__abb__37:' + i
-        //var seed = '__abb__37:' // + i
-
+        var seed = '__acb_def_fff_fF2__:' + i
 
         // N = 1
         // seed = '__abb__29:4'
@@ -226,7 +224,7 @@ async function main() {
 
     g_profile.print()
 
-    console.log('times: ' + JSON.stringify(times))
+    // console.log('times: ' + JSON.stringify(times))
 }
 
 async function run_experiment(rand_seed) {
@@ -236,7 +234,7 @@ async function run_experiment(rand_seed) {
     g_debug_WS_messages_delayed = []
     debug_WSS.the_one = null
 
-    var trials = 100
+    var trials = 200
 
     var db = create_db()
     var server = null
@@ -255,7 +253,7 @@ async function run_experiment(rand_seed) {
             if (!server && Math.random() < 0.4) {
                 log_stuff && console.log('> starting server')
                 actions.push({action: 'starting server', rand: Math.random.get_state()})
-                server = create_server(db)
+                server = await create_server(db)
             } else if (server && Math.random() < 0.3) {
                 log_stuff && console.log('> closing server')
                 actions.push({action: 'closing server', rand: Math.random.get_state()})
@@ -374,7 +372,7 @@ async function run_experiment_from_actions(actions) {
             if (a.action == 'starting server') {
                 log_stuff && console.log('> starting server')
                 Math.random.set_state(a.rand)
-                server = create_server(db)
+                server = await create_server(db)
             } else if (a.action == 'closing server') {
                 log_stuff && console.log('> closing server')
                 Math.random.set_state(a.rand)
@@ -429,10 +427,24 @@ async function run_experiment_from_actions(actions) {
             if (true) {
 
                 console.log('time dags:')
-                function show(s) { console.log(JSON.stringify(s.time_dag, null, '    ')) }
-
+                var show = (s) => console.log(JSON.stringify(s.time_dag, null, '    '))
                 if (g_current_server) show(g_current_server.node.resource_at(page_key))
                 clients.forEach(c => show(c.node.resource_at(page_key)))
+
+                // console.log('version_cache:')
+                // var show = (s) => console.log(JSON.stringify(s.version_cache, null, '    '))
+                // if (g_current_server) show(g_current_server.node.resource_at(page_key))
+                // clients.forEach(c => show(c.node.resource_at(page_key)))
+
+                // console.log('incoming_subscriptions:')
+                // var show = (s) => console.log(s.incoming_subscriptions.toString())
+                // if (g_current_server) show(g_current_server.node)
+                // clients.forEach(c => show(c.node))
+
+                // console.log('space dags:')
+                // var show = (s) => console.log(JSON.stringify(s.space_dag, null, '    '))
+                // if (g_current_server) show(g_current_server.node.resource_at(page_key))
+                // clients.forEach(c => show(c.node.resource_at(page_key)))
 
                 // console.log('read:')
                 // function show2(s) {
@@ -521,13 +533,13 @@ function create_db() {
     }
 }
 
-function create_server(db) {
+async function create_server(db) {
     db.compress_if_inactive_time = 1000 * 1000
     db.compress_after_this_many = 10
 
     var node = require('../braid.js')()
-    node.fissure_lifetime = 1 // 4
-    require('../util/store.js')(node, db)
+    //node.fissure_lifetime = 1 // 4
+    await require('../util/store.js')(node, db)
 
     node.on_errors.push((key, origin) => {
         node.unbind(key, origin)
@@ -550,7 +562,7 @@ function create_server(db) {
 
 function create_client() {
     var node = require('../braid.js')()
-    node.default(page_key, {cursors: {[node.pid]: {start: 0, end: 0, time: Date.now()}}, text: ''})
+    node.default(page_key, {cursors: {}, text: ''})
     var ws_client = require('../protocol-websocket/websocket-client.js')({node, create_websocket: () => {
         return new debug_WS(node.pid)
     }})

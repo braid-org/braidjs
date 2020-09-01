@@ -45,10 +45,17 @@ module.exports = require.utilities = {
             delete (k, k2) { delete data[k][k2]; counts[k]-- },
             delete_all (k) { delete data[k]; delete counts[k] },
             has (k, k2)    { return data[k] && k2 in data[k] },
-            count (k)      { return counts[k] || 0}
+            count (k)      { return counts[k] || 0},
+            toString ()    { return JSON.stringify({data, counts}, null, '    ') }
         }
     },
     deep_equals,
+    has_keep_alive: (origin, key) => {
+        var s = origin.subscribed_keys && origin.subscribed_keys[key]
+        return s && ((s.we_requested && s.we_requested.keep_alive)
+                ||
+                (s.they_requested && s.they_requested.keep_alive))
+    }
 }
 
 if (is_browser)
@@ -94,7 +101,6 @@ function deep_equals(a, b) {
         if (!deep_equals(a[k], b[k])) return false
     return true
 }
-
 
 // ===============================================
 //

@@ -132,21 +132,14 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 && !we_welcomed
                 /*&& !this.subscribed_keys[args.key].we_requested*/) {
                 // Then we need to welcome them too
-                var resource = node.resource_at(args.key)
-                if (args.parents) {
-                    var anc = resource.ancestors(args.parents, true)
-                    anc[null] = true
-                } else { var anc = {} }
-                var versions = resource.mergeable.generate_braid(x => anc[x])
-
-                var fissures = Object.values(resource.fissures)
-                this.send({method: 'welcome', key: args.key, versions, fissures})
-
+                this.send(node.create_welcome_message(args.key, args.parents))
+        
                 // Now we store a subset of this pipe in a place that will
                 // eventually be saved to disk.  When a node comes up after a
                 // crash, it'll need to create and send fissures for everyone
                 // it's welcomed.  So right here we store the info necessary
                 // to fissure.
+                let resource = node.resource_at(args.key)
                 resource.keepalive_peers[this.id] = {id: this.id,
                                                      connection: this.connection,
                                                      remote_peer: this.remote_peer}
@@ -232,7 +225,7 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
 
             for (var k in this.subscribed_keys) {
 
-                if (this.keep_alive(k))
+                if (u.has_keep_alive(this, k))
                     // Tell the node.  It'll make fissures.
                     node.disconnected({key:k, origin: this})
 
@@ -253,17 +246,10 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
             this.remote_peer = null
         },
 
-        keep_alive (key) {
-            var s = this.subscribed_keys[key]
-            return ((s.we_requested && s.we_requested.keep_alive)
-                    ||
-                    (s.they_requested && s.they_requested.keep_alive))
-        },
-
         printy_stuff (key) {
             return {id: this.id,
                     w: !!node.resource_at(key).keepalive_peers[this.id],
-                    k_a: this.keep_alive(key),
+                    k_a: u.has_keep_alive(this, key),
                     peer: this.remote_peer,
                     c: !!this.connection
                    }
