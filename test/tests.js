@@ -4,9 +4,10 @@ require('../util/utilities.js')
 //show_debug = true
 
 var n_peers = 3
-var n_steps_per_trial = 40
-var n_trials = 189
-var rand = Math.create_rand('000_hi_001')
+var n_steps_per_trial = 50
+var n_trials = 100000
+var rand = null
+var random_seed_base = '000_hi_009'
 
 var solo_trial = null
 if (!is_browser && process.argv.length >= 4 && process.argv[2] === 'solo') {
@@ -14,6 +15,11 @@ if (!is_browser && process.argv.length >= 4 && process.argv[2] === 'solo') {
     // show_debug = true
     print_network = true
 }
+
+
+// show_debug = true
+// print_network = true
+
 
 var sim = {
     n_peers,
@@ -237,7 +243,7 @@ function run_trials () {
         }
 }
 function run_trial (trial_num) {
-    rand = sim.rand = Math.create_rand(trial_num + '')
+    rand = sim.rand = Math.create_rand(random_seed_base + ':' + trial_num)
     setup_test()
 
     // Now do all the stuff
@@ -269,7 +275,7 @@ run_trials.async = (cb) => {
     }
 }
 run_trial.async = (trial_num, cb) => {
-    rand = sim.rand = Math.create_rand(trial_num + '')
+    rand = sim.rand = Math.create_rand(random_seed_base + ':' + trial_num)
     setup_test()
     var t = -1
     function run_step () {
@@ -294,7 +300,7 @@ run_trial.async = (trial_num, cb) => {
 
 var networks = [
     './virtual-p2p.js',
-    './websocket-test.js'
+    //'./websocket-test.js'
 ]
 
 var network
