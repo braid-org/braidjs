@@ -62,7 +62,7 @@ app.put('/blog', async (req, res) => {
     assert(patches.length === 1)
     assert(patches[0].range === '[-0:-0]')
 
-    state['/blog'].push(patches[0].value)
+    state['/blog'].push(patches[0].content)
 
     patches.forEach(patch => {
         for (var k in subscriptions) {
@@ -71,7 +71,7 @@ app.put('/blog', async (req, res) => {
                 subscriptions[k].sendVersion({
                     version: curr_version(),
                     patches: patches.map(
-                        p => ({...p, value: JSON.stringify(p.value)})
+                        p => ({...p, content: JSON.stringify(p.content)})
                     )
                 })
         }
@@ -85,14 +85,14 @@ app.put('/post/:id', async (req, res) => {
     assert(patches.length === 1)
     assert(patches[0].range === '')
 
-    state[req.url] = patches[0].value
+    state[req.url] = patches[0].content
 
     for (var k in subscriptions) {
         var [client, url] = JSON.parse(k)
         if (client !== req.headers.client && url === req.url)
             subscriptions[k].sendVersion({
                 version: curr_version(),
-                body: JSON.stringify(patches[0].value)
+                body: JSON.stringify(patches[0].content)
             })
     }
 
