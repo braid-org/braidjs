@@ -16,6 +16,8 @@
 <script src="../merge-algos/sync9.js"></script>
 <script>
 
+var tau = Math.PI * 2
+
 g_log_stuff = false
 g_log_stuff_max_length = 20000 // 150
 
@@ -29,7 +31,7 @@ async function main() {
     var side_panel = make_html(`<div style="background:orange">HELLO</div>`)
     d.append(side_panel)
 
-    var spark_panel = make_html(`<div style="width:100%;height:100%"></div>`)
+    var spark_panel = make_html(`<div style="width:100%"></div>`)
     d.append(spark_panel)
 
     var stats = {
@@ -41,12 +43,20 @@ async function main() {
         num_clients: 10,
         num_active_clients: 10
     }
+    var stat_overlays = {
+        server_fissures: ['server_broken_fissures']
+    }
     Object.entries(stats).forEach(([k, v]) => {
         var sl = create_sparkline(k, spark_panel.offsetWidth, 60, v)
         spark_panel.append(sl)
         sl.style.marginBottom = '19px'
         stats[k] = sl
     })
+
+    var time_dag_c = make_html(`<canvas></canvas>`)
+    var time_dag_g = time_dag_c.getContext('2d')
+
+    spark_panel.append(time_dag_c)
 
     var params = JSON.parse(localStorage.wiki_perf_li7fl3drudc || '{}')
     Object.entries({
@@ -96,6 +106,7 @@ async function main() {
         input.onchange = () => input.value = params[k]
     })
 
+    var last_results = null
     var pump = null
     var pump_timer = null
     var go_button = make_html(`<button style="width:100%;height:60px;margin-top:18px">GO</button>`)
@@ -106,14 +117,35 @@ async function main() {
             go_button.textContent = 'GO'
         } else {
             go_button.textContent = 'STOP'
-            pump = create_experiment(params);
-            pumper();
+            pump = create_experiment(params)
+            pumper()
             function pumper() {
-                var results = pump()
+                var results = last_results = pump()
 
                 Object.entries(stats).forEach(([k, sl]) => {
-                    sl.update(results[k])
+                    var args = [results[k]]
+                    if (stat_overlays[k]) stat_overlays[k].forEach(k => args.push(results[k]))
+                    sl.update(...args)
                 })
+
+                if (results.server) {
+                    var c = time_dag_c
+                    var g = time_dag_g
+
+                    var resource = results.server.node.resource_at(page_key)
+
+                    var size = calc_time_dag_size(resource.time_dag, 18)
+
+                    c.width = 1000
+                    c.height = size.h + 50
+                    c.style.width = (c.width / devicePixelRatio) + 'px'
+                    c.style.height = (c.height / devicePixelRatio) + 'px'
+
+                    g.fillStyle = 'rgba(245, 235, 255, 0.8)'
+                    g.fillRect(0, 0, c.width, c.height)
+
+                    draw_time_dag(c, g, resource.time_dag, resource.acked_boundary, resource.acks_in_process, resource.fissures, 0, 0, c.width, c.height, 18)
+                }
 
                 pump_timer = g_real_setTimeout(pumper, params.pump_delay)
             }
@@ -385,6 +417,7 @@ function create_experiment(params) {
     var prev_server_versions = 0
     var prev_server_fissed_versions = 0
     var prev_server_fissures = 0
+    var prev_server_broken_fissures = 0
 
     return () => {
         var e = events.sort((a, b) => a[0] - b[0]).shift()
@@ -410,7 +443,11 @@ function create_experiment(params) {
             })
             prev_server_fissed_versions = Object.keys(fissed_versions).length
 
-            prev_server_fissures = Object.keys(server.node.resource_at(page_key).fissures).length
+            let fissures = server.node.resource_at(page_key).fissures
+
+            prev_server_fissures = Object.keys(fissures).length
+
+            prev_server_broken_fissures = Object.values(fissures).filter(f => !fissures[f.b + ':' + f.a + ':' + f.conn]).length
         }
 
         return {
@@ -419,9 +456,13 @@ function create_experiment(params) {
             server_versions: prev_server_versions,
             server_fissed_versions: prev_server_fissed_versions,
             server_fissures: prev_server_fissures,
+            server_broken_fissures: prev_server_broken_fissures,
             num_active_servers: server ? 1 : 0,
             num_clients: clients.length,
-            num_active_clients: clients.filter(x => x.is_open).length
+            num_active_clients: clients.filter(x => x.is_open).length,
+
+            server,
+            clients
         }
     }
 }
@@ -628,24 +669,26 @@ function create_sparkline(text, w, h, max_y) {
     
     var x = 0
     
-    d.update = y => {
+    d.update = (...args) => {
         var g = front.getContext('2d')
-        
-        while (y > max_y) {
-            let gg = front_copy.getContext('2d')
-            gg.clearRect(0, 0, front.width, front.height)
-            gg.drawImage(front, 0, 0)
-            g.clearRect(0, 0, front.width, front.height)
-            g.drawImage(front_copy, 0, front.height / 2, front.width, front.height / 2)
+
+        args.forEach((y, i) => {
+            while (y > max_y) {
+                let gg = front_copy.getContext('2d')
+                gg.clearRect(0, 0, front.width, front.height)
+                gg.drawImage(front, 0, 0)
+                g.clearRect(0, 0, front.width, front.height)
+                g.drawImage(front_copy, 0, front.height / 2, front.width, front.height / 2)
+                
+                max_y *= 2
+                update_label()
+            }
             
-            max_y *= 2
-            update_label()
-        }
-        
-        g.fillStyle = 'rgba(255, 128, 0, 0.5)'
-        
-        var h = lerp(0, 0, max_y, front.height, y)
-        g.fillRect(x, front.height - h, 1, h)
+            g.fillStyle = ['rgba(255, 128, 0, 0.5)', 'rgba(255, 0, 255, 0.5)'][i]
+            
+            var h = lerp(0, 0, max_y, front.height, y)
+            g.fillRect(x, front.height - h, 1, h)
+        })
 
         x++
 
@@ -673,6 +716,196 @@ function rand_range(a) {
 }
 
 function lerp(t0, v0, t1, v1, t) { return (t - t0) * (v1 - v0) / (t1 - t0) + v0 }
+
+function calc_time_dag_size(T, r) {
+    var vs = {}
+    function get_layer(v) {
+        if (!vs[v]) vs[v] = {vid: v}
+        if (vs[v].layer) return vs[v].layer
+        return vs[v].layer = Object.keys(T[v]).reduce((x, p) => {
+            return Math.max(x, get_layer(p) + 1)
+        }, 0)
+    }
+    Object.keys(T).forEach(get_layer)
+    
+    var layer_members = {}
+    var num_layers = 0
+    Object.values(vs).forEach(v => {
+        layer_members[v.layer] = layer_members[v.layer] || []
+        layer_members[v.layer].push(v.vid)
+        
+        if (v.layer >= num_layers) num_layers = v.layer + 1
+    })
+    
+    Object.values(layer_members).forEach(layer => {
+        layer.sort().forEach((v, i) => {
+            vs[v].layer_i = i
+        })
+    })
+
+    var max_x = 0
+    var max_y = 0
+    Object.values(vs).forEach(v => {
+        max_x = Math.max(max_x, v.layer_i + 1)
+        max_y = Math.max(max_y, r + (v.layer * r*3))
+    })
+    return {w: max_x, h: max_y}
+}
+
+function draw_time_dag(c, g, T, ack_leaves, acks_in_process, fissures, x, y, w, h, r) {
+    g.lineWidth = 3
+    
+    var vs = {}
+    function get_layer(v) {
+        if (!vs[v]) vs[v] = {vid: v}
+        if (vs[v].layer) return vs[v].layer
+        return vs[v].layer = Object.keys(T[v]).reduce((x, p) => {
+            return Math.max(x, get_layer(p) + 1)
+        }, 0)
+    }
+    Object.keys(T).forEach(get_layer)
+    
+    var layer_members = {}
+    var num_layers = 0
+    Object.values(vs).forEach(v => {
+        layer_members[v.layer] = layer_members[v.layer] || []
+        layer_members[v.layer].push(v.vid)
+        
+        if (v.layer >= num_layers) num_layers = v.layer + 1
+    })
+    
+    Object.values(layer_members).forEach(layer => {
+        layer.sort().forEach((v, i) => {
+            vs[v].layer_i = i
+        })
+    })
+
+    function get_node_pos(v) {
+        var layer_count = layer_members[v.layer].length
+        return [
+            lerp(0, x + r, layer_count + 1, x + w - r, v.layer_i + 1),
+            y + r + (v.layer * r*3)
+        ]
+    }
+
+    Object.entries(vs).forEach(e => {
+        var a_pos = get_node_pos(e[1])
+        g.beginPath()
+        Object.keys(T[e[0]]).forEach(p => {
+            g.moveTo(a_pos[0], a_pos[1])
+            
+            var b_pos = get_node_pos(vs[p])
+            g.lineTo(b_pos[0], b_pos[1])
+        })
+        g.strokeStyle = 'lightblue'
+        g.stroke()
+    })
+    
+    var fully_acked = {}
+    function mark_fully_acked_rec(v) {
+        if (!fully_acked[v]) {
+            fully_acked[v] = true
+            Object.keys(T[v]).forEach(mark_fully_acked_rec)
+        }
+    }
+    Object.keys(ack_leaves).forEach(mark_fully_acked_rec)
+    
+    Object.entries(vs).forEach(e => {
+        var node_pos = get_node_pos(e[1])
+        
+        g.beginPath()
+        g.arc(node_pos[0], node_pos[1], r, 0, tau)
+        g.fillStyle = 'white'
+        g.fill()
+
+
+
+
+        
+        // if (acks_in_process[e[0]]) {
+        //     var current_count = Math.max(0, acks_in_process[e[0]].count)
+        //     var max_count = 0
+        //     var search_i = fi
+        //     try {
+        //         let x = null
+        //         while (x = frames[search_i].peers[pi].keys.my_key.phase_one[e[0]]) {
+        //             max_count = x.count
+        //             search_i--
+        //         }
+        //     } catch (e) {}
+            
+        //     var percent_done = (max_count - current_count) / max_count
+        //     if (percent_done > 0) {
+        //         g.beginPath()
+        //         g.arc(node_pos[0], node_pos[1], r, 0, tau/2, true)
+        //         if (percent_done == 1) {
+        //             g.arc(node_pos[0], node_pos[1], r, tau/2, 0, true)
+        //         } else if (percent_done < 0.5) {
+        //             var x = lerp(0, r, 0.5, 0, percent_done)
+        //             var C = (r*r - x*x) / (2*x)
+        //             var angle = Math.atan2(r, C)
+        //             g.arc(node_pos[0], node_pos[1] + C, C + x, tau*3/4 - angle, tau*3/4 + angle)
+        //         } else if (percent_done > 0.5) {
+        //             var x = lerp(0.5, 0, 1, r, percent_done)
+        //             var C = (r*r - x*x) / (2*x)
+        //             var angle = Math.atan2(r, C)
+        //             g.arc(node_pos[0], node_pos[1] - C, C + x, tau/4 - angle, tau/4 + angle)
+        //         } else {
+        //             g.arc(node_pos[0], node_pos[1] + C, C + x, 0, tau)
+        //         }
+        //         g.fillStyle = 'lightblue'
+        //         g.fill()
+        //     }
+        // }
+
+
+
+
+        
+        g.beginPath()
+        g.arc(node_pos[0], node_pos[1], r, 0, tau)
+        if (fully_acked[e[0]]) {
+            g.fillStyle = 'blue'
+            g.fill()
+        } else {
+            g.strokeStyle = 'blue'
+            g.stroke()
+        }
+        
+        draw_text(c, g, e[0].slice(0, 3), node_pos[0] + r, node_pos[1] + r, 'grey', 'left', 'top')
+    })
+    
+    Object.values(fissures).forEach(f => {
+        Object.keys(f.versions).forEach(v => {
+            if (!T[v]) return
+            g.beginPath()
+            
+            var rand = Math.create_rand(f.conn)
+            g.strokeStyle = '#' + rand().toString(16).slice(2, 8)
+            
+            var node_pos = get_node_pos(vs[v])
+            //var rr = r * 1.45
+            var rr = r * (1.2 + rand())
+            
+            g.lineWidth = 5
+            if (f.a < f.b) {
+                g.arc(node_pos[0], node_pos[1], rr, tau/4, tau*3/4)
+            } else {
+                g.arc(node_pos[0], node_pos[1], rr, tau/4, tau*3/4, true)
+            }
+            g.stroke()
+        })
+    })
+    
+}
+
+function draw_text(c, g, text, x, y, color, x_align, y_align, font) {
+    g.font = font || '15px Arial'
+    if (color) g.fillStyle = color
+    g.textAlign = x_align || 'left'
+    g.textBaseline = y_align || 'middle'
+    g.fillText(text, x, y)
+}
 
 main()
 

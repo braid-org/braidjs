@@ -292,6 +292,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         var resource = node.resource_at(key)
         if (parents && Object.keys(parents).length) {
             var anc = resource.ancestors(parents, true)
+            Object.keys(parents).forEach(parent => delete anc[parent])
         } else { var anc = {} }
         var versions = resource.mergeable.generate_braid(x => anc[x])
         versions = JSON.parse(JSON.stringify(versions))
@@ -1403,11 +1404,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
             // console.log('ancestors:', versions)
             function recurse (version) {
                 if (result[version]) return
-                result[version] = true
                 if (!resource.time_dag[version]) {
                     if (ignore_nonexistent) return
                     assert(false, 'The version '+version+' no existo')
                 }
+                result[version] = true
                 Object.keys(resource.time_dag[version]).forEach(recurse)
             }
             Object.keys(versions).forEach(recurse)
