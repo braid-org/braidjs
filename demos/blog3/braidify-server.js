@@ -23,7 +23,7 @@ function generate_patches(res, patches) {
         } else {
             console.log('patch is', patch)
             var range = patch.range,
-                change = patch.value
+                change = patch.content
             // if (res.getHeader('content-type') === 'application/json')
             //     change = JSON.stringify(change)
         }
@@ -83,16 +83,16 @@ function parse_patches (req, cb) {
             var patch_range = p_headers['content-range'].startsWith("json=") ?
                 p_headers['content-range'].substring(5) :
                 p_headers['content-range']
-            var patch_value =
+            var patch_content =
                 curr_patch.substring(p_headers_length + 2,
                                      p_headers_length + 2 + body_length)
 
             // console.log('headers is', req.headers)
             // if (req.headers['content-type'] === 'application/json')
-            //     patch_value = JSON.parse(patch_value)
+            //     patch_content = JSON.parse(patch_content)
 
             // We've got our patch!
-            patches.push({range: patch_range, value: patch_value})
+            patches.push({range: patch_range, content: patch_content})
 
             curr_patch = curr_patch.substring(p_headers_length + 2 + body_length)
         }
@@ -152,7 +152,7 @@ function braidify (req, res, next) {
         (done, err) => parse_patches(
             req,
             (patches) => done(patches.map(
-                p => ({...p, value: JSON.parse(p.value)})
+                p => ({...p, content: JSON.parse(p.content)})
             ))
         )
     )
@@ -197,7 +197,7 @@ function braidify (req, res, next) {
 function send_version({res, version, parents, patches, body}) {
     console.log('sending version', {version, parents, patches, body})
     if (body) assert(typeof body === 'string');
-    (patches||[]).forEach(p=>assert(typeof p.value === 'string'))
+    (patches||[]).forEach(p=>assert(typeof p.content === 'string'))
     if (version)
         res.write(`Version: ${JSON.stringify(version)}\n`)
     if (parents && parents.length) {
