@@ -132,7 +132,9 @@ module.exports = require.pipe = function create_pipe({node, id, send, connect, d
                 && !we_welcomed
                 /*&& !this.subscribed_keys[args.key].we_requested*/) {
                 // Then we need to welcome them too
-                this.send(node.create_welcome_message(args.key, args.parents))
+                let parents = {...args.parents}
+                args.versions.forEach(v => parents[v.version] = true)
+                this.send(node.create_welcome_message(args.key, parents))
         
                 // Now we store a subset of this pipe in a place that will
                 // eventually be saved to disk.  When a node comes up after a

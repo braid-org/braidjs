@@ -173,7 +173,7 @@ async function main() {
     var exp_time_est = 1
     var longest = 0
     var longest_seed = null
-    var N = 100
+    var N = 2000
 
     var ST = performance.now()
 
@@ -184,7 +184,7 @@ async function main() {
         let sttt = performance.now()
         
 
-        var seed = '__acb_def_fff_fF2__:' + i
+        var seed = '__acb_def_fff_fF246__:' + i
 
         // N = 1
         // seed = '__abb__29:4'
@@ -234,7 +234,7 @@ async function run_experiment(rand_seed) {
     g_debug_WS_messages_delayed = []
     debug_WSS.the_one = null
 
-    var trials = 200
+    var trials = 30
 
     var db = create_db()
     var server = null

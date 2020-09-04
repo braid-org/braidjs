@@ -262,16 +262,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         var welcome_msg = node.create_welcome_message(key, parents)
 
-        var best_t = -Infinity
-        var best_parents = null
-        Object.values(resource.fissures).forEach(f => {
-            if (f.a == node.pid && f.b == origin.remote_peer && f.time > best_t) {
-                best_t = f.time
-                best_parents = f.versions
-            }
-        })
-        welcome_msg.parents = best_parents
-
         // Remember this subscription from origin so that we can fissure if
         // our connection to origin breaks
         if (u.has_keep_alive(origin, key))
@@ -292,7 +282,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
         var resource = node.resource_at(key)
         if (parents && Object.keys(parents).length) {
             var anc = resource.ancestors(parents, true)
-            Object.keys(parents).forEach(parent => delete anc[parent])
         } else { var anc = {} }
         var versions = resource.mergeable.generate_braid(x => anc[x])
         versions = JSON.parse(JSON.stringify(versions))
@@ -311,7 +300,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         var fissures = Object.values(resource.fissures)
 
-        return {method: 'welcome', key, versions, fissures}
+        // here we are setting "parents" equal to the leaves of "anc"
+        parents = resource.get_leaves(anc)
+        
+        return {method: 'welcome', key, versions, fissures, parents}
     }
     
     node.error = ({key, type, in_response_to, origin}) => {
@@ -525,7 +517,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     // Todo:
     //  - Rename min_leaves and unack_boundary to unack_from and unack_to
-    node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, origin}) => {
+    node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, parents, origin}) => {
         // Sanity-check the input
         {
             function report(x) {
@@ -574,6 +566,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
                                || !Object.entries(min_leaves).every(
                                    ([k, v]) => v === true)))
                 return report('invalid min_leaves: ' + JSON.stringify(min_leaves))
+            
+            if (parents && (typeof(parents) != 'object'
+                               || !Object.entries(parents).every(
+                                   ([k, v]) => v === true)))
+                return report('invalid parents: ' + JSON.stringify(parents))
         }
 
         // let people know about the welcome
@@ -775,30 +772,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // result included...
         
         if (!min_leaves) {
-            min_leaves = {}
-
-            // G: this next line of code computes the intersection of
-            // our versions, and the incoming versions. It does this by
-            // starting with "versions" (which is the incoming versions),
-            // and filtering away anything in versions_T, which happens
-            // to contain only versions which are new to us,
-            // leaving us with all the versions in the incoming versions
-            // that we already know about (which is the intersection we seek)
-
-            var min = versions.filter(v => !versions_T[v.version])
-
-            // G: now "min" is correct, but we really want "min_leaves",
-            // which is the so-called "boundary" of the "min" set,
-            // so we start by adding everything to it,
-            // and then removing anything in it which is really
-            // an ancestor of something else in the set
-
-            min.forEach(v => min_leaves[v.version] = true)
-            min.forEach(v =>
-                        Object.keys(v.parents).forEach(p => {
-                            delete min_leaves[p]
-                        })
-                       )
+            min_leaves = parents ? {...parents} : {}
+            versions.forEach(v => {
+                if (!versions_T[v.version]) min_leaves[v.version] = true
+            })
+            min_leaves = resource.get_leaves(resource.ancestors(min_leaves, true))
         }
 
         // G: we are now armed with this "min_leaves" variable,
@@ -1414,6 +1392,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
             Object.keys(versions).forEach(recurse)
             return result
         }
+        resource.get_leaves = (versions) => {
+            var leaves = {...versions}
+            Object.keys(versions).forEach(v => {
+                Object.keys(resource.time_dag[v]).forEach(p => delete leaves[p])
+            })
+            return leaves
+        }
+
         // A data structure that can merge simultaneous operations
         resource.mergeable = require('./merge-algos/sync9.js')(resource)
 
