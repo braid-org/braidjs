@@ -569,7 +569,6 @@ function space_dag_break_node(node, x, end_cap, new_next) {
     
     node.elems = node.elems.slice(0, x)
     node.end_cap = end_cap
-    if (end_cap) tail.gash = true
     node.nexts = new_next ? [new_next] : []
     node.next = tail
 
@@ -641,8 +640,7 @@ function space_dag_add_version(S, version, splices, sort_key, is_anc) {
             
             if (s[2]) {
                 var new_node = create_space_dag_node(version, s[2], null, sort_key)
-                if (s[0] == offset && node.gash) {
-                    if (!prev.end_cap) throw 'no end_cap?'
+                if (s[0] == offset && prev && prev.end_cap) {
                     add_to_nexts(prev.nexts, new_node)
                 } else {
                     space_dag_break_node(node, s[0] - offset, true, new_node)
