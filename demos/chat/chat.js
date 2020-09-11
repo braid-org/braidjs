@@ -14,8 +14,7 @@ if (!use_leadertab)
 print_network = true;
 g_show_protocol_errors = true;
 const params = new URLSearchParams(window.location.search);
-const protocol = params.get("protocol") === 'http' ? 'http' : 'ws';
-if (window.location.protocol === 'https:') protocol += 's'
+const protocol = (params.get("protocol") === 'http' ? 'http' : 'ws') + (window.location.protocol === 'https:' ? 's' : '')
 var braid_url = `${protocol}://${window.location.host}/`
 
 console.log('protocol is ' + protocol)
