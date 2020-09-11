@@ -20,7 +20,7 @@ var braid_url = `${protocol}://${window.location.host}/`
 console.log('protocol is ' + protocol)
 
 if (use_invisible_server)
-    braid_url = `${protocol}://invisible.college:3009/`
+    braid_url = `${protocol}://invisible.college:3010/`
 if (!use_leadertab)
     var socket = require(protocol == 'https' ? 'http1-client.js' : 'websocket-client.js')({node, url: braid_url});
 
