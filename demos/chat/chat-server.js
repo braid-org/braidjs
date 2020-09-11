@@ -6,12 +6,6 @@ require('dotenv').config();
 // When we have the npm version, this can be improved
 const lib_path = "../../";
 
-Object.fromEntries = (array) => {
-  var result = {}
-  array.forEach(x => result[x[0]] = result[x[1]])
-  return result
-}
-
 // Bundler doesn't actually return anything, but calling it with require
 //   generates the braid-bundle.js
 require(path.join(lib_path, './util/braid-bundler.js'));

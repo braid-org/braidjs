@@ -4,7 +4,7 @@ const usrKey = "/usr";
 const browserId = localStorage.browserId || 'B-'+randomString();
 const escapedId = JSON.stringify(browserId);
 const use_leadertab = false
-const use_invisible_server = true
+const use_invisible_server = false
 localStorage.browserId = browserId;
 
 var node;
@@ -14,9 +14,11 @@ if (!use_leadertab)
 print_network = true;
 g_show_protocol_errors = true;
 const params = new URLSearchParams(window.location.search);
-const protocol = params.get("protocol") === 'http' ? 'https' : 'wss';
-const is_secure = window.location.protocol === 'https:';
-var braid_url = `${protocol}${is_secure ? 's' : ''}://${window.location.host}/`
+const protocol = params.get("protocol") === 'http' ? 'http' : 'ws';
+if (window.location.protocol === 'https:') protocol += 's'
+var braid_url = `${protocol}://${window.location.host}/`
+
+console.log('protocol is ' + protocol)
 
 if (use_invisible_server)
     braid_url = `${protocol}://invisible.college:3009/`
