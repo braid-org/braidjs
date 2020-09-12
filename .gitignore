@@ -130,3 +130,6 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Mike isn't into package-lock, but feel free to disagree with him
+package-lock.json
