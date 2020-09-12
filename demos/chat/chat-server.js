@@ -25,7 +25,7 @@ if (process.env.MAIL_TO
         process.env.WEB_PUSH_PRIVATE
     );
 
-const port = 3010;
+const port = 3000;
 //global.g_show_protocol_errors = true;
 //global.print_network = true
 //global.show_debug = true;
