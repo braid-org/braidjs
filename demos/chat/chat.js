@@ -29,7 +29,7 @@ if (!use_leadertab)
 let createListeners = function () {
     if (use_leadertab)
         node = require('leadertab-shell.js')(braid_url);
-    node.fissure_lifetime = 1000 * 60 * 60 * .5 // Fissures expire after 30 minutes
+    node.fissure_lifetime = 1000 * 60 * 60 * 24 // Fissures expire after 24 hours
 
     node.default(`${msgKey}/*`, path => []);
     node.default(msgKey, []);
