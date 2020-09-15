@@ -5,7 +5,7 @@ require('../util/utilities.js')
 
 var n_peers = 3
 var n_steps_per_trial = 100
-var n_trials = 100000
+var n_trials = 100
 var rand = null
 var random_seed_base = '000_hi_010bcdefg'
 
@@ -301,7 +301,7 @@ run_trial.async = (trial_num, cb) => {
 
 var networks = [
     './virtual-p2p.js',
-    //'./websocket-test.js'
+    './websocket-test.js'
 ]
 
 var network

@@ -1064,9 +1064,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
                     versions[v] = true
             })
             
-            var parents = {}
-            Object.keys(resource.fissures).forEach(x => parents[x] = true )
-            
+            // Now collect the parents.  We start with all fissures...
+            var parents = {...resource.fissures}
+            // ... and then filter down to just be the leaves of the fissure DAG
+            Object.values(resource.fissures).forEach(f => {
+                Object.keys(f.parents).forEach(p => delete parents[p])
+            })
+            Object.keys(parents).forEach(p => parents[p] = true)
+
             fissure = {
                 a: node.pid,
                 b: origin.remote_peer,
