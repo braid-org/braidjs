@@ -24,6 +24,9 @@ g_log_stuff_max_length = 20000 // 150
 g_real_clearTimeout = clearTimeout
 g_real_setTimeout = setTimeout
 
+g_got_local_ack = false
+g_got_global_ack = false
+
 async function main() {
     var d = make_html(`<div style="display:grid;grid-template-columns:200px 1fr;width:100%;height:100%"></div>`)
     document.body.append(d)
@@ -31,12 +34,13 @@ async function main() {
     var side_panel = make_html(`<div style="background:orange">HELLO</div>`)
     d.append(side_panel)
 
-    var spark_panel = make_html(`<div style="width:100%"></div>`)
+    var spark_panel = make_html(`<div style="width:100%;position:relative"></div>`)
     d.append(spark_panel)
 
     var stats = {
         clock: 1,
         time: 1,
+        full_acks: 1,
         server_versions: 1,
         server_fissures: 1,
         num_active_servers: 10,
@@ -46,11 +50,13 @@ async function main() {
     var stat_overlays = {
         server_fissures: ['server_broken_fissures']
     }
+    var after_bottom_sl_y = 0
     Object.entries(stats).forEach(([k, v]) => {
         var sl = create_sparkline(k, spark_panel.offsetWidth, 60, v)
         spark_panel.append(sl)
         sl.style.marginBottom = '19px'
         stats[k] = sl
+        after_bottom_sl_y = sl.offsetTop + sl.offsetHeight
     })
 
     var time_dag_c = make_html(`<canvas></canvas>`)
@@ -106,52 +112,117 @@ async function main() {
         input.onchange = () => input.value = params[k]
     })
 
-    var last_results = null
     var pump = null
+    var pumper = null
     var pump_timer = null
+
+    var history = []
+    var show_time = -1
+
+    function draw_dags() {
+        var resource = show_time >= 0 ? history[show_time] : history[history.length - 1]
+        if (show_time <= 0) time_line_d.style.left = (history.length - 1)/devicePixelRatio + 'px'
+
+        var c = time_dag_c
+        var g = time_dag_g
+
+        if (!resource) {
+            g.fillStyle = 'rgba(245, 235, 255, 0.8)'
+            g.fillRect(0, 0, c.width, c.height)
+            return
+        }
+
+        var size = calc_time_dag_size(resource.time_dag, 18)
+
+        c.width = spark_panel.offsetWidth * devicePixelRatio
+        c.height = Math.max(size.h + 50, c.height)
+        c.style.width = (c.width / devicePixelRatio) + 'px'
+        c.style.height = (c.height / devicePixelRatio) + 'px'
+
+        g.fillStyle = 'rgba(245, 235, 255, 0.8)'
+        g.fillRect(0, 0, c.width, c.height)
+
+        draw_time_dag(c, g, resource.time_dag, resource.acked_boundary, resource.acks_in_process, resource.fissures, 0, 0, c.width/2, c.height, 18)
+
+        try {
+            var S = resource.space_dag.S.elems[0].S.text.S.elems[0]
+            draw_space_dag(c, g, S, c.width/2, 0)
+        } catch (e) {}
+    }
+
+    function on_restart() {
+        if (pump_timer) g_real_clearTimeout(pump_timer)
+        pump = create_experiment(params)
+        pumper = () => {
+            var results = pump()
+
+            var dx = 0
+            Object.entries(stats).forEach(([k, sl]) => {
+                var args = [results[k]]
+                if (stat_overlays[k]) stat_overlays[k].forEach(k => args.push(results[k]))
+                dx = sl.update(...args)
+            })
+
+            history.push(results.server_res || null)
+            if (dx < 0) for (var i = 0; i > dx; i--) history.shift()
+            if (dx < 0 && show_time >= 0) update_time(show_time + dx)
+            draw_dags()
+
+            pump_timer = g_real_setTimeout(pumper, params.pump_delay)
+        }
+        pumper()
+    }
+
+    function on_resume() {
+        if (!pump) on_restart()
+        else if (!pump_timer) pump_timer = g_real_setTimeout(pumper, params.pump_delay)
+    }
+
+    function on_pause() {
+        if (pump_timer) g_real_clearTimeout(pump_timer)
+        pump_timer = null
+    }
+
     var go_button = make_html(`<button style="width:100%;height:60px;margin-top:18px">GO</button>`)
+    side_panel.append(go_button)
     go_button.onclick = () => {
-        if (pump) {
-            pump = null
-            g_real_clearTimeout(pump_timer)
-            go_button.textContent = 'GO'
+        if (pump_timer) {
+            on_pause()
+            go_button.textContent = 'RESUME'
         } else {
-            go_button.textContent = 'STOP'
-            pump = create_experiment(params)
-            pumper()
-            function pumper() {
-                var results = last_results = pump()
-
-                Object.entries(stats).forEach(([k, sl]) => {
-                    var args = [results[k]]
-                    if (stat_overlays[k]) stat_overlays[k].forEach(k => args.push(results[k]))
-                    sl.update(...args)
-                })
-
-                if (results.server) {
-                    var c = time_dag_c
-                    var g = time_dag_g
-
-                    var resource = results.server.node.resource_at(page_key)
-
-                    var size = calc_time_dag_size(resource.time_dag, 18)
-
-                    c.width = 1000
-                    c.height = size.h + 50
-                    c.style.width = (c.width / devicePixelRatio) + 'px'
-                    c.style.height = (c.height / devicePixelRatio) + 'px'
-
-                    g.fillStyle = 'rgba(245, 235, 255, 0.8)'
-                    g.fillRect(0, 0, c.width, c.height)
-
-                    draw_time_dag(c, g, resource.time_dag, resource.acked_boundary, resource.acks_in_process, resource.fissures, 0, 0, c.width, c.height, 18)
-                }
-
-                pump_timer = g_real_setTimeout(pumper, params.pump_delay)
-            }
+            on_resume()
+            go_button.textContent = 'PAUSE'
         }
     }
-    side_panel.append(go_button)
+
+    var restart_button = make_html(`<button style="width:100%;height:60px;margin-top:18px">RESTART</button>`)
+    side_panel.append(restart_button)
+    restart_button.onclick = () => {
+        on_restart()
+        go_button.textContent = 'PAUSE'
+    }
+
+    var time_line_d = make_html(`<div style="width:${1}px;height:${after_bottom_sl_y}px;background:red;position:absolute;left:0px;top:0px"></div>`)
+    spark_panel.append(time_line_d)
+    spark_panel.onmousemove = spark_panel.onmousedown = e => {
+        var r = spark_panel.getBoundingClientRect()
+        var x = e.clientX - r.left
+        if (e.buttons) update_time(x * devicePixelRatio)
+    }
+
+    function update_time(t) {
+        time_line_d.style.left = t/devicePixelRatio + 'px'
+        show_time = t
+        draw_dags()
+    }
+
+    var follow_button = make_html(`<button style="width:100%;height:60px;margin-top:18px">FOLLOW ALONG</button>`)
+    side_panel.append(follow_button)
+    follow_button.onclick = () => {
+        console.log('got here??')
+        show_time = -1
+        draw_dags()
+    }
 }
 
 require('../util/utilities.js')
@@ -423,13 +494,9 @@ function create_experiment(params) {
         var e = events.sort((a, b) => a[0] - b[0]).shift()
         t = e[0]
 
-
-
         var st = performance.now()
         e[1]()
         var et = performance.now()
-
-
 
         if (server) {
             prev_server_versions = Object.keys(server.node.resource_at(page_key).time_dag).length
@@ -450,9 +517,14 @@ function create_experiment(params) {
             prev_server_broken_fissures = Object.values(fissures).filter(f => !fissures[f.b + ':' + f.a + ':' + f.conn]).length
         }
 
+        var full_acks = g_got_global_ack ? 1 : g_got_local_ack ? 0.5 : 0
+        g_got_local_ack = false
+        g_got_global_ack = false
+
         return {
             clock: (t % 1000)/1000,
             time: et - st,
+            full_acks,
             server_versions: prev_server_versions,
             server_fissed_versions: prev_server_fissed_versions,
             server_fissures: prev_server_fissures,
@@ -462,7 +534,8 @@ function create_experiment(params) {
             num_active_clients: clients.filter(x => x.is_open).length,
 
             server,
-            clients
+            clients,
+            server_res: server && JSON.parse(JSON.stringify(server.node.resource_at(page_key)))
         }
     }
 }
@@ -493,6 +566,13 @@ async function create_server(db) {
 
     node.on_errors.push((key, origin) => {
         node.unbind(key, origin)
+    })
+
+    node.ons.push((type, args) => {
+        if (type == 'ack') {
+            if (args.seen == 'local') g_got_local_ack = true
+            else g_got_global_ack = true
+        }
     })
 
     var wss = require('../protocol-websocket/websocket-server.js')(node, {wss: new debug_WSS()})
@@ -699,7 +779,9 @@ function create_sparkline(text, w, h, max_y) {
             g.clearRect(0, 0, front.width, front.height)
             g.drawImage(front_copy, -1, 0, front.width, front.height)
             x--
+            return -1
         }
+        return 0
     }
     
     return d
@@ -897,6 +979,48 @@ function draw_time_dag(c, g, T, ack_leaves, acks_in_process, fissures, x, y, w, 
         })
     })
     
+}
+
+function draw_space_dag(c, g, S, x, y) {
+    function helper(node, y, px, py) {
+        g.beginPath()
+        g.moveTo(x, y)
+        g.lineTo(px, py)
+        g.lineWidth = 1
+        g.strokeStyle = 'lightblue'
+        g.stroke()
+
+        var begin_x
+        var end_x
+        
+        draw_text(c, g, node.version ? node.version.slice(0, 3) : '', x, y + 25, 'grey', 'left', 'middle')
+        
+        var my_text = node.elems + (node.end_cap ? '*' : '')
+
+        draw_text(c, g, my_text, x, y, Object.keys(node.deleted_by).length > 0 ? 'red' : 'blue', 'left', 'middle', '20px Arial')
+        
+        var width = g.measureText(my_text).width
+        x += width
+
+        var px = x
+        x += 10
+        for (var n of node.nexts) helper(n, y + 40, px, y)
+        if (node.next) helper(node.next, y, px, y)
+    }
+    if (!S) return
+    else if (typeof(S) == 'string') helper({
+        version : 'N/A',
+        elems : S,
+        deleted_by : {},
+        nexts : []
+    })
+    else if (S.t == 'lit') helper({
+        version : 'N/A',
+        elems : S.S,
+        deleted_by : {},
+        nexts : []
+    })
+    else helper(S.S, y, x, y)
 }
 
 function draw_text(c, g, text, x, y, color, x_align, y_align, font) {
