@@ -96,9 +96,6 @@ header {
     padding-bottom: 2px;
     padding-top: 0;
 }
-.messageBox .msg:hover {
-    background-color: rgba(0, 0, 0, 0.1);
-}
 .messageBox .msg .user-id {
     color: #356;
     font-weight: 600;
