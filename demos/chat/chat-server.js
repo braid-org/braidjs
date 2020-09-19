@@ -7,13 +7,13 @@ require('dotenv').config()
 const lib_path = "../../"
 
 // Bundler doesn't actually return anything, but calling it with require
-//   generates the braid-bundle.js
+// generates the braid-bundle.js
 require(path.join(lib_path, './util/braid-bundler.js'))
 const sqlite = require(path.join(lib_path, './util/sqlite-store.js'))
 const store = require(path.join(lib_path, './util/store.js'))
 const braid = require(path.join(lib_path, './braid.js'))
-const braidWebsocketServer = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))
-const braidHttpServer = require(path.join(lib_path, './protocol-http1/http1-server.js'))
+const braid_websocket_server = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))
+const braid_http_server = require(path.join(lib_path, './protocol-http1/http1-server.js'))
 const webpush = require("web-push")
 
 if (process.env.MAIL_TO
@@ -27,13 +27,8 @@ if (process.env.MAIL_TO
 
 const port = 3009
 
-//global.g_show_protocol_errors = true
-//global.print_network = true
-//global.show_debug = true
-
-// Static files we want to serve over http
-//  and where to find them on disk, and their mime types
-const knownFiles = {
+// Static files to serve over HTTP
+var known_files = {
 	'/braid-bundle.js': {
 		path: path.join(lib_path, `/builds/braid-bundle.js`),
 		mime: 'text/javascript'
@@ -88,7 +83,7 @@ const knownFiles = {
 	}
 }
 // Keys that braid knows about, and their default values.
-const knownKeys = {
+var known_keys = {
 	'/usr': {},
 	'/chat': []
 }
@@ -133,10 +128,10 @@ async function serveFile(req, res) {
 		res.writeHead(201, {'Content-Type': 'text/html'})
 		res.end()
 	} else {
-		if (knownKeys.hasOwnProperty(req.url))
+		if (known_keys.hasOwnProperty(req.url))
 			return braidCallback(req, res)
 		const reqPath = new URL(req.url, `http://${req.headers.host}`)
-		const f = knownFiles[reqPath.pathname]
+		const f = known_files[reqPath.pathname]
 		if (f) {
 			res.writeHead(200, headers = { 'content-type': f.mime })
 			fs.createReadStream(f.path).pipe(res)
@@ -186,21 +181,21 @@ var db = sqlite('db.sqlite')
 var node = braid({pid: 'server-' + Math.random().toString(36).slice(2,5)})
 node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
 
-var braidCallback = braidHttpServer(node)
+var braidCallback = braid_http_server(node)
 store(node, db).then(node => {
 	// Unsubscribe on error
 	// Maybe not needed
 	node.on_errors.push((key, origin) => node.unbind(key, origin))
 
 	// For any of the default keys, if we have no versions for them, set an initial version.
-	Object.keys(knownKeys)
+	Object.keys(known_keys)
 		.filter(k => Object.keys(node.resource_at(k).current_version).length == 0)
-		.forEach(k => node.set(k, knownKeys[k]))
-	Object.keys(knownKeys)
+		.forEach(k => node.set(k, known_keys[k]))
+	Object.keys(known_keys)
 		.forEach(k => node.get(k))
 
 	var wss = new ws.Server({ server })
-	braidWebsocketServer(node, { port, wss })
+	braid_websocket_server(node, { port, wss })
 
 	console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 	server.listen(port)
