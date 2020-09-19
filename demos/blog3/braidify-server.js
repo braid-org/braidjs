@@ -148,7 +148,7 @@ function braidify (req, res, next) {
     req.patches = () => new Promise(
         (done, err) => parse_patches(req, (patches) => done(patches))
     )
-    req.jsonPatches = () => new Promise(
+    req.patchesJSON = () => new Promise(
         (done, err) => parse_patches(
             req,
             (patches) => done(patches.map(

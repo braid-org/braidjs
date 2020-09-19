@@ -1,4 +1,4 @@
-var pubsub = require('./pubsub.js')
+//var pubsub = require('./pubsub.js')
 assert = require('assert')
 
 // Chat Data
@@ -57,7 +57,7 @@ app.get('/blog',     getter)
 app.get('/post/:id', getter)
 
 app.put('/blog', async (req, res) => {
-    var patches = await req.jsonPatches()
+    var patches = await req.patchesJSON()
 
     assert(patches.length === 1)
     assert(patches[0].range === '[-0:-0]')
@@ -80,7 +80,7 @@ app.put('/blog', async (req, res) => {
     res.end()
 })
 app.put('/post/:id', async (req, res) => {
-    var patches = await req.jsonPatches()
+    var patches = await req.patchesJSON()
 
     assert(patches.length === 1)
     assert(patches[0].range === '')
@@ -102,6 +102,7 @@ app.put('/post/:id', async (req, res) => {
 
 // Free the CORS!
 function free_cors (req, res, next) {
+    console.log('free the cors!', req.method, req.url)
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
     res.setHeader('Range-Request-Allow-Units', 'json')
     res.setHeader("Patches", "OK")
