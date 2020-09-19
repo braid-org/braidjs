@@ -201,7 +201,7 @@ store(node, db).then(node => {
 
 //App notifications
 const notification_node = require("../../braid.js")()
-//notification_node.websocket_client({url:'wss://invisible.college:3009'})
+notification_node.websocket_client({url:'wss://invisible.college:3009'})
 notification_node.get('/usr', addUsers)
 notification_node.get('/chat', update_messages)
 const { Expo } = require("expo-server-sdk");
