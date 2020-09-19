@@ -176,7 +176,7 @@ var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certifi
 // Setup the braid sqlite store at a local db
 var db = sqlite('db.sqlite');
 var node = braid();
-node.fissure_lifetime = 1000 * 60 * 60 * 24 // Fissures expire after 24 hours
+node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
 
 var braidCallback = braidHttpServer(node);
 store(node, db).then(node => {

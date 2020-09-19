@@ -27,7 +27,7 @@ if (!use_leadertab)
 let createListeners = function () {
     if (use_leadertab)
         node = require('leadertab-shell.js')(braid_url)
-    node.fissure_lifetime = 1000 * 60 * 60 * 24 // Fissures expire after 24 hours
+    node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
 
     node.default('/chat', [])
     node.default('/usr',  {})
@@ -57,7 +57,7 @@ let createListeners = function () {
         return (userId && users[userId]) ? users[userId].displayname : "Anonymous"
     }
 
-    function format_header(msg) {
+    function format_header (msg) {
         let timestamp = "Live"
         if (msg.time) {
             now = new Date()
