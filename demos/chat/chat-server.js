@@ -207,21 +207,20 @@ notification_node.get('/chat', update_messages)
 const { Expo } = require("expo-server-sdk");
 let expo = new Expo();
 
-function update_messages(newVal){
+function update_messages(newVal) {
     let message = newVal[newVal.length -1]
     console.log(JSON.stringify(message))
     console.log(message['body'])
-    if(lastSent != message['body']){
-	  //web notifications
-	  sendPushNotifications()
-	  //mobile notifications
-	  let notifications = buildMobileNotifications(getName(message), message['body'])
-	  sendMobileNotifications(notifications)
-      lastSent = message['body']
-      console.log("Sent message")
-    }else{
-      console.log("Didn't send push notification:" +  message['body'])
-    }
+    if (lastSent != message['body']) {
+	    //web notifications
+	    sendPushNotifications()
+	    //mobile notifications
+	    let notifications = buildMobileNotifications(getName(message), message['body'])
+	    sendMobileNotifications(notifications)
+        lastSent = message['body']
+        console.log("Sent message")
+    } else
+        console.log("Didn't send push notification:" +  message['body'])
 }
 
 let savedUsers = {}
@@ -231,42 +230,41 @@ function addUsers(userDict){
 
 function getName(message){
 	let name = savedUsers[message['user']]
-	if(name == undefined){
+	if (name == undefined)
 		name = "unknown"
-	}else{
+	else
 		name = name['displayname']
-	}
+
 	return name
 }
 
 let savedPushTokens = []
 function saveToken(token) {
-	console.log(token.value, savedPushTokens);
+	console.log(token.value, savedPushTokens)
 	console.log(JSON.stringify(token))
-    const exists = savedPushTokens.find(t => t === token.value);
+    const exists = savedPushTokens.find(t => t === token.value)
     if (!exists) {
         console.log("new device saved for push notifications")
-        savedPushTokens.push(token.value);
-    }else{
+        savedPushTokens.push(token.value)
+    } else
       console.log("Device was already saved")
-    }
-};
+}
 
 //creates the mobile notifications. One for every device
 const buildMobileNotifications = ( user, message ) => {
-    if(message == undefined){
-      console.log("message is undefined")
-      return undefined
+    if (message === undefined) {
+        console.log("message is undefined")
+        return undefined
     }
     console.log("Sending push notification from " + " with body \"" + message + "\" subject \"" + user + "\" to "  +savedPushTokens.length + " devices") 
-    let notifications = [];
-    let index = -1;
+    let notifications = []
+    let index = -1
     for (let pushToken of savedPushTokens) {
 		console.log("sending to device:" + pushToken)
-		index ++;
+		index++
 		if (!Expo.isExpoPushToken(pushToken)) {
-		console.error(`Push token ${pushToken} is not a valid Expo push token`);
-		continue;
+		    console.error(`Push token ${pushToken} is not a valid Expo push token`)
+		    continue
 		}
 		notifications.push({
 			to: pushToken,
@@ -274,30 +272,30 @@ const buildMobileNotifications = ( user, message ) => {
 			title: user,
 			body: message,
 			data: { message }
-		});
+		})
 	}
 	return notifications
-};
+}
 
 //Sends the notification list 
 const sendMobileNotifications = (notifications) => {
-  if(!notifications || notifications.length == 0){
-	console.log("no devices linked")
-	return;
-  }else{
-     console.log("sending notifications:" + JSON.stringify(notifications[0]))
-     let chunks = expo.chunkPushNotifications(notifications);
-  
-    (async () => {
-      for (let chunk of chunks) {
-        try {
-          let receipts = await expo.sendPushNotificationsAsync(chunk);
-          console.log(receipts);
-        } catch (error) {
-          console.log("Error: sendPushNotificationsAsync");
-          console.error(error);
-        }
-      }
-    })();
-  }
+    if (!notifications || notifications.length == 0) {
+	    console.log("no devices linked")
+	    return
+    } else {
+        console.log("sending notifications:" + JSON.stringify(notifications[0]))
+        let chunks = expo.chunkPushNotifications(notifications);
+        
+        (async () => {
+            for (let chunk of chunks) {
+                try {
+                    let receipts = await expo.sendPushNotificationsAsync(chunk);
+                    console.log(receipts);
+                } catch (error) {
+                    console.log("Error: sendPushNotificationsAsync");
+                    console.error(error);
+                }
+            }
+        })();
+    }
 }
