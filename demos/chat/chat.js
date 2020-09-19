@@ -5,9 +5,12 @@ var use_leadertab = false
 var use_invisible_server = true
 localStorage.browserId = browserId
 
-var node;
+var node
 if (!use_leadertab)
-    node = require('braid.js')()
+    node = require('braid.js')({
+        pid: (localStorage.username &&
+              localStorage.username + '-' + Math.random().toString(36).slice(2,6))
+    })
 
 print_network = true;
 g_show_protocol_errors = true;
@@ -113,7 +116,7 @@ let createListeners = function () {
     function update_users (new_users) {
         users = new_users
         if (!users.hasOwnProperty(browserId)) {
-            setUsername(generatedUsername)
+            setUsername(generate_username())
             return
         }
         nameBox.value = users[browserId].displayname
@@ -242,12 +245,14 @@ let createListeners = function () {
         else
             console.log("Not using app")
     }
-    // Username generation stuff
-    const names = ["Bob", "Alice", "Joe", "Fred", "Mary", "Linda", "Mike", "Greg", "Raf"]
-    let name = names[Math.floor(Math.random() * names.length)]
-    let number = Math.floor(Math.random() * 1000)
-    const generatedUsername = `${name}${number}`
 
+    function generate_username () {
+        // Username generation stuff
+        const names = ["Bob", "Alice", "Joe", "Fred", "Mary", "Linda", "Mike", "Greg", "Raf"]
+        let name = names[Math.floor(Math.random() * names.length)]
+        let number = Math.floor(Math.random() * 1000)
+        return `${name}${number}`
+    }
     function setUsername(name) {
         localStorage.username = name
         let escapedName = JSON.stringify(name)
