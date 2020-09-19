@@ -1,10 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const ws = require('ws');
-require('dotenv').config();
+const fs = require('fs')
+const path = require('path')
+const ws = require('ws')
+require('dotenv').config()
 
 // When we have the npm version, this can be improved
-const lib_path = "../../";
+const lib_path = "../../"
 
 // Bundler doesn't actually return anything, but calling it with require
 //   generates the braid-bundle.js
@@ -27,9 +27,9 @@ if (process.env.MAIL_TO
 
 const port = 3009
 
-//global.g_show_protocol_errors = true;
+//global.g_show_protocol_errors = true
 //global.print_network = true
-//global.show_debug = true;
+//global.show_debug = true
 
 // Static files we want to serve over http
 //  and where to find them on disk, and their mime types
@@ -91,7 +91,7 @@ const knownFiles = {
 const knownKeys = {
 	'/usr': {},
 	'/chat': []
-};
+}
 
 let endpoints = [] //list of devices connected to webpush notifications
 let lastSent = {}
@@ -150,36 +150,43 @@ async function serveFile(req, res) {
 
 const sendPushNotifications = () => {
 	let sendTo = []
-	for(let i = 0; i < endpoints.length; i++){
-	  sendTo.push(JSON.parse(endpoints[i]));
-	}
-	const payload = JSON.stringify({ title: 'New message on BraidChat', click_action: 'https://invisible.college/chat/',  body: "BraidChat", icon: "https://ibb.co/p4wKfsR"});
-        console.log("Sending message: " + JSON.stringify(payload));	
-	for(let i = 0; i < sendTo.length; i++){
+	for (let i = 0; i < endpoints.length; i++)
+	  sendTo.push(JSON.parse(endpoints[i]))
+
+	const payload = JSON.stringify({
+        title: 'New message on BraidChat',
+        click_action: 'https://invisible.college/chat/',
+        body: "BraidChat",
+        icon: "https://ibb.co/p4wKfsR"
+    })
+    console.log("Sending message: " + JSON.stringify(payload));
+
+	for (let i = 0; i < sendTo.length; i++) {
 	  sendTo[i]['click_action'] = 'https://invisible.college/chat/'
-	  console.log("sending webpush to user");
+	  console.log("sending webpush to user")
 	  webpush
 		.sendNotification(sendTo[i], payload)
 		.catch(err => console.error(err));
 	}
-};
+}
 
 
 
 // Create either an http or https server, depending on the existence of ssl certs
-var server = (fs.existsSync('certs/private-key') && fs.existsSync('certs/certificate')) ?
-	require('https').createServer({
-		key: fs.readFileSync('certs/private-key'),
-		cert: fs.readFileSync('certs/certificate')
-	}, serveFile) :
-	require('http').createServer(serveFile);
+var server =
+    (fs.existsSync('certs/private-key') && fs.existsSync('certs/certificate'))
+    ? require('https').createServer(
+        { key: fs.readFileSync('certs/private-key'),
+		  cert: fs.readFileSync('certs/certificate') },
+        serveFile)
+    : require('http').createServer(serveFile)
 
 // Setup the braid sqlite store at a local db
-var db = sqlite('db.sqlite');
+var db = sqlite('db.sqlite')
 var node = braid({pid: 'server-' + Math.random().toString(36).slice(2,5)})
 node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
 
-var braidCallback = braidHttpServer(node);
+var braidCallback = braidHttpServer(node)
 store(node, db).then(node => {
 	// Unsubscribe on error
 	// Maybe not needed
@@ -188,15 +195,15 @@ store(node, db).then(node => {
 	// For any of the default keys, if we have no versions for them, set an initial version.
 	Object.keys(knownKeys)
 		.filter(k => Object.keys(node.resource_at(k).current_version).length == 0)
-		.forEach(k => node.set(k, knownKeys[k]));
+		.forEach(k => node.set(k, knownKeys[k]))
 	Object.keys(knownKeys)
-		.forEach(k => node.get(k));
+		.forEach(k => node.get(k))
 
 	var wss = new ws.Server({ server })
 	braidWebsocketServer(node, { port, wss })
 
 	console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
-	server.listen(port);
+	server.listen(port)
 })
 
 
@@ -205,8 +212,8 @@ const notification_node = require("../../braid.js")()
 notification_node.websocket_client({url:'wss://invisible.college:3009'})
 notification_node.get('/usr', addUsers)
 notification_node.get('/chat', update_messages)
-const { Expo } = require("expo-server-sdk");
-let expo = new Expo();
+const { Expo } = require("expo-server-sdk")
+let expo = new Expo()
 
 function update_messages(newVal) {
     let message = newVal[newVal.length -1]
@@ -226,7 +233,7 @@ function update_messages(newVal) {
 
 let savedUsers = {}
 function addUsers(userDict){
-	savedUsers = JSON.parse(JSON.stringify(userDict)); //new json object here
+	savedUsers = JSON.parse(JSON.stringify(userDict))   //new json object here
 }
 
 function getName(message){
@@ -285,16 +292,16 @@ const sendMobileNotifications = (notifications) => {
 	    return
     } else {
         console.log("sending notifications:" + JSON.stringify(notifications[0]))
-        let chunks = expo.chunkPushNotifications(notifications);
+        let chunks = expo.chunkPushNotifications(notifications)
         
         (async () => {
             for (let chunk of chunks) {
                 try {
-                    let receipts = await expo.sendPushNotificationsAsync(chunk);
-                    console.log(receipts);
+                    let receipts = await expo.sendPushNotificationsAsync(chunk)
+                    console.log(receipts)
                 } catch (error) {
-                    console.log("Error: sendPushNotificationsAsync");
-                    console.error(error);
+                    console.log("Error: sendPushNotificationsAsync")
+                    console.error(error)
                 }
             }
         })()
