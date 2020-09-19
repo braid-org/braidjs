@@ -302,7 +302,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // here we are setting "parents" equal to the leaves of "anc"
         parents = resource.get_leaves(anc)
-        
+
         return {method: 'welcome', key, versions, fissures, parents}
     }
     
@@ -772,11 +772,15 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // result included...
         
         if (!min_leaves) {
-            min_leaves = parents ? {...parents} : {}
-            versions.forEach(v => {
-                if (!versions_T[v.version]) min_leaves[v.version] = true
-            })
-            min_leaves = resource.get_leaves(resource.ancestors(min_leaves, true))
+            if (versions.length == 0 && (!parents || Object.keys(parents).length == 0)) {
+                min_leaves = {...resource.acked_boundary}
+            } else {
+                min_leaves = parents ? {...parents} : {}
+                versions.forEach(v => {
+                    if (!versions_T[v.version]) min_leaves[v.version] = true
+                })
+                min_leaves = resource.get_leaves(resource.ancestors(min_leaves, true))
+            }
         }
 
         // G: we are now armed with this "min_leaves" variable,
