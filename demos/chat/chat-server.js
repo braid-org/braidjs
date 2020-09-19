@@ -8,13 +8,13 @@ const lib_path = "../../";
 
 // Bundler doesn't actually return anything, but calling it with require
 //   generates the braid-bundle.js
-require(path.join(lib_path, './util/braid-bundler.js'));
-const sqlite = require(path.join(lib_path, './util/sqlite-store.js'));
-const store = require(path.join(lib_path, './util/store.js'));
-const braid = require(path.join(lib_path, './braid.js'));
-const braidWebsocketServer = require(path.join(lib_path, './protocol-websocket/websocket-server.js'));
-const braidHttpServer = require(path.join(lib_path, './protocol-http1/http1-server.js'));
-const webpush = require("web-push");
+require(path.join(lib_path, './util/braid-bundler.js'))
+const sqlite = require(path.join(lib_path, './util/sqlite-store.js'))
+const store = require(path.join(lib_path, './util/store.js'))
+const braid = require(path.join(lib_path, './braid.js'))
+const braidWebsocketServer = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))
+const braidHttpServer = require(path.join(lib_path, './protocol-http1/http1-server.js'))
+const webpush = require("web-push")
 
 if (process.env.MAIL_TO
     && process.env.WEB_PUSH_PUBLIC
@@ -23,9 +23,10 @@ if (process.env.MAIL_TO
         process.env.MAIL_TO,  // Needs email address to send from
         process.env.WEB_PUSH_PUBLIC,
         process.env.WEB_PUSH_PRIVATE
-    );
+    )
 
-const port = 3009;
+const port = 3009
+
 //global.g_show_protocol_errors = true;
 //global.print_network = true
 //global.show_debug = true;
@@ -85,7 +86,7 @@ const knownFiles = {
 		path: path.join('.', '/icon.png'),
 		mime: 'image/png'
 	}
-};
+}
 // Keys that braid knows about, and their default values.
 const knownKeys = {
 	'/usr': {},
@@ -103,45 +104,45 @@ async function getBody(req) {
 	})
 	return body
 }
+
 // A simple method to serve one of the known files
 async function serveFile(req, res) {
-	if(req.method == 'POST'){
+	if (req.method == 'POST') {
 		console.log('POST to: ' + req.url)
 		let body = await getBody(req)
 		let json_body = JSON.parse(body)
 
-		if(req.url === '/subscribe')
-		{
-			if(!endpoints.includes(body)){
-				console.log("Adding new endpoint");
+		if (req.url === '/subscribe') {
+			if (!endpoints.includes(body)) {
+				console.log("Adding new endpoint")
 				endpoints.push(body)
 			}
-			const payload = JSON.stringify({ title: 'Test Notification on chat' });
+			const payload = JSON.stringify({ title: 'Test Notification on chat' })
 			// Sends a test notification
 			webpush
 				.sendNotification(json_body, payload)
-				.catch(err => console.error(err));
-		}else if(req.url === '/token'){
+				.catch(err => console.error(err))
+		} else if (req.url === '/token') {
 			console.log("Saving token")
 			saveToken(json_body['token'])
-		}else if(req.url === '/message'){
+		} else if (req.url === '/message') {
 			console.log("New message (sent as post request)")
 			let notifications = buildMobileNotifications('user', 'basic notification')
 			sendMobileNotifications(notifications)
 		}
 		res.writeHead(201, {'Content-Type': 'text/html'})
-		res.end();
-	}else{
+		res.end()
+	} else {
 		if (knownKeys.hasOwnProperty(req.url))
-			return braidCallback(req, res);
-		const reqPath = new URL(req.url, `http://${req.headers.host}`);
-		const f = knownFiles[reqPath.pathname];
+			return braidCallback(req, res)
+		const reqPath = new URL(req.url, `http://${req.headers.host}`)
+		const f = knownFiles[reqPath.pathname]
 		if (f) {
-			res.writeHead(200, headers = { 'content-type': f.mime });
-			fs.createReadStream(f.path).pipe(res);
+			res.writeHead(200, headers = { 'content-type': f.mime })
+			fs.createReadStream(f.path).pipe(res)
 		} else {
-			res.writeHead(404);
-			res.end();
+			res.writeHead(404)
+			res.end()
 		}
 	}
 }
@@ -296,6 +297,6 @@ const sendMobileNotifications = (notifications) => {
                     console.error(error);
                 }
             }
-        })();
+        })()
     }
 }
