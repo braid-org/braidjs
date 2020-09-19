@@ -89,9 +89,9 @@ var known_keys = {
 }
 
 let endpoints = [] //list of devices connected to webpush notifications
-let lastSent = {}
+let last_sent = {}
 
-async function getBody(req) {
+async function get_body(req) {
 	var body = ''
 	await req.on('data', function(data) {
 		body += data
@@ -101,10 +101,10 @@ async function getBody(req) {
 }
 
 // A simple method to serve one of the known files
-async function serveFile(req, res) {
+async function serve_file(req, res) {
 	if (req.method == 'POST') {
 		console.log('POST to: ' + req.url)
-		let body = await getBody(req)
+		let body = await get_body(req)
 		let json_body = JSON.parse(body)
 
 		if (req.url === '/subscribe') {
@@ -119,19 +119,19 @@ async function serveFile(req, res) {
 				.catch(err => console.error(err))
 		} else if (req.url === '/token') {
 			console.log("Saving token")
-			saveToken(json_body['token'])
+			save_token(json_body['token'])
 		} else if (req.url === '/message') {
 			console.log("New message (sent as post request)")
-			let notifications = buildMobileNotifications('user', 'basic notification')
-			sendMobileNotifications(notifications)
+			let notifications = build_mobile_notifications('user', 'basic notification')
+			send_mobile_notifications(notifications)
 		}
 		res.writeHead(201, {'Content-Type': 'text/html'})
 		res.end()
 	} else {
 		if (known_keys.hasOwnProperty(req.url))
-			return braidCallback(req, res)
-		const reqPath = new URL(req.url, `http://${req.headers.host}`)
-		const f = known_files[reqPath.pathname]
+			return braid_callback(req, res)
+		var req_path = new URL(req.url, `http://${req.headers.host}`)
+		var f = known_files[req_path.pathname]
 		if (f) {
 			res.writeHead(200, headers = { 'content-type': f.mime })
 			fs.createReadStream(f.path).pipe(res)
@@ -143,10 +143,10 @@ async function serveFile(req, res) {
 }
 
 
-const sendPushNotifications = () => {
-	let sendTo = []
+const send_push_notifications = () => {
+	let send_to = []
 	for (let i = 0; i < endpoints.length; i++)
-	  sendTo.push(JSON.parse(endpoints[i]))
+	  send_to.push(JSON.parse(endpoints[i]))
 
 	const payload = JSON.stringify({
         title: 'New message on BraidChat',
@@ -156,11 +156,11 @@ const sendPushNotifications = () => {
     })
     console.log("Sending message: " + JSON.stringify(payload));
 
-	for (let i = 0; i < sendTo.length; i++) {
-	  sendTo[i]['click_action'] = 'https://invisible.college/chat/'
+	for (let i = 0; i < send_to.length; i++) {
+	  send_to[i]['click_action'] = 'https://invisible.college/chat/'
 	  console.log("sending webpush to user")
 	  webpush
-		.sendNotification(sendTo[i], payload)
+		.sendNotification(send_to[i], payload)
 		.catch(err => console.error(err));
 	}
 }
@@ -173,15 +173,15 @@ var server =
     ? require('https').createServer(
         { key: fs.readFileSync('certs/private-key'),
 		  cert: fs.readFileSync('certs/certificate') },
-        serveFile)
-    : require('http').createServer(serveFile)
+        serve_file)
+    : require('http').createServer(serve_file)
 
 // Setup the braid sqlite store at a local db
 var db = sqlite('db.sqlite')
 var node = braid({pid: 'server-' + Math.random().toString(36).slice(2,5)})
 node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
 
-var braidCallback = braid_http_server(node)
+var braid_callback = braid_http_server(node)
 store(node, db).then(node => {
 	// Unsubscribe on error
 	// Maybe not needed
@@ -205,34 +205,34 @@ store(node, db).then(node => {
 //App notifications
 const notification_node = require("../../braid.js")()
 notification_node.websocket_client({url:'wss://invisible.college:3009'})
-notification_node.get('/usr', addUsers)
+notification_node.get('/usr', add_users)
 notification_node.get('/chat', update_messages)
 const { Expo } = require("expo-server-sdk")
 let expo = new Expo()
 
-function update_messages(newVal) {
-    let message = newVal[newVal.length -1]
+function update_messages(new_val) {
+    let message = new_val[new_val.length -1]
     console.log(JSON.stringify(message))
     console.log(message['body'])
-    if (lastSent != message['body']) {
+    if (last_sent != message['body']) {
 	    //web notifications
-	    sendPushNotifications()
+	    send_push_notifications()
 	    //mobile notifications
-	    let notifications = buildMobileNotifications(getName(message), message['body'])
-	    sendMobileNotifications(notifications)
-        lastSent = message['body']
+	    let notifications = build_mobile_notifications(get_name(message), message['body'])
+	    send_mobile_notifications(notifications)
+        last_sent = message['body']
         console.log("Sent message")
     } else
         console.log("Didn't send push notification:" +  message['body'])
 }
 
-let savedUsers = {}
-function addUsers(userDict){
-	savedUsers = JSON.parse(JSON.stringify(userDict))   //new json object here
+let saved_users = {}
+function add_users(user_dict){
+	saved_users = JSON.parse(JSON.stringify(user_dict))   //new json object here
 }
 
-function getName(message){
-	let name = savedUsers[message['user']]
+function get_name(message){
+	let name = saved_users[message['user']]
 	if (name == undefined)
 		name = "unknown"
 	else
@@ -241,36 +241,37 @@ function getName(message){
 	return name
 }
 
-let savedPushTokens = []
-function saveToken(token) {
-	console.log(token.value, savedPushTokens)
+let saved_push_tokens = []
+function save_token(token) {
+	console.log(token.value, saved_push_tokens)
 	console.log(JSON.stringify(token))
-    const exists = savedPushTokens.find(t => t === token.value)
+    const exists = saved_push_tokens.find(t => t === token.value)
     if (!exists) {
         console.log("new device saved for push notifications")
-        savedPushTokens.push(token.value)
+        saved_push_tokens.push(token.value)
     } else
       console.log("Device was already saved")
 }
 
 //creates the mobile notifications. One for every device
-const buildMobileNotifications = ( user, message ) => {
+const build_mobile_notifications = ( user, message ) => {
     if (message === undefined) {
         console.log("message is undefined")
         return undefined
     }
-    console.log("Sending push notification from " + " with body \"" + message + "\" subject \"" + user + "\" to "  +savedPushTokens.length + " devices") 
+    console.log("Sending push notification", {message, user},
+                "to", saved_push_tokens.length, 'devices.')
     let notifications = []
     let index = -1
-    for (let pushToken of savedPushTokens) {
-		console.log("sending to device:" + pushToken)
+    for (let push_token of saved_push_tokens) {
+		console.log("sending to device:" + push_token)
 		index++
-		if (!Expo.isExpoPushToken(pushToken)) {
-		    console.error(`Push token ${pushToken} is not a valid Expo push token`)
+		if (!Expo.isExpoPushToken(push_token)) {
+		    console.error(`Push token ${push_token} is not a valid Expo push token`)
 		    continue
 		}
 		notifications.push({
-			to: pushToken,
+			to: push_token,
 			sound: "default",
 			title: user,
 			body: message,
@@ -281,7 +282,7 @@ const buildMobileNotifications = ( user, message ) => {
 }
 
 //Sends the notification list 
-const sendMobileNotifications = (notifications) => {
+const send_mobile_notifications = (notifications) => {
     if (!notifications || notifications.length == 0) {
 	    console.log("no devices linked")
 	    return
