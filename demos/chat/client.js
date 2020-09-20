@@ -49,7 +49,7 @@ async function get_subscription_string () {
   console.log("Registering Push...")
   var subscription = await register.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(public_vapid_key)
+    applicationServerKey: url_base64_to_uint8_array(public_vapid_key)
   })
   console.log("Push Registered...")
   return JSON.stringify(subscription)
