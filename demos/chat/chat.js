@@ -278,8 +278,12 @@ else
 
 // Update statistics ever N seconds
 function update_stats () {
+    var versions = node.versions('/usr')
+    var resource = node.resource_at('/usr')
+    var acked = 0
+    versions.forEach(v => { if (!resource.acks_in_process[v]) acked++ })
     document.getElementById('stats').innerHTML = `
-  Versions: ${node.versions('/usr').length}<br>Fissures: ${node.fissures('/usr').length}
+  Acked Versions: ${acked}/${versions.length}<br>Fissures: ${node.fissures('/usr').length}
 `
 }
 node.ons.push(() => setTimeout(update_stats))  // In a settimeout so it runs
