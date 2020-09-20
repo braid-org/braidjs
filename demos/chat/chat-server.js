@@ -179,7 +179,7 @@ var server =
 // Setup the braid sqlite store at a local db
 var db = sqlite('db.sqlite')
 var node = braid({pid: 'server-' + Math.random().toString(36).slice(2,5)})
-node.fissure_lifetime = 1000 * 60 * 60 * 2 // Fissures expire after 2 hours
+node.fissure_lifetime = 1000 * 60 * 60 * 24 // Fissures expire after 24 hours
 
 var braid_callback = braid_http_server(node)
 store(node, db).then(node => {
