@@ -9,11 +9,11 @@
 
    <!-- Load libraries-->
    <script type="module">
-      import { openDB, deleteDB, wrap, unwrap } from 'https://unpkg.com/idb?module';
+      import { openDB, deleteDB, wrap, unwrap } from 'https://unpkg.com/idb?module'
   
       window.idb = {
          openDB, deleteDB, wrap, unwrap
-      };
+      }
     </script>
    <script src="braid-bundle.js" type="text/javascript"></script>
    <script src="https://unpkg.com/react@16/umd/react.development.js"></script> 
@@ -22,7 +22,7 @@
    <script src="client.js" type="text/javascript"></script>
 </head>
 
-<body onload="screenSize()" >
+<body onload="screen_size()" >
    <div class="grid-container" id = "grid-container">
       <header>
          <h2 class="title" style = "display:inline;">Braid Chat</h2>
@@ -34,7 +34,7 @@
       </header>
       <div id="react-messages"></div>
       <div class="input">
-         <textarea id="send-box" oninput="inputSize()"></textarea>
+         <textarea id="send-box" oninput="input_size()"></textarea>
          <span id="send-msg"><img src ='white-airplane.png'></span>
       </div>
       <div id="typing" class="hidden">

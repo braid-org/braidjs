@@ -1,20 +1,20 @@
-const fs = require('fs')
-const path = require('path')
-const ws = require('ws')
+var fs = require('fs')
+var path = require('path')
+var ws = require('ws')
 require('dotenv').config()
 
 // When we have the npm version, this can be improved
-const lib_path = "../../"
+var lib_path = "../../"
 
 // Bundler doesn't actually return anything, but calling it with require
 // generates the braid-bundle.js
 require(path.join(lib_path, './util/braid-bundler.js'))
-const sqlite = require(path.join(lib_path, './util/sqlite-store.js'))
-const store = require(path.join(lib_path, './util/store.js'))
-const braid = require(path.join(lib_path, './braid.js'))
-const braid_websocket_server = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))
-const braid_http_server = require(path.join(lib_path, './protocol-http1/http1-server.js'))
-const webpush = require("web-push")
+var sqlite = require(path.join(lib_path, './util/sqlite-store.js'))
+var store = require(path.join(lib_path, './util/store.js'))
+var braid = require(path.join(lib_path, './braid.js'))
+var braid_websocket_server = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))
+var braid_http_server = require(path.join(lib_path, './protocol-http1/http1-server.js'))
+var webpush = require("web-push")
 
 if (process.env.MAIL_TO
     && process.env.WEB_PUSH_PUBLIC
@@ -25,7 +25,7 @@ if (process.env.MAIL_TO
         process.env.WEB_PUSH_PRIVATE
     )
 
-const port = 3009
+var port = 3009
 
 // Static files to serve over HTTP
 var known_files = {
@@ -112,7 +112,7 @@ async function serve_file(req, res) {
 				console.log("Adding new endpoint")
 				endpoints.push(body)
 			}
-			const payload = JSON.stringify({ title: 'Test Notification on chat' })
+			var payload = JSON.stringify({ title: 'Test Notification on chat' })
 			// Sends a test notification
 			webpush
 				.sendNotification(json_body, payload)
@@ -143,12 +143,12 @@ async function serve_file(req, res) {
 }
 
 
-const send_push_notifications = () => {
+var send_push_notifications = () => {
 	let send_to = []
 	for (let i = 0; i < endpoints.length; i++)
 	  send_to.push(JSON.parse(endpoints[i]))
 
-	const payload = JSON.stringify({
+	var payload = JSON.stringify({
         title: 'New message on BraidChat',
         click_action: 'https://invisible.college/chat/',
         body: "BraidChat",
@@ -203,11 +203,11 @@ store(node, db).then(node => {
 
 
 //App notifications
-const notification_node = require("../../braid.js")()
+var notification_node = require("../../braid.js")()
 notification_node.websocket_client({url:'wss://invisible.college:3009'})
 notification_node.get('/usr', add_users)
 notification_node.get('/chat', update_messages)
-const { Expo } = require("expo-server-sdk")
+var { Expo } = require("expo-server-sdk")
 let expo = new Expo()
 
 function update_messages(new_val) {
@@ -245,7 +245,7 @@ let saved_push_tokens = []
 function save_token(token) {
 	console.log(token.value, saved_push_tokens)
 	console.log(JSON.stringify(token))
-    const exists = saved_push_tokens.find(t => t === token.value)
+    var exists = saved_push_tokens.find(t => t === token.value)
     if (!exists) {
         console.log("new device saved for push notifications")
         saved_push_tokens.push(token.value)
@@ -254,7 +254,7 @@ function save_token(token) {
 }
 
 //creates the mobile notifications. One for every device
-const build_mobile_notifications = ( user, message ) => {
+var build_mobile_notifications = ( user, message ) => {
     if (message === undefined) {
         console.log("message is undefined")
         return undefined
@@ -282,7 +282,7 @@ const build_mobile_notifications = ( user, message ) => {
 }
 
 //Sends the notification list 
-const send_mobile_notifications = (notifications) => {
+var send_mobile_notifications = (notifications) => {
     if (!notifications || notifications.length == 0) {
 	    console.log("no devices linked")
 	    return

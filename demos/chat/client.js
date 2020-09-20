@@ -1,17 +1,16 @@
-const publicVapidKey =
+var public_vapid_key =
   "BB2ikt9eLJydNI-1LpnaRYiogis3ydcUEw6O615fhaHsOsRRHcMZUfVSTNqun6HVb44M6PdfviDJkMWsdTO7XcM"
 
 
-async function updateWebSlider() {
-    console.log("updateWebSlider")
-    if(document.getElementById("webSlider").checked){
-        await subscribe();
-    }else{
-        await unsubscribe();
-    }       
+async function update_web_slider() {
+    console.log("update_web_slider")
+    if (document.getElementById("web_slider").checked)
+        await subscribe()
+    else
+        await unsubscribe()
 }
 
-async function sendNotification() {
+async function send_notification() {
     await fetch("/message", {
         method: "POST",
         body: JSON.stringify({
@@ -26,109 +25,107 @@ async function sendNotification() {
     });
 }
 
-//Subscibes the user and sends a test notification
+// Subscibes the user and sends a test notification
 async function subscribe() {
-  const subscription_str = await getSubscriptionString();
+  var subscription_str = await get_subscription_string()
   
   // Send Push Notification
-  console.log("Sending Push..." + subscription_str);
+  console.log("Sending Push..." + subscription_str)
   await fetch("/subscribe", {
     method: "POST",
     body: subscription_str,
-    headers: {
-      "content-type": "application/json"
-    }
-  });
-  console.log("Push Sent...");
+    headers: { "content-type": "application/json" }
+  })
+  console.log("Push Sent...")
 }
 
-//Returns a token for sending notifications to client
-async function getSubscriptionString(){
-  console.log("Registering service worker...");
-  const register = await navigator.serviceWorker.register("worker.js", {
+// Returns a token for sending notifications to client
+async function get_subscription_string () {
+  console.log("Registering service worker...")
+  var register = await navigator.serviceWorker.register("worker.js", {
     scope: "/chat/"
-  });
-  console.log("Service Worker Registered...");
-  console.log("Registering Push...");
-  const subscription = await register.pushManager.subscribe({
+  })
+  console.log("Service Worker Registered...")
+  console.log("Registering Push...")
+  var subscription = await register.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
-  });
-  console.log("Push Registered...");
+    applicationServerKey: urlBase64ToUint8Array(public_vapid_key)
+  })
+  console.log("Push Registered...")
   return JSON.stringify(subscription)
 }
 
 
-//Sends a server token, and tells it to remove from batch
+// Sends a server token, and tells it to remove from batch
 async function unsubscribe() {
   console.log("remove()")
-  const subscription_str = await getSubscriptionString();
+  var subscription_str = await get_subscription_string()
   // Send Push Notification
-  console.log("Sending Push for removal...");
+  console.log("Sending Push for removal...")
   await fetch("/chat/unsubscribe", {
     method: "POST",
     body: subscription_str,
     headers: {
       "content-type": "application/json"
     }
-  });
-  console.log("Push Sent to remove user from list...");
+  })
+  console.log("Push Sent to remove user from list...")
 }
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding)
+function url_base64_to_uint8_array(base64_string) {
+  var padding = "=".repeat((4 - base64_string.length % 4) % 4);
+  var base64 = (base64_string + padding)
     .replace(/\-/g, "+")
     .replace(/_/g, "/");
 
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
+  var raw_data = window.atob(base64)
+  var output_array = new Uint8Array(raw_data.length)
 
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
+  for (let i=0; i < raw_data.length; ++i) 
+    output_array[i] = raw_data.charCodeAt(i)
+
+  return output_array
 }
 
- //handles the size of input
- function inputSize(){
-    let textarea = document.getElementById("send-box");
-    let headerSize = '40'
-    var taLineHeight = 45
-    if(screen.width < 800){
-       headerSize = '100';
-       taLineHeight = 45;
-    }
-    let textAreaHeight = 85;
-    let gridContainer = document.getElementById("grid-container");
-    gridContainer.style.gridTemplateRows = `${headerSize}px auto 85px 1.5em`
-    var taHeight = textarea.scrollHeight; // Get the scroll height of the textarea
-    textarea.style.height = taHeight;
-    var numberOfLines = Math.floor(taHeight/taLineHeight);
-    if(numberOfLines == 1){
-       gridContainer.style.gridTemplateRows = `${headerSize}px auto 85px 1.5em`
-    }else if(numberOfLines == 2){
-       gridContainer.style.gridTemplateRows = `${headerSize}px auto 125px 1.5em`
-    }else if(numberOfLines == 3){
-       gridContainer.style.gridTemplateRows = `${headerSize}px auto 175px 1.5em`
-    }else if(numberOfLines >= 4){
-       gridContainer.style.gridTemplateRows = `${headerSize}px auto 220px 1.5em`
+// handles the size of input
+function input_size () {
+    let textarea = document.getElementById("send-box")
+    let header_size = '40'
+    var ta_line_height = 45
+    if (screen.width < 800) {
+        header_size = '100'
+        ta_line_height = 45
     }
 
-    var message_view = document.getElementById("react-messages");
-    message_view.scrollTop = message_view.scrollHeight;
- }
+    let text_area_height = 85
+    let grid_container = document.getElementById("grid-container")
+    grid_container.style.gridTemplateRows = `${header_size}px auto 85px 1.5em`
+    var ta_height = textarea.scrollHeight // Get the scroll height of the textarea
+    textarea.style.height = ta_height
+    var number_of_lines = Math.floor(ta_height/ta_line_height)
+    if (number_of_lines == 1)
+        grid_container.style.gridTemplateRows = `${header_size}px auto 85px 1.5em`
+    else if (number_of_lines == 2)
+        grid_container.style.gridTemplateRows = `${header_size}px auto 125px 1.5em`
+    else if (number_of_lines == 3)
+        grid_container.style.gridTemplateRows = `${header_size}px auto 175px 1.5em`
+    else if (number_of_lines >= 4)
+        grid_container.style.gridTemplateRows = `${header_size}px auto 220px 1.5em`
 
- //If safari mobile, then the screen needs to be cut at the bottom
-function screenSize(){
-    if(screen.width < 800){
-        var ua = navigator.userAgent.toLowerCase();
-        if (ua.indexOf('safari') != -1) {
+    var message_view = document.getElementById("react-messages")
+    message_view.scrollTop = message_view.scrollHeight
+}
+
+// If safari mobile, then the screen needs to be cut at the bottom
+function screen_size () {
+    if (screen.width < 800) {
+        var ua = navigator.userAgent.toLowerCase()
+        if (ua.indexOf('safari') !== -1) {
             if (ua.indexOf('chrome') > -1) {
                 // Chrome
             } else {
-                console.log("safari movbile")
-                document.body.style.height = '90vh';
+                console.log("safari mobile")
+                document.body.style.height = '90vh'
             }
         }
     }
