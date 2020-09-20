@@ -289,18 +289,18 @@ function update_stats () {
     var fissures           = node.fissures('/usr')
     var unmatched_fissures = node.unmatched_fissures('/usr')
 
-    // Count how many obselete versions are fizzed
+    // Count how many obsolete versions are fizzed
     var fizzed_vers = new Set([])
     fissures.forEach(f => (f.versions || []).forEach(v => fizzed_vers.add(v)))
-    var obseletes = 0
+    var obsoletes = 0
     for (v of fizzed_vers)
         if (!resource.time_dag[v])
-            obseletes++
+            obsoletes++
 
     document.getElementById('stats').innerHTML =
         `Acked Versions: ${acked}/${versions.length}<br>`
         + `Unmatched Fissures: ${unmatched_fissures.length}/${fissures.length}`
-        + (obseletes ? `<br>Obselete Fizzed Versions: ${obseletes}` : '')
+        + (obsoletes ? `<br>Obsolete Fizzed Versions: ${obsoletes}` : '')
 }
 node.ons.push(() => setTimeout(update_stats))  // In a settimeout so it runs
 update_stats()                                 // after, not before processing
