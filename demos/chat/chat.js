@@ -278,13 +278,19 @@ else
 
 // Update statistics ever N seconds
 function update_stats () {
-    var versions = node.versions('/usr')
     var resource = node.resource_at('/usr')
+    var versions = node.versions('/usr')
+
+    // Compute how many versions are fully acknowledged
     var acked = 0
     versions.forEach(v => { if (!resource.acks_in_process[v]) acked++ })
-    document.getElementById('stats').innerHTML = `
-  Acked Versions: ${acked}/${versions.length}<br>Fissures: ${node.fissures('/usr').length}
-`
+
+    // And count the fissures
+    var fissures           = node.fissures('/usr').length
+    var unmatched_fissures = node.unmatched_fissures('/usr').length
+    document.getElementById('stats').innerHTML =
+        `Acked Versions: ${acked}/${versions.length}<br>`
+        + `Unmatched Fissures: ${unmatched_fissures}/${fissures}`
 }
 node.ons.push(() => setTimeout(update_stats))  // In a settimeout so it runs
 update_stats()                                 // after, not before processing
