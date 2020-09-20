@@ -289,16 +289,16 @@ var send_mobile_notifications = (notifications) => {
     } else {
         console.log("sending notifications:" + JSON.stringify(notifications[0]))
 
-        if (typeof expo.chunkPushNotifications !== 'function') {
-            console.error('Expo error! Can\'t send notification! Fooey.')
-            return
+        try {
+            var chunks = expo.chunkPushNotifications(notifications)
+        } catch (e) {
+            console.error('Cannot send push notification! Expo error:', e)
         }
-        let chunks = expo.chunkPushNotifications(notifications)
-        
+
         (async () => {
             for (let chunk of chunks) {
                 try {
-                    let receipts = await expo.sendPushNotificationsAsync(chunk)
+                    var receipts = await expo.sendPushNotificationsAsync(chunk)
                     console.log(receipts)
                 } catch (error) {
                     console.log("Error: sendPushNotificationsAsync")
