@@ -275,3 +275,13 @@ if (document.readyState === "complete" ||
     create_listeners()
 else
     document.addEventListener("DOMContentLoaded", create_listeners)
+
+// Update statistics ever N seconds
+function update_stats () {
+    document.getElementById('stats').innerHTML = `
+  Versions: ${node.versions('/usr').length}<br>Fissures: ${node.fissures('/usr').length}
+`
+}
+node.ons.push(() => setTimeout(update_stats))  // In a settimeout so it runs
+update_stats()                                 // after, not before processing
+                                               // the message

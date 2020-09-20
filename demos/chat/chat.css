@@ -7,7 +7,6 @@ body {
     height: 100vh;
     box-sizing: border-box;
 }
-
 .grid-container {
     width: 100%;
     height: 100%;
@@ -66,6 +65,15 @@ header {
     padding: 2px 3px 1px 4px;
     height: 1.5em;
     margin-left: 0;
+}
+#stats {
+    font-size: 11px;
+    font-family: sans-serif, sans, helvetica, arial;
+    color: #444;
+    text-align: right;
+    position: fixed;
+    right: 50px;
+    top: 8px;
 }
 #react-messages {
     grid-area: messages;
