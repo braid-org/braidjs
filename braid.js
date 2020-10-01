@@ -1185,43 +1185,31 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 })
             }
         }
-        
-        // Now compute the shadow regions
-        var tags = {}
-        var shining = {}
-        Object.keys(resource.time_dag).forEach(version => tags[version] = {})
-        function tag(version, t) {
-            if (!tags[version][t]) {
-                tags[version][t] = true
-                Object.keys(resource.time_dag[version]).forEach(version => tag(version, t))
-            }
-        }
 
+        // Now figure out which versions we want to keep,
+        var keep_us = {}
+
+        // incluing versions in fissures..
         Object.values(resource.fissures).forEach(f => {
-            Object.keys(f.versions).forEach(v => {
-                if (!resource.time_dag[v]) return
-                tag(v, v)
-                shining[v] = true
-            })
+            Object.keys(f.versions).forEach(v => keep_us[v] = true)
         })
 
+        // and versions which are not fully acknowledged, or on the boundary
         var acked = resource.ancestors(resource.acked_boundary)
         Object.keys(resource.time_dag).forEach(x => {
-            if (!acked[x] || resource.acked_boundary[x]) {
-                tag(x, x)
-                shining[x] = true
-            }
+            if (!acked[x] || resource.acked_boundary[x]) keep_us[x] = true
         })
 
-        var inv_tags = {}
-        Object.entries(tags).forEach(([v, tags]) => {
-            tags = Object.keys(tags).sort().join(':')
-            if (!inv_tags[tags]) inv_tags[tags] = {}
-            inv_tags[tags][v] = true
-        })
+        // ok, now we want to find "bubbles" in the dag,
+        // with a "bottom" and "top" version,
+        // where any path down from the top will hit the bottom,
+        // and any path up from the bottom will hit the top,
+        // and also, the bubble should not contain any versions we want to keep
+        // (unless it's the bottom)
 
-        // compute "children" (the sort of inverse of resource.time_dag),
-        // where values in time_dag represent "parents" of a node
+        // to help us calculate bubbles,
+        // let's calculate children for our time dag
+        // (whereas the time dag just gives us parents)
         var children = {}
         Object.entries(resource.time_dag).forEach(([v, parents]) => {
             Object.keys(parents).forEach(parent => {
@@ -1230,72 +1218,54 @@ module.exports = require.braid = function create_node(node_data = {}) {
             })
         })
 
-        // we'll aggregate bubble's to bloop here..
+        // now we'll actually compute the bubbles
         var to_bubble = {}
-        Object.entries(inv_tags).forEach(([_, members]) => {
-            // members comprise a "shadow region",
-            // but we now are going to find "bubble"s within it..
-
-            // we start by assembling an appropriate dag to pass to find_bubbles..
-            // it should look like {node_id_a: {parents: {}, children: {}}, ...}
-            var dag = Object.fromEntries(Object.keys(members).map(member => [member, {
-                parents: resource.time_dag[member],
-                children: children[member]
-            }]))
-
-            // we'll get back a mapping from versions to their bubble's version (if they're in a bubble)
-            Object.assign(to_bubble, find_bubbles(dag))
-        })
-
-        function find_bubbles(dag) {
-            var to_bubble = {}
-            var bubble_tops = {}
-            var bubble_bottoms = {}
-            
-            function mark_bubble(bottom, top, tag) {
-                if (!to_bubble[bottom]) {
-                    to_bubble[bottom] = tag
-                    if (bottom != top) Object.keys(dag[bottom].parents).forEach(p => mark_bubble(p, top, tag))
-                }
-            }
-            
-            var done = {}
-            function f(cur) {
-                var n = dag[cur]
-                if (!n) return
-                if (done[cur]) return
-                done[cur] = true
-                
-                if (!to_bubble[cur] || bubble_tops[cur]) {
-                    var bubble_top = find_one_bubble(dag, cur)
-                    if (bubble_top) {
-                        delete to_bubble[cur]
-                        mark_bubble(cur, bubble_top, bubble_tops[cur] || cur)
-                        bubble_tops[bubble_top] = bubble_tops[cur] || cur
-                        bubble_bottoms[bubble_tops[cur] || cur] = bubble_top
-                    }
-                }
+        var bubble_tops = {}
+        var bubble_bottoms = {}
         
-                Object.keys(n.parents).forEach(f)
+        function mark_bubble(bottom, top, tag) {
+            if (!to_bubble[bottom]) {
+                to_bubble[bottom] = tag
+                if (bottom != top) Object.keys(resource.time_dag[bottom]).forEach(p => mark_bubble(p, top, tag))
             }
-            Object.keys(find_leaves(dag)).forEach(f)
-        
-            return Object.fromEntries(Object.entries(to_bubble).map(([v, bub]) => [v, [bub, bubble_bottoms[bub]]]))
         }
         
-        function find_one_bubble(dag, cur) {
+        var done = {}
+        function f(cur) {
+            if (!resource.time_dag[cur]) return
+            if (done[cur]) return
+            done[cur] = true
+            
+            if (!to_bubble[cur] || bubble_tops[cur]) {
+                var bubble_top = find_one_bubble(cur)
+                if (bubble_top) {
+                    delete to_bubble[cur]
+                    mark_bubble(cur, bubble_top, bubble_tops[cur] || cur)
+                    bubble_tops[bubble_top] = bubble_tops[cur] || cur
+                    bubble_bottoms[bubble_tops[cur] || cur] = bubble_top
+                }
+            }
+    
+            Object.keys(resource.time_dag[cur]).forEach(f)
+        }
+        Object.keys(resource.current_version).forEach(f)
+    
+        to_bubble = Object.fromEntries(Object.entries(to_bubble).map(([v, bub]) => [v, [bub, bubble_bottoms[bub]]]))
+        
+        function find_one_bubble(cur) {
             var seen = {[cur]: true}
-            var q = Object.keys(dag[cur].parents)
+            var q = Object.keys(resource.time_dag[cur])
             var expecting = Object.fromEntries(q.map(x => [x, true]))
             while (q.length) {
                 cur = q.pop()
-                if (!dag[cur]) return null
-                if (Object.keys(dag[cur].children).every(c => seen[c])) {
+                if (!resource.time_dag[cur]) return null
+                if (keep_us[cur]) return null
+                if (Object.keys(children[cur]).every(c => seen[c])) {
                     seen[cur] = true
                     delete expecting[cur]
                     if (!Object.keys(expecting).length) return cur
                     
-                    Object.keys(dag[cur].parents).forEach(p => {
+                    Object.keys(resource.time_dag[cur]).forEach(p => {
                         q.push(p)
                         expecting[p] = true
                     })
@@ -1303,27 +1273,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
             }
             return null
         }
-        
-        function find_leaves(dag) {
-            var leaves = Object.fromEntries(Object.keys(dag).map(k => [k, true]))
-            Object.entries(dag).forEach(([k, node]) => {
-                Object.keys(node.parents).forEach(p => delete leaves[p])
-            })
-            return leaves
-        }
 
-        /*
-        resource.mergeable.prune(
-            // Option 1: Pass in a set of versions    [xxxx eliminated xxxx]
-            // Option 2: Pass a set of sets of versions
-            // Option 3: Map each version to a shadow region (with an object or function)
-            //    a) Pass in the object/function
-            //    b) resource.time_shadows[version]   [xxxx eliminated xxxx]
-        )
-        */
-
+        // now hand these bubbles to the mergeable's prune function..
         var seen_annotations = {}
-
         resource.mergeable.prune(to_bubble, seen_annotations)
 
         // Now we check to see if we can collapse the spacedag down to a literal.

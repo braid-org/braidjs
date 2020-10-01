@@ -146,6 +146,13 @@ function space_dag_generate_braid(S, resource, version, is_anc) {
         if (node.next) helper(node.next, _version)
     }
     helper(S, null)
+    splices.forEach(s => {
+        // if we have replaces with 0 deletes,
+        // make them have at least 1 delete..
+        // this can happen when there are multiple replaces of the same text,
+        // and our code above will associate those deletes with only one of them
+        if (s[4] == 'r' && s[1] == 0) s[1] = 1
+    })
     return splices
 }
 
