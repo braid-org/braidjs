@@ -123,29 +123,27 @@ module.exports = require.braid = function create_node(node_data = {}) {
             })
         }
 
-        // G: now if the person connecting with us wants to be a citizen, they'll
+        // Now if the person connecting with us wants to be a citizen, they'll
         // set "pid", and we'll want to send them a "get" as well so that we
         // can learn about their updates -- of course, when they get that get,
-        // we don't want an echo war of gets begetting gets, so when someone sends
-        // the initial get, they set "initial" to true, but we respond with a get
-        // with initial not set to true
+        // we don't want an echo war of gets begetting gets, so when someone
+        // sends the initial get, they set "initial" to true, but we respond
+        // with a get with initial not set to true
 
-        // if (origin.them && initial)
-        //     origin.send({method: 'get', key, initial: false})
-
-        // G: ok, now if we're going to be sending this person updates,
-        // we should start by catching them up to our current state,
-        // which we'll do by sending a "welcome". "generate_braid" calculates
-        // the versions comprising this welcome (we need to calculate them because
-        // we store the versions inside a space dag, and we need to pull them out...
-        // note that it wouldn't work to just keep the versions around on the side,
-        // because we also prune the space dag, meaning that the versions generated
-        // here may be different than the version we originally received, though
-        // hopefully no versions already known to this incoming peer will have been
-        // modified, or if they have been, hopefully those versions are deep enough
-        // in the incoming peer's version dag that they are not the direct parents
-        // of any new edits made by them... we strive to enforce this fact with
-        // the pruning algorithm)
+        // Ok, now if we're going to be sending this person updates, we should
+        // start by catching them up to our current state, which we'll do by
+        // sending a "welcome". "generate_braid" calculates the versions
+        // comprising this welcome (we need to calculate them because we store
+        // the versions inside a space dag, and we need to pull them out...
+        // note that it wouldn't work to just keep the versions around on the
+        // side, because we also prune the space dag, meaning that the
+        // versions generated here may be different than the version we
+        // originally received, though hopefully no versions already known to
+        // this incoming peer will have been modified, or if they have been,
+        // hopefully those versions are deep enough in the incoming peer's
+        // version dag that they are not the direct parents of any new edits
+        // made by them... we strive to enforce this fact with the pruning
+        // algorithm)
 
         var welcome_msg = node.create_welcome_message(key, parents)
 
@@ -252,10 +250,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         node.ons.forEach(on => on('set', {key, patches, version, parents, origin, joiner_num}))
 
-        // G: cool, someone is giving us a new version to add to our datastructure.
-        // it might seem like we would just go ahead and add it, but instead
-        // we only add it under certain conditions, namely one of the following
-        // must be true:
+        // Cool, someone is giving us a new version to add to our
+        // datastructure.  it might seem like we would just go ahead and add
+        // it, but instead we only add it under certain conditions, namely one
+        // of the following must be true:
         //
         // !origin : in this case there is no origin, meaning the version was
         // created locally, so we definitely want to add it.
@@ -276,9 +274,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // distinguish the otherwise identical looking joiners for the purposes
         // of electing a particular joiner to handle the full acknowledgment.
 
-        var is_new = !origin                                         // Was created locally
-                     || !resource.time_dag[version]                  // Or we don't have it yet
-                     || (joiner_num > resource.joiners[version])     // Or it's a dominant joiner
+        var is_new = !origin                                      // Was created locally
+                     || !resource.time_dag[version]               // Or we don't have it yet
+                     || (joiner_num > resource.joiners[version])  // Or it's a dominant joiner
         if (is_new) {
             // G: so we're going to go ahead and add this version to our
             // datastructure, step 1 is to call "add_version" on the underlying
