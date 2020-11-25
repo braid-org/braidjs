@@ -2,7 +2,7 @@
 var files = [
     'util/require.js',
     'util/utilities.js',
-    'merge-algos/sync9.js',
+    'mergeables/sync9.js',
     'braid.js',
     'pipe.js',
     'util/diff.js',

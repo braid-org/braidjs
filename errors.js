@@ -4,7 +4,6 @@ function report (method, error) {
     throw error
 }
 
-
 module.exports = require.errors = (node) => ({
     
     get (args) {
@@ -26,8 +25,6 @@ module.exports = require.errors = (node) => ({
         if (parents && (typeof(parents) != 'object'
                         || Object.entries(parents).some(([k, v]) => v !== true)))
             report('get', 'invalid parents: ' + JSON.stringify(parents))
-
-
     },
 
     set (args) {

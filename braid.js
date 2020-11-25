@@ -22,7 +22,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
         node.on_errors = []
     
         node.incoming_subscriptions = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
-        node.protocol_errors = require('./errors')(node)
+
+        node.antimatter      = require('./antimatter')(node)
+        node.protocol_errors = require('./errors'    )(node)
     }
     node.init(node_data)
 
@@ -375,45 +377,16 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // distinguish the otherwise identical looking joiners for the purposes
         // of electing a particular joiner to handle the full acknowledgment.
 
-        if (!origin                                         // Was created locally
-            || !resource.time_dag[version]                  // We don't have it yet
-            || (joiner_num > resource.joiners[version])) {  // It's a dominant joiner
-
-            // console.log('Branch •A• happened')
-
+        var is_new = !origin                                         // Was created locally
+                     || !resource.time_dag[version]                  // Or we don't have it yet
+                     || (joiner_num > resource.joiners[version])     // Or it's a dominant joiner
+        if (is_new) {
             // G: so we're going to go ahead and add this version to our
             // datastructure, step 1 is to call "add_version" on the underlying
             // mergeable..
 
-            // console.log('Adding version', {version, parents, patches},
-            //             'to', Object.keys(resource.time_dag))
             resource.mergeable.add_version(version, parents, patches)
 
-            // G: next, we want to remember some information for the purposes
-            // of acknowledgments, namely, we'll remember how many people
-            // we forward this version along to (we'll actually do the forwarding
-            // right after this), and we also remember whether or not
-            // we are the originators of this version (if we originated the version,
-            // then we'll be responsible for sending the "global" ack when
-            // the time is right)..
-
-            var origin_is_keepalive = origin && resource.keepalive_peers[origin.id]
-            resource.acks_in_process[version] = {
-                origin: origin_is_keepalive && origin,
-                count: Object.keys(resource.keepalive_peers).length
-            }
-            if (origin_is_keepalive)
-                // If the origin is a keepalive_peer, then since we've already
-                // seen it from them, we can decrement count
-                resource.acks_in_process[version].count--
-
-            assert(resource.acks_in_process[version].count >= 0,
-                   node.pid, 'Acks have below zero! Proof:',
-                   {origin, key, version,
-                    acks_in_process: resource.acks_in_process[version]})
-
-            // console.log('Initialized acks to', resource.acks_in_process[version])
-            
             // G: well, I said forwarding the version would be next, but here
             // is this line of code to remember the joiner_num of this
             // version, in case it is a joiner (we store the joiner_num for
@@ -430,7 +403,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
                    .filter(p => p.send && (!origin || p.id !== origin.id))
                    .map   (p => p.id),
                 'pipes from', origin && origin.id)
-            // console.log('Now gonna send a set on', node.bindings(key))
+
             node.bindings(key).forEach(pipe => {
                 if (pipe.send && (!origin || (pipe.id !== origin.id))) {
                     log('set: sending now from', node.pid, pipe.type)
@@ -438,42 +411,13 @@ module.exports = require.braid = function create_node(node_data = {}) {
                                key, patches, version, parents, joiner_num})
                 }
             })
-            
-        } else if (resource.acks_in_process[version]
-                   // Greg: In what situation is acks_in_process[version] false?
+        }
 
-                   // G: good question; the answer is that in some cases
-                   // we will delete acks_in_process for a version if,
-                   // say, we receive a global ack for a descendant of this version,
-                   // or if we receive a fissure.. in such cases, we simply
-                   // ignore the ack process for that version, and rely
-                   // on a descendant version getting globally acknowledged.
+        node.antimatter.set({
+            ...args,
+            key, patches, version, parents, origin, joiner_num, is_new
+        })
 
-                   && joiner_num == resource.joiners[version])
-
-            // G: now if we're not going to add the version, most commonly because
-            // we already possess the version, there is another situation that
-            // can arise, namely, someone that we forwarded the version to
-            // sends it back to us... How could that happen? Well, they may have
-            // heard about this version from someone we sent it to, before
-            // hearing about it from us (assuming some pretty gross latency)..
-            // anyway, if it happens, we can treat it like an ACK for the version,
-            // which is why we decrement "count" for acks_in_process for this version;
-            // a similar line of code exists inside "node.ack"
-
-            // console.log('Branch •B• happened',
-            //             joiner_num,
-            //             resource.joiners[version],
-            //             resource.acks_in_process[version].count)
-
-            resource.acks_in_process[version].count--
-
-        // G: since we may have messed with the ack count, we check it
-        // to see if it has gone to 0, and if it has, take the appropriate action
-        // (which is probably to send a global ack)
-
-
-        check_ack_count(key, resource, version)
         return version
     }
     node.set_patch = node.setPatch = (key, patch) => node.set({key, patches: [patch]})
@@ -492,49 +436,51 @@ module.exports = require.braid = function create_node(node_data = {}) {
         var resource = node.resource_at(key)
 
         // let people know about the welcome
-        node.ons.forEach(on => on('welcome', {key, versions, fissures, unack_boundary, min_leaves, origin}))
+        node.ons.forEach(
+            on => on('welcome', {key, versions, fissures, unack_boundary, min_leaves, origin})
+        )
 
         // `versions` is actually array of set messages. Each one has a version.
         var new_versions = []
         
-        // G: Some of the incoming versions we may already have.
-        // So one might ask, why don't we just filter the versions
-        // according to which ones we already have? why this versions_T
-        // nonsense? The issue is that there may be versions which
-        // we don't have, but that we don't want to add either,
-        // presumably because we pruned them, and this code seeks
-        // to filter out such versions. The basic strategy is that
-        // for each incoming version, if we already have that version,
-        // not only do we want to not add it, but we don't want
-        // to add any incoming ancestors of that version either (because
-        // we must already have them, or else we did have them,
-        // and pruned them)
+        // G: Some of the incoming versions we may already have.  So one might
+        // ask, why don't we just filter the versions according to which ones
+        // we already have? why this versions_to_add nonsense? The issue is
+        // that there may be versions which we don't have, but that we don't
+        // want to add either, presumably because we pruned them, and this
+        // code seeks to filter out such versions. The basic strategy is that
+        // for each incoming version, if we already have that version, not
+        // only do we want to not add it, but we don't want to add any
+        // incoming ancestors of that version either (because we must already
+        // have them, or else we did have them, and pruned them)
 
-        var versions_T = {}
-        versions.forEach(v => versions_T[v.version] = v.parents)
+        var versions_to_add = {}
+        versions.forEach(v => versions_to_add[v.version] = v.parents)
         versions.forEach(v => {
             if (resource.time_dag[v.version]) {
                 function f(v) {
-                    if (versions_T[v]) {
-                        Object.keys(versions_T[v]).forEach(f)
-                        delete versions_T[v]
+                    if (versions_to_add[v]) {
+                        Object.keys(versions_to_add[v]).forEach(f)
+                        delete versions_to_add[v]
                     }
                 }
                 f(v.version)
             }
         })
 
-        // G: now versions_T will only contain truthy values for versions
+        // G: now versions_to_add will only contain truthy values for versions
         // which we really do want to add (they are new to us, and they
         // are not repeats of some version we had in the past, but pruned away)
 
         for (var v of versions) {
-            if (versions_T[v.version]) {
+            if (versions_to_add[v.version]) {
                 new_versions.push(v)
 
-                if (!Object.keys(v.parents).every(p => resource.time_dag[p])) return send_error()
+                if (!Object.keys(v.parents).every(p => resource.time_dag[p]))
+                    return send_error()
 
-                resource.mergeable.add_version(v.version, v.parents, v.changes, v.hint && v.hint.sort_keys)
+                resource.mergeable.add_version(v.version, v.parents, v.changes,
+                                               v.hint && v.hint.sort_keys)
             }
         }
 
@@ -695,7 +641,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             } else {
                 min_leaves = parents ? {...parents} : {}
                 versions.forEach(v => {
-                    if (!versions_T[v.version]) min_leaves[v.version] = true
+                    if (!versions_to_add[v.version]) min_leaves[v.version] = true
                 })
                 min_leaves = resource.get_leaves(resource.ancestors(min_leaves, true))
             }
@@ -823,158 +769,39 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.ack = (args) => {
         var {key, valid, seen, version, origin, joiner_num} = args
 
-        // Catch protocol errors
         try {
             node.protocol_errors.ack(args)
         }
         catch (errors) { return errors }
 
-        var resource = node.resource_at(key)
-
         node.ons.forEach(on => on('ack', {key, valid, seen, version, origin, joiner_num}))
         log('node.ack: Acking!!!!', {key, seen, version, origin})
 
-        if (seen == 'local') {
-            if (resource.acks_in_process[version]
-                && (joiner_num == resource.joiners[version])) {
-                log('node.ack: Got a local ack! Decrement count to',
-                    resource.acks_in_process[version].count - 1)
-                resource.acks_in_process[version].count--
-                check_ack_count(key, resource, version)
-            }
-        } else if (seen == 'global') {
-            if (!resource.time_dag[version]) return
-            
-            var ancs = resource.ancestors(resource.unack_boundary)
-            if (ancs[version]) return
-            
-            ancs = resource.ancestors(resource.acked_boundary)
-            if (ancs[version]) return
-            
-            add_full_ack_leaf(resource, version)
-            node.bindings(key).forEach(pipe => {
-                if (pipe.send && (pipe.id != origin.id))
-                    pipe.send({method: 'ack', key, version, seen: 'global'})
-            })
-        }
+        node.antimatter.ack(args)
     }
     
     node.fissure = ({key, fissure, origin}) => {
-
-        // Catch protocol errors
         try {
             node.protocol_errors.fissure({key, fissure, origin})
         }
         catch (errors) { return errors }
 
-        var resource = node.resource_at(key)
         node.ons.forEach(on => on('fissure', {key, fissure, origin}))
 
-        var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
-        if (!resource.fissures[fkey]) {
-            resource.fissures[fkey] = fissure
-            
-            resource.acks_in_process = {}
-            
-            // First forward this fissure along
-            node.bindings(key).forEach(pipe => {
-                if (pipe.send && (!origin || (pipe.id != origin.id)))
-                    pipe.send({method: 'fissure',
-                               key,
-                               fissure})
-            })
-            
-            // And if this fissure matches us, then send the anti-fissure for
-            // it
-            if (fissure.b == node.pid)
-                node.fissure({
-                    key,
-                    fissure: {
-                        a:        node.pid,
-                        b:        fissure.a,
-                        conn:     fissure.conn,
-                        versions: fissure.versions,
-                        parents:  {},
-                        time:     fissure.time
-                    }
-                })
-        }
+        node.antimatter.fissure({key, fissure, origin})
     }
 
     node.disconnected = ({key, name, versions, parents, time, origin}) => {
         // Todo:
         //  - rename "name" to "fissure".
         //  - rename "time" to "disconnect_time"
-        if (time == null) time = Date.now()
+        if (!time) time = Date.now()
         node.ons.forEach(on => on('disconnected', {key, name, versions, parents, time, origin}))
 
         // unbind them (but only if they are bound)
         if (node.bindings(key).some(p => p.id == origin.id)) node.unbind(key, origin)
 
-        // if we haven't sent them a welcome (or they are not remote), then no
-        // need to create a fissure
-        if (!origin.remote_peer|| !node.resource_at(key).keepalive_peers[origin.id]) return
-        
-        // now since we're disconnecting, we reset the keepalive_peers flag
-        delete node.resource_at(key).keepalive_peers[origin.id]
-
-        assert(key && origin)
-        // To do:
-        //  - make this work for read-only connections
-        //  - make this work for multiple keys (a disconnection should
-        //    affect all of its keys)
-        var resource = node.resource_at(key),
-            fissure
-
-        assert(!(name || versions || parents), 'Surprise!')
-
-        // Generate the fissure
-        if (name) {
-            // Create fissure from name
-            var [a, b, conn] = name.split(/:/)
-            fissure = {
-                a, b, conn,
-                versions,
-                parents,
-                time
-            }
-        } else {
-            // Create fissure from scratch
-
-            // assert(resource.subscriptions[origin.id],
-            //        `This pipe ${origin.id} is not on the resource for ${node.pid}'s ${key}`,
-            //        resource.subscriptions)
-            
-            assert(origin.id,          'Need id on the origin', origin)
-            assert(origin.remote_peer, 'Need a peer on origin', origin)
-
-            var versions = {}
-            var ack_versions = resource.ancestors(resource.acked_boundary)
-            Object.keys(resource.time_dag).forEach(v => {
-                if (!ack_versions[v] || resource.acked_boundary[v])
-                    versions[v] = true
-            })
-            
-            // Now collect the parents.  We start with all fissures...
-            var parents = {...resource.fissures}
-            // ... and then filter down to just be the leaves of the fissure DAG
-            Object.values(resource.fissures).forEach(f => {
-                Object.keys(f.parents).forEach(p => delete parents[p])
-            })
-            Object.keys(parents).forEach(p => parents[p] = true)
-
-            fissure = {
-                a: node.pid,
-                b: origin.remote_peer,
-                conn: origin.connection,
-                versions,
-                parents,
-                time
-            }
-
-        }
-
-        node.fissure({key, origin, fissure})
+        node.antimatter.disconnected({key, name, versions, parents, time, origin})
     }
     
     node.delete = () => {
@@ -982,6 +809,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // update: we now have a {type: "deleted"} thing (like {type: "location"}),
         // may be useful for this
     }
+
+    node.prune = node.antimatter.prune
 
     node.current_version = (key) =>
         Object.keys(node.resource_at(key).current_version).join('-') || null
@@ -1009,177 +838,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
                          versions: Object.keys(fiss.versions)})
         }
         return result
-    }
-
-    node.prune = (resource) => {
-        var unremovable = {}
-
-        // First, let's prune old fissures
-
-        // Calculate which fissures we have to keep due to parenting
-        // rule... which we will be removing soon.
-        Object.entries(resource.fissures).forEach(x => {
-            if (!resource.fissures[x[1].b + ':' + x[1].a + ':' + x[1].conn]) {
-                function f(y) {
-                    if (!unremovable[y.a + ':' + y.b + ':' + y.conn]) {
-                        unremovable[y.a + ':' + y.b + ':' + y.conn] = true
-                        unremovable[y.b + ':' + y.a + ':' + y.conn] = true
-                        Object.keys(y.parents).forEach(p => {
-                            if (resource.fissures[p]) f(resource.fissures[p])
-                        })
-                    }
-                }
-                f(x[1])
-            }
-        })
-        
-        // Now remove the fissures
-        Object.entries(resource.fissures).forEach(x => {
-            var other_key = x[1].b + ':' + x[1].a + ':' + x[1].conn
-            var other = resource.fissures[other_key]
-            if (other) {
-                if (unremovable[x[0]]) {
-                    resource.fissures[x[0]].versions = {}
-                    resource.fissures[other_key].versions = {}
-                } else {
-                    delete resource.fissures[x[0]]
-                    delete resource.fissures[other_key]
-                }
-            }
-        })
-
-        // Remove fissures that have expired due to time
-        if (node.fissure_lifetime != null) {
-            var now = Date.now()
-            Object.entries(resource.fissures).forEach(([k, f]) => {
-                if (f.time == null) f.time = now
-                if (f.time <= now - node.fissure_lifetime) {
-                    delete resource.fissures[k]
-                }
-            })
-        }
-
-        // Remove fissures that are beyond our max_fissures limit
-        if (node.max_fissures != null) {
-            let count = Object.keys(resource.fissures).length
-            if (count > node.max_fissures) {
-                Object.entries(resource.fissures).sort((a, b) => {
-                    if (a[1].time == null) a[1].time = now
-                    if (b[1].time == null) b[1].time = now
-                    return a[1].time - b[1].time
-                }).slice(0, count - node.max_fissures).forEach(e => {
-                    delete resource.fissures[e[0]]
-                })
-            }
-        }
-
-        // Now figure out which versions we want to keep,
-        var keep_us = {}
-
-        // incluing versions in fissures..
-        Object.values(resource.fissures).forEach(f => {
-            Object.keys(f.versions).forEach(v => keep_us[v] = true)
-        })
-
-        // and versions which are not fully acknowledged, or on the boundary
-        var acked = resource.ancestors(resource.acked_boundary)
-        Object.keys(resource.time_dag).forEach(x => {
-            if (!acked[x] || resource.acked_boundary[x]) keep_us[x] = true
-        })
-
-        // ok, now we want to find "bubbles" in the dag,
-        // with a "bottom" and "top" version,
-        // where any path down from the top will hit the bottom,
-        // and any path up from the bottom will hit the top,
-        // and also, the bubble should not contain any versions we want to keep
-        // (unless it's the bottom)
-
-        // to help us calculate bubbles,
-        // let's calculate children for our time dag
-        // (whereas the time dag just gives us parents)
-        var children = {}
-        Object.entries(resource.time_dag).forEach(([v, parents]) => {
-            Object.keys(parents).forEach(parent => {
-                if (!children[parent]) children[parent] = {}
-                children[parent][v] = true
-            })
-        })
-
-        // now we'll actually compute the bubbles
-        var to_bubble = {}
-        var bubble_tops = {}
-        var bubble_bottoms = {}
-        
-        function mark_bubble(bottom, top, tag) {
-            if (!to_bubble[bottom]) {
-                to_bubble[bottom] = tag
-                if (bottom != top) Object.keys(resource.time_dag[bottom]).forEach(p => mark_bubble(p, top, tag))
-            }
-        }
-        
-        var done = {}
-        function f(cur) {
-            if (!resource.time_dag[cur]) return
-            if (done[cur]) return
-            done[cur] = true
-            
-            if (!to_bubble[cur] || bubble_tops[cur]) {
-                var bubble_top = find_one_bubble(cur)
-                if (bubble_top) {
-                    delete to_bubble[cur]
-                    mark_bubble(cur, bubble_top, bubble_tops[cur] || cur)
-                    bubble_tops[bubble_top] = bubble_tops[cur] || cur
-                    bubble_bottoms[bubble_tops[cur] || cur] = bubble_top
-                }
-            }
-    
-            Object.keys(resource.time_dag[cur]).forEach(f)
-        }
-        Object.keys(resource.current_version).forEach(f)
-    
-        to_bubble = Object.fromEntries(Object.entries(to_bubble).map(([v, bub]) => [v, [bub, bubble_bottoms[bub]]]))
-        
-        function find_one_bubble(cur) {
-            var seen = {[cur]: true}
-            var q = Object.keys(resource.time_dag[cur])
-            var expecting = Object.fromEntries(q.map(x => [x, true]))
-            while (q.length) {
-                cur = q.pop()
-                if (!resource.time_dag[cur]) return null
-                if (keep_us[cur]) return null
-                if (Object.keys(children[cur]).every(c => seen[c])) {
-                    seen[cur] = true
-                    delete expecting[cur]
-                    if (!Object.keys(expecting).length) return cur
-                    
-                    Object.keys(resource.time_dag[cur]).forEach(p => {
-                        q.push(p)
-                        expecting[p] = true
-                    })
-                }
-            }
-            return null
-        }
-
-        // now hand these bubbles to the mergeable's prune function..
-        var seen_annotations = {}
-        resource.mergeable.prune(to_bubble, seen_annotations)
-
-        // Now we check to see if we can collapse the spacedag down to a literal.
-        //
-        // Todo: Move this code to the resource.mergeable.prune function.
-        //       (this code also assumes there is a God (a single first version adder))
-        var leaves = Object.keys(resource.current_version)
-        var acked_boundary = Object.keys(resource.acked_boundary)
-        var fiss = Object.keys(resource.fissures)
-        if (leaves.length == 1 && acked_boundary.length == 1
-            && leaves[0] == acked_boundary[0] && fiss.length == 0
-            && !Object.keys(seen_annotations).length) {
-
-            resource.time_dag = { [leaves[0]]: {} }
-            var val = resource.mergeable.read_raw()
-            resource.space_dag = (val && typeof(val) == 'object') ? {t: 'lit', S: val} : val
-        }
     }
 
     node.create_joiner = (key) => {
@@ -1249,7 +907,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         }
 
         // A data structure that can merge simultaneous operations
-        resource.mergeable = require('./merge-algos/sync9.js')(resource)
+        resource.mergeable = require('./mergeables/sync9.js')(resource)
 
         // Peers that we have sent a welcome message to
         if (!resource.keepalive_peers) resource.keepalive_peers = {}

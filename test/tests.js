@@ -1,4 +1,4 @@
-require('../merge-algos/sync9.js')
+require('../mergeables/sync9.js')
 require('../util/utilities.js')
 
 //show_debug = true
