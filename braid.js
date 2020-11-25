@@ -326,7 +326,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.welcome = (args) => {
         var {key, versions, fissures, unack_boundary, min_leaves, parents, origin} = args
 
-        // Note: `versions` is actually array of set messages. Each one has a version id.
+        // Note: `versions` is actually array of set messages.
 
         // Catch protocol errors
         try {
@@ -381,7 +381,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
                 resource.mergeable.add_version(v.version, v.parents, v.changes,
                                                v.hint && v.hint.sort_keys)
-
                 added_versions.push(v)
             }
         }

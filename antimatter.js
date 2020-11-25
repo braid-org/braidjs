@@ -7,13 +7,13 @@ module.exports = require.antimatter = (node) => ({
         var {key, patches, version, parents, origin, joiner_num} = args
         var resource = node.resource_at(key)
         if (args.is_new) {
-            // G: next, we want to remember some information for the purposes
-            // of acknowledgments, namely, we'll remember how many people
-            // we forward this version along to (we'll actually do the forwarding
-            // right after this), and we also remember whether or not
-            // we are the originators of this version (if we originated the version,
-            // then we'll be responsible for sending the "global" ack when
-            // the time is right)..
+            // Next, we want to remember some information for the purposes of
+            // acknowledgments, namely, we'll remember how many people we
+            // forward this version along to (we'll actually do the forwarding
+            // right after this), and we also remember whether or not we are
+            // the originators of this version (if we originated the version,
+            // then we'll be responsible for sending the "global" ack when the
+            // time is right)..
 
             var origin_is_keepalive = origin && resource.keepalive_peers[origin.id]
             resource.acks_in_process[version] = {
@@ -29,42 +29,35 @@ module.exports = require.antimatter = (node) => ({
                    node.pid, 'Acks have below zero! Proof:',
                    {origin, key, version,
                     acks_in_process: resource.acks_in_process[version]})
-
-            // console.log('Initialized acks to', resource.acks_in_process[version])
         }
         else if (resource.acks_in_process[version]
-                   // Greg: In what situation is acks_in_process[version] false?
+                 // Q: In what situation is acks_in_process[version] false?
+                 //
+                 // A: Good question; the answer is that in some cases we will
+                 // delete acks_in_process for a version if, say, we receive a
+                 // global ack for a descendant of this version, or if we
+                 // receive a fissure.. in such cases, we simply ignore the
+                 // ack process for that version, and rely on a descendant
+                 // version getting globally acknowledged.
 
-                   // G: good question; the answer is that in some cases
-                   // we will delete acks_in_process for a version if,
-                   // say, we receive a global ack for a descendant of this version,
-                   // or if we receive a fissure.. in such cases, we simply
-                   // ignore the ack process for that version, and rely
-                   // on a descendant version getting globally acknowledged.
+                 && joiner_num == resource.joiners[version])
 
-                   && joiner_num == resource.joiners[version])
-
-            // G: now if we're not going to add the version, most commonly because
-            // we already possess the version, there is another situation that
-            // can arise, namely, someone that we forwarded the version to
-            // sends it back to us... How could that happen? Well, they may have
-            // heard about this version from someone we sent it to, before
-            // hearing about it from us (assuming some pretty gross latency)..
-            // anyway, if it happens, we can treat it like an ACK for the version,
-            // which is why we decrement "count" for acks_in_process for this version;
-            // a similar line of code exists inside "node.ack"
-
-            // console.log('Branch •B• happened',
-            //             joiner_num,
-            //             resource.joiners[version],
-            //             resource.acks_in_process[version].count)
+            // Now if we're not going to add the version, most commonly
+            // because we already possess the version, there is another
+            // situation that can arise, namely, someone that we forwarded the
+            // version to sends it back to us... How could that happen? Well,
+            // they may have heard about this version from someone we sent it
+            // to, before hearing about it from us (assuming some pretty gross
+            // latency)..  anyway, if it happens, we can treat it like an ACK
+            // for the version, which is why we decrement "count" for
+            // acks_in_process for this version; a similar line of code exists
+            // inside "node.ack"
 
             resource.acks_in_process[version].count--
 
-        // G: since we may have messed with the ack count, we check it
-        // to see if it has gone to 0, and if it has, take the appropriate action
-        // (which is probably to send a global ack)
-
+        // Since we may have messed with the ack count, we check it to see if
+        // it has gone to 0, and if it has, take the appropriate action (which
+        // is probably to send a global ack)
 
         check_ack_count(node, key, resource, version)
     },
