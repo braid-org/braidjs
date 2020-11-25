@@ -46,11 +46,9 @@ module.exports = require.errors = (node) => ({
             || patches.some(x => typeof(x) != 'string'))
             report('set', 'invalid patches: ' + JSON.stringify(patches))
 
-        if (!version) version = u.random_id()
         if (!version || typeof(version) != 'string')
             report('set', 'invalid version: ' + JSON.stringify(version))
 
-        if (!parents) parents = {...resource.current_version}
         if (parents && (typeof(parents) != 'object'
                         || Object.entries(parents).some(([k, v]) => v !== true)))
             report('set', 'invalid parents: ' + JSON.stringify(parents))

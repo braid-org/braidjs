@@ -37,111 +37,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
         return node.resources[key]
     }
 
-    function add_full_ack_leaf(resource, version) {
-
-        // G: someone is telling us that "version" is fully (globally) acknowledged,
-        // and this fact implies that every ancestor of version is also fully
-        // acknowledged, which means that we don't need to keep certain information
-        // about them, like "acks_in_process".. this next section simply
-        // iterates over all the ancestors (including this version itself) and deletes
-        // information we don't need anymore for each one..
-
-        var marks = {}
-        function f(v) {
-            if (!marks[v]) {
-                marks[v] = true
-                delete resource.unack_boundary[v]
-                delete resource.acked_boundary[v]
-                delete resource.acks_in_process[v]
-                delete resource.joiners[v]
-                Object.keys(resource.time_dag[v]).forEach(f)
-            }
-        }
-        f(version)
-
-        // G: now that old information is gone, we need to add one bit of new
-        // information, namely that this version is fully acknowledged,
-        // which we express by putting it in the "acked_boundary" (and we hope
-        // that nobody calls this function on a version which is already fully
-        // acknowledged; you can check the two places where this function is called
-        // to verify that they guard against calling this function on a version
-        // which is already fully acknowledged.. note that one does so by noting
-        // that "acks_in_process" will always be null for versions which are fully
-        // acknowledged, because "acks_in_process" is deleted in section above
-        // for all such versions)
-
-        resource.acked_boundary[version] = true
-
-        // G: next we're going to prune.. really we could call prune whenever we want,
-        // this is just a somewhat reasonable time, since there is some chance
-        // that with this new full acknowledgment, that we might be able to prune
-        // more stuff than we could prune before (but we could also let the user
-        // call "prune" explicitly at their leisure)
-
-        node.prune(resource)
-    }
-    
-    function check_ack_count(key, resource, version) {
-        // TODO: could this only take key, instead of key and resource?  Or
-        // perhaps a resource should know its key?
-        assert(!resource.acks_in_process[version]
-               || resource.acks_in_process[version].count >= 0,
-               'Acks have gone below zero!',
-               {key, version,
-                acks_in_process: resource.acks_in_process[version]})
-
-        // G: this function gets called from a couple of places, basically whenever
-        // someone suspects that the "count" within "acks_in_process" may have changed,
-        // since it might have gone all the way to zero, in which case we will act...
-        // of course, in some such instances, acks_in_process may have been removed
-        // entirely for a version, so we guard against that here, too..
-
-        if (resource.acks_in_process[version]
-            && resource.acks_in_process[version].count == 0) {
-
-            // G: sweet, the count has gone to zero, that means all the acks we were
-            // waiting for have arrived, now there are a couple possibilities..
-
-            if (resource.acks_in_process[version].origin) {
-
-                // G: in this case, we have an "origin", which means we didn't create
-                // this version ourselves, and "origin" tells us who we first heard
-                // about it from, and so now, as per the ack-algorithm, we're going
-                // to send an ack back to that person (because the algorithm tells us
-                // to only send an ack after we have received acks from everyone
-                // we forwarded the information to)
-
-                let p = resource.acks_in_process[version].origin
-                p.send && p.send({
-                    method: 'ack', key, seen:'local', version,
-                    joiner_num: resource.joiners[version]
-                })
-            } else {
-
-                // G: in this case, we have no "origin", which means we created
-                // this version ourselves, and now the fact that all our peers
-                // have acknowledged it means that all of their peers have also
-                // acknowledged. In fact, everyone in the network must have
-                // acknowledged it (or else we would have received a fissure
-                // before receiving this acknowledgment, and that fissure would
-                // have wiped away "acks_in_process" for this version), so that
-                // means this version is "fully (globally) acknowledged",
-                // so we'll call add_full_ack_leaf for this version..
-
-                add_full_ack_leaf(resource, version)
-
-                // G: but "add_full_ack_leaf" just modifies our own datastructure,
-                // and we must also give the good news to everyone else, so
-                // we send a "global" ack to all our peers (and they'll forward it
-                // to their peers)
-
-                node.bindings(key).forEach( pipe => {
-                    pipe.send && pipe.send({method: 'ack', key, seen:'global', version})
-                })
-            }
-        }
-    }
-
     var default_pipe = {id: 'null-pipe'}
 
     // Can be called as:
@@ -325,6 +220,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
         }
 
         var resource = node.resource_at(key)
+
+        // Set defaults
+        if (!version) version = u.random_id()
+        if (!parents) parents = {...resource.current_version}
 
         // Catch protocol errors
         try {
