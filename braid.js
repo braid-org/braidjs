@@ -326,6 +326,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
     node.welcome = (args) => {
         var {key, versions, fissures, unack_boundary, min_leaves, parents, origin} = args
 
+        // Note: `versions` is actually array of set messages. Each one has a version id.
+
         // Catch protocol errors
         try {
             node.protocol_errors.welcome(args)
@@ -339,10 +341,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             on => on('welcome', {key, versions, fissures, unack_boundary, min_leaves, origin})
         )
 
-        // `versions` is actually array of set messages. Each one has a version.
-        var new_versions = []
-        
-        // G: Some of the incoming versions we may already have.  So one might
+        // Some of the incoming versions we may already have.  So one might
         // ask, why don't we just filter the versions according to which ones
         // we already have? why this versions_to_add nonsense? The issue is
         // that there may be versions which we don't have, but that we don't
@@ -356,30 +355,34 @@ module.exports = require.braid = function create_node(node_data = {}) {
         var versions_to_add = {}
         versions.forEach(v => versions_to_add[v.version] = v.parents)
         versions.forEach(v => {
+            // For each incoming version...
+            // ... if we have this version already:
             if (resource.time_dag[v.version]) {
-                function f(v) {
+                // Then remove it and its ancestors from our "stuff to add"
+                remove_ancestors(v.version)
+                function remove_ancestors (v) {
                     if (versions_to_add[v]) {
-                        Object.keys(versions_to_add[v]).forEach(f)
+                        Object.keys(versions_to_add[v]).forEach(remove_ancestors)
                         delete versions_to_add[v]
                     }
                 }
-                f(v.version)
             }
         })
 
-        // G: now versions_to_add will only contain truthy values for versions
-        // which we really do want to add (they are new to us, and they
-        // are not repeats of some version we had in the past, but pruned away)
+        // Now versions_to_add will only contain truthy values for versions
+        // which we really do want to add (they are new to us, and they are
+        // not repeats of some version we had in the past, but pruned away)
 
+        var added_versions = []
         for (var v of versions) {
             if (versions_to_add[v.version]) {
-                new_versions.push(v)
-
                 if (!Object.keys(v.parents).every(p => resource.time_dag[p]))
                     return send_error()
 
                 resource.mergeable.add_version(v.version, v.parents, v.changes,
                                                v.hint && v.hint.sort_keys)
+
+                added_versions.push(v)
             }
         }
 
@@ -396,226 +399,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
             node.on_errors.forEach(f => f(key, origin))
         }
 
-        // let's also check to make sure we have the min_leaves and unack_boundary,
+        // Let's also check to make sure we have the min_leaves and unack_boundary,
         // if they are specified..
         if (((min_leaves && Object.keys(min_leaves).some(k => !resource.time_dag[k]))
              || (unack_boundary && Object.keys(unack_boundary).some(k => !resource.time_dag[k]))))
             return send_error()
         
-        // G: next we process the incoming fissures, and like before,
-        // we only want to add new ones, and there's also this gen_fissures
-        // variable which is short of "generated_fissures", and records
-        // fissures which we created just now as part of a special case
-        // where we receive a fissure that we were supposedly involved with,
-        // but we don't have a fissure record for (this can happen when someone
-        // tries to connect with us, but the connection is broken even before
-        // we knew they were trying to connect)
-
-        var new_fissures = []
-        var gen_fissures = []
-        fissures.forEach(f => {
-            var key = f.a + ':' + f.b + ':' + f.conn
-            if (!resource.fissures[key]) {
-
-                // G: so we don't have this fissure.. let's add it..
-
-                new_fissures.push(f)
-                resource.fissures[key] = f
-
-                // G: now let's check for that special case where we don't
-                // have the fissure, but we're one of the ends of the fissure
-                // (note that we don't check for f.a == node.pid because that
-                // would be a fissure created by us -- we're looking for
-                // fissures not created by us, but that we are the other end
-                // of).  We just add these fissures to gen_fissures for now,
-                // and later in this function we'll iterate over gen_fissures
-                // and actually add these fissures to our data structure (as
-                // well as tell them to our peers)
-                //
-                // If we don't do this, then this fissure will never get pruned,
-                // because it will never find its "other half"
-
-                if (f.b == node.pid) gen_fissures.push({
-                    a:        node.pid,
-                    b:        f.a,
-                    conn:     f.conn,
-                    versions: f.versions,
-                    parents:  {},
-                    time:     f.time
-                })
-            }
-        })
-
-        // G: there is this thing called the unack_boundary, which defines
-        // a set of nodes (namely everything on the boundary, and any ancestors
-        // of anything on the boundary), and these nodes should exhibit the
-        // behavior that even if a global acknowledgment is received for them,
-        // it should be ignored.
-        //
-        // why should we ignore them? well, this welcome message we've received
-        // is kindof like an anti-fissure -- it is a new citizen in the network,
-        // and the whole idea of a "global ack" is that all citizens connected
-        // directly or transitively to ourselves have seen this version,
-        // but imagine that there is a "global ack" sitting the our message queue,
-        // but it was created before this new connection, meaning that it's
-        // claim has been violated (in particular, this new citizen may not
-        // have seen the version, and this new citizen may bring in transitive
-        // access to even more citizens, which also may not have seen the version),
-        // so rather than trying to figure out who has seen what when a new
-        // connection is established, we sortof blacklist global acknowledgments
-        // for all versions in both our, and the new citizens current versions,
-        // and we wait for a version created after this connection event
-        // to get globally acknowledged (note that this involves un-globally
-        // acknowledging things that we had thought were globally acknowledged,
-        // but not everything -- if a version is globally acknowledged by us,
-        // and also by the incoming citizen, then we keep that version as
-        // globally acknowledged)
-
-        // G: this next if statement deals with two cases of the welcome message.
-        // in one case, the welcome is sent as a response to a get,
-        // in which case unack_boundary is null (and you can see that we just
-        // set it to be absolutely all of the versions we currently know about,
-        // both in our own version set, and the incoming version set, since
-        // we already added the incoming versions to our set). If it isn't null,
-        // then we don't need to give it a value here (and this message must be
-        // a case of propoagating a welcome around the network)
-        //
-        // So conceptually, we establish the unack_boundary on the initial
-        // welcome (and we can't know it before then, because the person
-        // sending us this welcome doesn't know which versions we have),
-        // and then once it is established, we hardcode the result into
-        // the welcome messages that we send to our peers
-
-        if (!unack_boundary)
-            unack_boundary = Object.assign({}, resource.current_version)
-
-        // G: to understand this next bit of code,
-        // first know that these "boundary" variables are really just
-        // trying to be more effecient ways of storing sets of versions (which
-        // include everything on the boundary, as well as all the ancestors
-        // of those versions). If we were using sets, our code would
-        // be doing this:
-        //
-        // resource.unack_set = union(resource.unack_set, unack_set)
-        //
-        // that is, we want to union our pre-existing unacked stuff with
-        // the new incoming unacked stuff. But since our implementation
-        // uses boundaries rather than sets, we get the code that follows
-        // (you can see that the only modifications being made are to
-        // resource.unack_boundary, where we delete some stuff, and add
-        // some stuff, so that it represents the new boundary)
-
-        // console.log('processing1:', resource.unack_boundary)
-        var our_conn_versions = resource.ancestors(resource.unack_boundary)
-        // console.log('processing2:', unack_boundary)
-
-        var new_conn_versions = resource.ancestors(unack_boundary)
-
-        Object.keys(resource.unack_boundary).forEach(x => {
-            if (new_conn_versions[x] && !unack_boundary[x]) {
-                delete resource.unack_boundary[x]
-            }
-        })
-        Object.keys(unack_boundary).forEach(x => {
-            if (!our_conn_versions[x]) resource.unack_boundary[x] = true
-        })
-
-        // G: so that was dealing with the unack_boundary stuff... now
-        // we want to deal with the globally acknowledged stuff. Basically,
-        // anything that is globally acknowledged by both us, and the incoming
-        // citizen, will remain globally acknowledged. We'll compute these
-        // versions as the intersection of ours and their acknowledged set,
-        // and then store just the boundary of the intersection set
-        // and call it "min_leaves" (where "min" basically means "intersection"
-        // in this case, and used to be paired with "max_leaves", which
-        // meant "union", and was used to represent the unack_boundary above)
-        //
-        // As before, min_leaves will be null on the initial welcome,
-        // and we'll compute it, and then subsequent welcomes will have this
-        // result included...
+        node.antimatter.welcome({...args, versions_to_add, added_versions})
         
-        if (!min_leaves) {
-            if (versions.length == 0 && (!parents || Object.keys(parents).length == 0)) {
-                min_leaves = {...resource.acked_boundary}
-            } else {
-                min_leaves = parents ? {...parents} : {}
-                versions.forEach(v => {
-                    if (!versions_to_add[v.version]) min_leaves[v.version] = true
-                })
-                min_leaves = resource.get_leaves(resource.ancestors(min_leaves, true))
-            }
-        }
-
-        // G: we are now armed with this "min_leaves" variable,
-        // either because we computed it, or it was given to us...
-        // what do we do with it? well, we want to roll-back our
-        // boundary of globally acknowledged stuff so that it only
-        // includes stuff within "min_leaves" (that is, we only want
-        // to keep stuff as globally acknowledged if it was already
-        // globally acknowledged, and also it is already known to this
-        // incoming citizen)
-        //
-        // As before, we're really doing a set intersection (in this case
-        // an intersection between min_leaves and our own acked_boundary),
-        // but the code looks wonkier because all our variables store
-        // the boundaries of sets, rather than the sets themselves
-
-        var min_versions = resource.ancestors(min_leaves)
-        var ack_versions = resource.ancestors(resource.acked_boundary)
-        Object.keys(resource.acked_boundary).forEach(x => {
-            if (!min_versions[x])
-                delete resource.acked_boundary[x]
-        })
-        Object.keys(min_leaves).forEach(x => {
-            if (ack_versions[x]) resource.acked_boundary[x] = true
-        })
-
-        // G: this next line of code is pretty drastic.. it says: "If we're
-        // connecting to someone new, then all our hard work keeping track
-        // of acknowledgments is now useless, since it relies on an algorithm
-        // that assumes there will be no changes in the network topology
-        // whilst the algorithm is being carried out -- and the network topology
-        // just changed, because now there's this new guy"
-        //
-        // Fortunately, once a new version is globally acknowledged within the new
-        // topology, it's acknowledgment will extend to these versions as well,
-        // because global acknowledgments apply to all ancestors of a version,
-        // and any new versions will include all existing versions as ancestors.
-        
-        resource.acks_in_process = {}
-
-        // G: ok, we're pretty much done. We've made all the changes to our
-        // own data structure (except for the gen_fissures, which will happen next),
-        // and now we're ready to propogate the information to our peers.
-        //
-        // So, up above, when we added new versions and fissures to ourselves,
-        // we marked each such instance in new_versions or new_fissures,
-        // and if we got any new versions or fissures, then we want to
-        // tell our peers about it (if we didn't, then we don't need to tell anyone,
-        // since there's nothing new to hear about)
-        
-        assert(unack_boundary && min_leaves && fissures && new_versions)
-        if (new_versions.length > 0 || new_fissures.length > 0 || !resource.weve_been_welcomed) {
-            // Now record that we've seen a welcome
-            resource.weve_been_welcomed = true
-
-            // And tell everyone about it!
-            node.bindings(key).forEach(pipe => {
-                if (pipe.send && (pipe.id !== origin.id))
-                    pipe.send({method: 'welcome',
-                               key, versions: new_versions, unack_boundary, min_leaves,
-                               fissures: new_fissures})
-            })
-        }
-
-        // G: now we finally add the fissures we decided we need to create
-        // in gen_fissures... we add them now, after the code above,
-        // so that these network messages appear after the welcome (since
-        // they may rely on information which is in the welcome for other
-        // people to understand them)
-
-        gen_fissures.forEach(f => node.fissure({key, fissure:f}))
-
         // Now that we processed the welcome, set defaults if we have one
         var default_val = default_val_for(key)
         if (default_val && !node.current_version(key)) {
