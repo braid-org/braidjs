@@ -1,7 +1,4 @@
 module.exports = require.antimatter = (node) => ({
-    get (args) {
-        var {key, subscribe, version, parents, origin} = args
-    },
 
     set (args) {
         var {key, patches, version, parents, origin, joiner_num} = args
