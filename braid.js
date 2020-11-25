@@ -1,5 +1,4 @@
 u = require('./util/utilities.js')
-g_show_protocol_errors = false;
 
 module.exports = require.braid = function create_node(node_data = {}) {
     var node = {}
@@ -23,6 +22,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         node.on_errors = []
     
         node.incoming_subscriptions = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
+        node.protocol_errors = require('./errors')(node)
     }
     node.init(node_data)
 
@@ -148,6 +148,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
     //  - get({key, origin, ...})
     node.get = (...args) => {
         var key, version, parents, subscribe, origin
+
         // First rewrite the arguments if called as get(key) or get(key, cb)
         if (typeof args[0] === 'string') {
             key = args[0]
@@ -187,25 +188,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (!origin)
             origin = {id: u.random_id()}
 
-        // Sanity-check the input
-        {
-            function report(x) { g_show_protocol_errors && console.warn('PROTOCOL ERROR for get: ' + x) }
-            if (!key || typeof(key) != 'string') { return report('invalid key' + JSON.stringify(key)) }
+        // Define handy variables
+        var resource = node.resource_at(key)
 
-            log('get:', node.pid, key)
-
-            var resource = node.resource_at(key)
-            if (subscribe && subscribe.keep_alive
-                && resource.keepalive_peers[origin.id])
-                return report('we already welcomed them')
-
-            if (version && typeof(version) != 'string')
-                return report('invalid version: ' + JSON.stringify(version))
-
-            if (parents && (typeof(parents) != 'object'
-                            || Object.entries(parents).some(([k, v]) => v !== true)))
-                return report('invalid parents: ' + JSON.stringify(parents))
+        // Handle errors
+        try {
+            node.protocol_errors.get({...args, key, subscribe, version, parents, origin})
         }
+        catch (errors) { return errors }
 
         node.ons.forEach(on => on('get', {key, version, parents, subscribe, origin}))
 
@@ -332,40 +322,13 @@ module.exports = require.braid = function create_node(node_data = {}) {
             ({key, patches, version, parents, origin, joiner_num} = args[0])
         }
 
-        // Sanity-check the input
-        {
-            function report(x) {
-                g_show_protocol_errors && console.warn('PROTOCOL ERROR for set: ' + x)
-            }
+        var resource = node.resource_at(key)
 
-            if (!key || typeof(key) != 'string')
-                return report('invalid key: ' + JSON.stringify(key))
-
-            var resource = node.resource_at(key)
-
-            // If you're trying to join a persistent consistent group, then
-            // you probably don't want to send any SETs before you actually
-            // join and know what the current version is:
-            if (origin && u.has_keep_alive(origin, key)
-                && !resource.keepalive_peers[origin.id])
-                return report('we did not welcome them yet')
-
-            if (!patches || !Array.isArray(patches)
-                || patches.some(x => typeof(x) != 'string'))
-                return report('invalid patches: ' + JSON.stringify(patches))
-
-            if (!version) version = u.random_id()
-            if (!version || typeof(version) != 'string')
-                report('invalid version: ' + JSON.stringify(version))
-
-            if (!parents) parents = {...resource.current_version}
-            if (parents && (typeof(parents) != 'object'
-                            || Object.entries(parents).some(([k, v]) => v !== true)))
-                return report('invalid parents: ' + JSON.stringify(parents))
-
-            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number')
-                return report('invalid joiner_num: ' + JSON.stringify(joiner_num))
+        // Catch protocol errors
+        try {
+            node.protocol_errors.set({...args, key, version, parents, patches, origin, joiner_num})
         }
+        catch (errors) { return errors }
 
         log('set:', {key, version, parents, patches, origin, joiner_num})
 
@@ -517,61 +480,16 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     // Todo:
     //  - Rename min_leaves and unack_boundary to unack_from and unack_to
-    node.welcome = ({key, versions, fissures, unack_boundary, min_leaves, parents, origin}) => {
-        // Sanity-check the input
-        {
-            function report(x) {
-                g_show_protocol_errors && console.warn('PROTOCOL ERROR for welcome: '+x)
-            }
-            if (!key || typeof(key) != 'string')
-                return report('invalid key: ' + JSON.stringify(key))
+    node.welcome = (args) => {
+        var {key, versions, fissures, unack_boundary, min_leaves, parents, origin} = args
 
-            var resource = node.resource_at(key)
-            if (!resource.keepalive_peers[origin.id])
-                return report('we did not welcome them yet')
-
-            if (!Array.isArray(versions) || !versions.every(v => {
-                if (v.version && typeof(v.version) != 'string') return false
-                if (!v.parents || typeof(v.parents) != 'object'
-                    || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
-                if (!Array.isArray(v.changes)
-                    || v.changes.some(x => typeof(x) != 'string')) return false
-                if (v.hint) {
-                    if (!v.hint.sort_keys) return false
-                    if (typeof(v.hint.sort_keys) != 'object') return false
-                    if (!Object.entries(v.hint.sort_keys).every(([index, key]) => (''+index).match(/^\d+$/) && typeof(key) == 'string')) return false
-                }
-                return true
-            })) { return report('invalid versions: ' + JSON.stringify(versions)) }
-
-            if (!Array.isArray(fissures) || !fissures.every(fissure => {
-                if (!fissure || typeof(fissure) != 'object') return false
-                if (typeof(fissure.a) != 'string') return false
-                if (typeof(fissure.b) != 'string') return false
-                if (typeof(fissure.conn) != 'string') return false
-                if (!fissure.versions || typeof(fissure.versions) != 'object'
-                    || !Object.entries(fissure.versions).every(([k, v]) => v === true)) return false
-                if (!fissure.parents || typeof(fissure.parents) != 'object'
-                    || !Object.entries(fissure.parents).every(([k, v]) => v === true)) return false
-                if (typeof(fissure.time) != 'number') return false
-                return true
-            })) { return report('invalid fissures: ' + JSON.stringify(fissures)) }
-
-            if (unack_boundary && (typeof(unack_boundary) != 'object'
-                                   || !Object.entries(unack_boundary).every(
-                                       ([k, v]) => v === true)))
-                return report('invalid unack_boundary: '+JSON.stringify(unack_boundary))
-
-            if (min_leaves && (typeof(min_leaves) != 'object'
-                               || !Object.entries(min_leaves).every(
-                                   ([k, v]) => v === true)))
-                return report('invalid min_leaves: ' + JSON.stringify(min_leaves))
-            
-            if (parents && (typeof(parents) != 'object'
-                               || !Object.entries(parents).every(
-                                   ([k, v]) => v === true)))
-                return report('invalid parents: ' + JSON.stringify(parents))
+        // Catch protocol errors
+        try {
+            node.protocol_errors.welcome(args)
         }
+        catch (errors) { return errors }
+
+        var resource = node.resource_at(key)
 
         // let people know about the welcome
         node.ons.forEach(on => on('welcome', {key, versions, fissures, unack_boundary, min_leaves, origin}))
@@ -873,18 +791,13 @@ module.exports = require.braid = function create_node(node_data = {}) {
             ({key, origin} = args[0])
         }
 
-        // guard against invalid forgets
-        if (true) {
-            function report(x) {
-                g_show_protocol_errors && console.warn('PROTOCOL ERROR for forget: '+x)
-            }
-            log(`forget: ${node.pid}, ${key}->${origin.id}`)
-            if (!key || typeof(key) != 'string')
-                return report('invalid key: ' + JSON.stringify(key))
-            if (!node.incoming_subscriptions.has(key, origin.id))
-                return report(`pipe "${origin.id}" did not get the key "${key}" yet`)
-        }
+        log(`forget: ${node.pid}, ${key}->${origin.id}`)
 
+        // Catch protocol errors
+        try {
+            node.protocol_errors.forget({...args, key, origin})
+        }
+        catch (errors) { return errors }
         node.ons.forEach(on => on('forget', {key, origin}))
 
         var resource = node.resource_at(key)
@@ -907,34 +820,18 @@ module.exports = require.braid = function create_node(node_data = {}) {
         }
     }
 
-    node.ack = ({key, valid, seen, version, origin, joiner_num}) => {
-        // guard against invalid messages
-        if (true) {
-            function report(x) {
-                g_show_protocol_errors && console.warn('PROTOCOL ERROR for ack: ' + x)
-            }
-            if (typeof(key) != 'string')
-                return report('invalid key: ' + JSON.stringify(key))
+    node.ack = (args) => {
+        var {key, valid, seen, version, origin, joiner_num} = args
 
-            var resource = node.resource_at(key)
-            if (!resource.keepalive_peers[origin.id])
-                return report('we did not welcome them yet')
-
-            if (typeof(valid) != 'undefined')
-                return report('support for valid flag not yet implemented')
-
-            if (seen != 'local' && seen != 'global')
-                return report('invalid seen: ' + JSON.stringify(seen))
-
-            if (typeof(version) != 'string')
-                return report('invalid version: ' + JSON.stringify(version))
-
-            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number')
-                return report('invalid joiner_num: ' + JSON.stringify(joiner_num))
+        // Catch protocol errors
+        try {
+            node.protocol_errors.ack(args)
         }
+        catch (errors) { return errors }
+
+        var resource = node.resource_at(key)
 
         node.ons.forEach(on => on('ack', {key, valid, seen, version, origin, joiner_num}))
-
         log('node.ack: Acking!!!!', {key, seen, version, origin})
 
         if (seen == 'local') {
@@ -963,25 +860,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
     }
     
     node.fissure = ({key, fissure, origin}) => {
-        // guard against invalid messages
-        if (true) {
-            function report(x) { g_show_protocol_errors && console.warn('PROTOCOL ERROR for fissure: ' + x) }
-            if (typeof(key) != 'string') { return report('invalid key: ' + JSON.stringify(key)) }
 
-            var resource = node.resource_at(key)
-
-            if ((!fissure || typeof(fissure) != 'object') ||
-                (!fissure.a || typeof(fissure.a) != 'string') ||
-                (!fissure.b || typeof(fissure.b) != 'string') ||
-                (!fissure.conn || typeof(fissure.conn) != 'string') ||
-                (!fissure.versions || typeof(fissure.versions) != 'object' || !Object.entries(fissure.versions).every(([k, v]) => v === true)) ||
-                (!fissure.parents || typeof(fissure.parents) != 'object' || !Object.entries(fissure.parents).every(([k, v]) => v === true)) ||
-                (typeof(fissure.time) != 'number')
-            ) { 
-                return report('invalid fissure: ' + JSON.stringify(fissure))
-            }
+        // Catch protocol errors
+        try {
+            node.protocol_errors.fissure({key, fissure, origin})
         }
+        catch (errors) { return errors }
 
+        var resource = node.resource_at(key)
         node.ons.forEach(on => on('fissure', {key, fissure, origin}))
 
         var fkey = fissure.a + ':' + fissure.b + ':' + fissure.conn
@@ -1001,16 +887,17 @@ module.exports = require.braid = function create_node(node_data = {}) {
             // And if this fissure matches us, then send the anti-fissure for
             // it
             if (fissure.b == node.pid)
-                node.fissure({key,
-                              fissure: {
-                                  a:        node.pid,
-                                  b:        fissure.a,
-                                  conn:     fissure.conn,
-                                  versions: fissure.versions,
-                                  parents:  {},
-                                  time:     fissure.time
-                              }
-                             })
+                node.fissure({
+                    key,
+                    fissure: {
+                        a:        node.pid,
+                        b:        fissure.a,
+                        conn:     fissure.conn,
+                        versions: fissure.versions,
+                        parents:  {},
+                        time:     fissure.time
+                    }
+                })
         }
     }
 

@@ -5,6 +5,7 @@
 
 is_browser = typeof process !== 'object' || typeof global !== 'object'
 terminal_width = _ => (!is_browser && process.stdout.columns) || 80
+show_protocol_errors = false
 nlogf = (protocol, from, symbol, to, msg) => {
     let stringy = JSON.stringify(msg, function(k, v) {
         if (k === 'method')

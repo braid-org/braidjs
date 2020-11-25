@@ -8,6 +8,7 @@ var n_steps_per_trial = 100
 var n_trials = 100
 var rand = null
 var random_seed_base = '000_hi_010bcdefg'
+show_protocol_errors = true
 
 solo_trial = null
 
