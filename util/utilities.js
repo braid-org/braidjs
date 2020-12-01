@@ -56,7 +56,8 @@ module.exports = require.utilities = {
         return s && ((s.we_requested && s.we_requested.keep_alive)
                 ||
                 (s.they_requested && s.they_requested.keep_alive))
-    }
+    },
+    parse_patch
 }
 
 if (is_browser)
@@ -102,6 +103,50 @@ function deep_equals(a, b) {
         if (!deep_equals(a[k], b[k])) return false
     return true
 }
+
+function parse_patch(patch) {
+    var ret = { path : [] }
+    var re = /^(delete)\s+|\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|'(\\'|[^'])*'|"(\\"|[^"])*")\]|\s*=\s*([\s\S]*)/g
+    var m
+    while (m = re.exec(patch)) {
+        if (m[1])
+            ret.delete = true
+        else if (m[2])
+            ret.path.push(m[2])
+        else if (m[3] && m[5])
+            ret.slice = [
+                JSON.parse(m[4]),
+                JSON.parse(m[5].substr(1))
+            ]
+        else if (m[3])
+            ret.path.push(JSON.parse(m[3]))
+        else if (m[8]) {
+            // What is this case for?  Can we have an example?
+            ret.value = JSON.parse(m[8])
+            recurse(ret.value)
+            function recurse(x) {
+                if (x && typeof(x) == 'object') {
+                    if (x instanceof Array) {
+                        for (var i = 0; i < x.length; i++) recurse(x[i])
+                    } else {
+                        if (Object.keys(x).find(k => k == 'type' && x[k] == 'location')) {
+                            x.id = Math.random().toString(36).slice(2)
+
+                            ret.annotations = ret.annotations || {}
+                            var path = parse_patch(x.path).path
+                            ret.annotations[x.id] = {
+                                path: path.slice(0, path.length - 1),
+                                pos: path[path.length - 1]
+                            }
+                        } else for (let k of Object.keys(x)) recurse(x[k])
+                    }
+                }
+            }
+        }
+    }
+    return ret
+}
+
 
 // ===============================================
 //

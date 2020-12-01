@@ -72,8 +72,8 @@ module.exports = require.errors = (node) => ({
                 if (v.version && typeof(v.version) != 'string') return false
                 if (!v.parents || typeof(v.parents) != 'object'
                     || Object.entries(v.parents).some(([k, v]) => v !== true)) return false
-                if (!Array.isArray(v.changes)
-                    || v.changes.some(x => typeof(x) != 'string')) return false
+                if (!Array.isArray(v.patches)
+                    || v.patches.some(x => typeof(x) != 'string')) return false
                 if (v.hint) {
                     if (!v.hint.sort_keys) return false
                     if (typeof(v.hint.sort_keys) != 'object') return false

@@ -3,74 +3,92 @@
 module.exports = require.sync9 = function create (resource) {
     if (!resource.space_dag) resource.space_dag = null
     return {
-        add_version: function (version, parents, patches, sort_keys, is_anc) {
-            return add_version(resource, version, parents, patches, sort_keys, is_anc)
+        add_version (version, parents, patches, hint) {
+            return add_version(resource, version, parents, patches,
+                               hint && hint.sort_keys)
         },
 
-        read: function (version) {
+        read (version) {
             return read(resource, version)
         },
 
-        read_raw: function (version) {
+        read_raw (version) {
             return read_raw(resource, version)
         },
 
-        prune: function (to_bubble, seen_annotations) {
+        prune (to_bubble, seen_annotations) {
             return prune(resource, to_bubble, seen_annotations)
         },
 
-        change_names: function (name_changes, deleted) {
-            change_names(resource, name_changes, deleted)
-        },
+        generate_braid (versions) {
+            var ancestors = (versions && Object.keys(versions).length
+                             ? resource.ancestors(versions, true)
+                             : {})
+            var versions = generate_braid(resource, x => ancestors[x])
 
-        generate_braid: function(is_anc
-                                   /*from_parents, to_parents*/) {
-            return generate_braid(resource, is_anc)
+            // Hey Greg: Why are we cloning versions here?  -Mike
+            versions = JSON.parse(JSON.stringify(versions))
+
+            versions.forEach(x => {
+                // we want to put some of this stuff in a "hint" field,
+                // as per the protocol
+                if (x.sort_keys) {
+                    x.hint = {sort_keys: x.sort_keys}
+                    delete x.sort_keys
+                }
+            })
+            return versions
         }
     }
 }
 
 function generate_braid(resource, is_anc) {
-    if (Object.keys(resource.time_dag).length === 0) return []
-    return Object.entries(resource.version_cache).filter(x => !is_anc(x[0])).map(([version, set_message]) => {
-        return resource.version_cache[version] = set_message || generate_set_message(version)
-    })
+    if (Object.keys(resource.time_dag).length === 0)
+        return []
+
+    return Object.entries(resource.version_cache).filter(
+               x => !is_anc(x[0])
+           ).map(
+               ([version, set_message]) => {
+                   return resource.version_cache[version]
+                       = set_message || generate_set_message(version)
+           })
 
     function generate_set_message(version) {
         if (!Object.keys(resource.time_dag[version]).length) {
             return {
                 version,
                 parents: {},
-                changes: [` = ${JSON.stringify(read_raw(resource, v => v == version))}`]
+                patches: [` = ${JSON.stringify(read_raw(resource, v => v == version))}`]
             }
         }
     
-        var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
-        var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
+        var is_lit = x => !x || typeof(x) !== 'object' || x.t === 'lit'
+        var get_lit = x => (x && typeof(x) === 'object' && x.t === 'lit') ? x.S : x
     
         var ancs = resource.ancestors({[version]: true})
         delete ancs[version]
         var is_anc = x => ancs[x]
         var path = []
-        var changes = []
+        var patches = []
         var sort_keys = {}
         recurse(resource.space_dag)
         function recurse(x) {
             if (is_lit(x)) {
-            } else if (x.t == 'val') {
+            } else if (x.t === 'val') {
                 space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
                     if (s[2].length) {
-                        changes.push(`${path.join('')} = ${JSON.stringify(s[2][0])}`)
-                        if (s[3]) sort_keys[changes.length - 1] = s[3]
+                        patches.push(`${path.join('')} = ${JSON.stringify(s[2][0])}`)
+                        if (s[3]) sort_keys[patches.length - 1] = s[3]
                     }
                 })
                 traverse_space_dag(x.S, is_anc, node => {
                     node.elems.forEach(recurse)
                 })
-            } else if (x.t == 'arr') {
+            } else if (x.t === 'arr') {
                 space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
-                    changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
-                    if (s[3]) sort_keys[changes.length - 1] = s[3]
+                    patches.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
+                    if (s[3]) sort_keys[patches.length - 1] = s[3]
                 })
                 var i = 0
                 traverse_space_dag(x.S, is_anc, node => {
@@ -80,16 +98,16 @@ function generate_braid(resource, is_anc) {
                         path.pop()
                     })
                 })
-            } else if (x.t == 'obj') {
+            } else if (x.t === 'obj') {
                 Object.entries(x.S).forEach(e => {
                     path.push('[' + JSON.stringify(e[0]) + ']')
                     recurse(e[1])
                     path.pop()
                 })
-            } else if (x.t == 'str') {
+            } else if (x.t === 'str') {
                 space_dag_generate_braid(x.S, resource, version, is_anc).forEach(s => {
-                    changes.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
-                    if (s[3]) sort_keys[changes.length - 1] = s[3]
+                    patches.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
+                    if (s[3]) sort_keys[patches.length - 1] = s[3]
                 })
             }
         }
@@ -97,7 +115,7 @@ function generate_braid(resource, is_anc) {
         return {
             version,
             parents: Object.assign({}, resource.time_dag[version]),
-            changes,
+            patches,
             sort_keys
         }
     }
@@ -107,11 +125,11 @@ function space_dag_generate_braid(S, resource, version, is_anc) {
     var splices = []
 
     function add_ins(offset, ins, sort_key, end_cap) {
-        if (typeof(ins) != 'string')
+        if (typeof(ins) !== 'string')
             ins = ins.map(x => read_raw(x, () => false))
         if (splices.length > 0) {
             var prev = splices[splices.length - 1]
-            if (prev[0] + prev[1] == offset && !end_cap && (prev[4] == 'i' || (prev[4] == 'r' && prev[1] == 0))) {
+            if (prev[0] + prev[1] === offset && !end_cap && (prev[4] === 'i' || (prev[4] === 'r' && prev[1] === 0))) {
                 prev[2] = prev[2].concat(ins)
                 return
             }
@@ -122,7 +140,7 @@ function space_dag_generate_braid(S, resource, version, is_anc) {
     function add_del(offset, del, ins) {
         if (splices.length > 0) {
             var prev = splices[splices.length - 1]
-            if (prev[0] + prev[1] == offset && prev[4] != 'i') {
+            if (prev[0] + prev[1] === offset && prev[4] !== 'i') {
                 prev[1] += del
                 return
             }
@@ -132,7 +150,7 @@ function space_dag_generate_braid(S, resource, version, is_anc) {
     
     var offset = 0
     function helper(node, _version, end_cap) {
-        if (_version == version) {
+        if (_version === version) {
             add_ins(offset, node.elems.slice(0), node.sort_key, end_cap)
         } else if (node.deleted_by[version] && node.elems.length > 0) {
             add_del(offset, node.elems.length, node.elems.slice(0, 0))
@@ -151,19 +169,19 @@ function space_dag_generate_braid(S, resource, version, is_anc) {
         // make them have at least 1 delete..
         // this can happen when there are multiple replaces of the same text,
         // and our code above will associate those deletes with only one of them
-        if (s[4] == 'r' && s[1] == 0) s[1] = 1
+        if (s[4] === 'r' && s[1] === 0) s[1] = 1
     })
     return splices
 }
 
 
 
-function prune(x, to_bubble, seen_annotations) {
+function prune(resource, to_bubble, seen_annotations) {
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
 
     seen_annotations = seen_annotations || {}
-    see_annotations(x.space_dag)
+    see_annotations(resource.space_dag)
     function see_annotations(x, is_lit_override) {
         if (is_lit_override || is_lit(x)) {
             if (!is_lit_override && x && typeof(x) == 'object' && x.t == 'lit') x = x.S
@@ -222,15 +240,38 @@ function prune(x, to_bubble, seen_annotations) {
             return x
         }
     }
-    x.space_dag = recurse(x.space_dag)
+    resource.space_dag = recurse(resource.space_dag)
 
     Object.entries(to_bubble).forEach(([version, bubble]) => {
-        if (version == bubble[1]) x.time_dag[bubble[0]] = x.time_dag[bubble[1]]
-        if (version != bubble[0]) {
-            delete x.time_dag[version]
-            delete x.version_cache[version]
-        } else x.version_cache[version] = null
+        if (version === bubble[1])
+            resource.time_dag[bubble[0]] = resource.time_dag[bubble[1]]
+        if (version !== bubble[0]) {
+            delete resource.time_dag[version]
+            delete resource.version_cache[version]
+        } else resource.version_cache[version] = null
     })
+
+    // Now we check to see if we can collapse the spacedag down to a literal.
+    //
+    // Todo: Should this code be looking so intimately at antimatter data,
+    // like the acked_boundary and fissures?  Shouldn't that part be computed
+    // in the antimatter section?  Maybe it should just pass the result of
+    // this computation into the prune() function as a paramter?
+    //
+    // (This code also assumes there is a God (a single first version adder))
+    var leaves = Object.keys(resource.current_version)
+    var acked_boundary = Object.keys(resource.acked_boundary)
+    var fiss = Object.keys(resource.fissures)
+    if (leaves.length === 1 && acked_boundary.length === 1
+        && leaves[0] === acked_boundary[0] && fiss.length === 0
+        && !Object.keys(seen_annotations).length) {
+
+        resource.time_dag = { [leaves[0]]: {} }
+        var val = resource.mergeable.read_raw()
+        resource.space_dag = (val && typeof(val) === 'object'
+                              ? {t: 'lit', S: val}
+                              : val)
+    }
 }
 
 function space_dag_prune(S, to_bubble, seen_annotations) {
@@ -306,26 +347,14 @@ function space_dag_prune(S, to_bubble, seen_annotations) {
     }
 }
 
-function add_version(resource, version, parents, changes, sort_keys, is_anc) {
+function add_version(resource, version, parents, patches, sort_keys, is_anc) {
     let make_lit = x => (x && typeof(x) == 'object') ? {t: 'lit', S: x} : x
     
-    if (resource.time_dag[version]) return
-    if (!Object.keys(parents).length && Object.keys(resource.time_dag).length) return
-
-    resource.time_dag[version] = Object.assign({}, parents)
-
-    resource.version_cache[version] = JSON.parse(JSON.stringify({version, parents, changes, sort_keys}))
-
     if (!sort_keys) sort_keys = {}
     
-    Object.keys(parents).forEach(k => {
-        if (resource.current_version[k]) delete resource.current_version[k]
-    })
-    resource.current_version[version] = true
-    
     if (!Object.keys(parents).length) {
-        var parse = parse_change(changes[0])
-        resource.space_dag = make_lit(parse.val)
+        var parse = parse_patch(patches[0])
+        resource.space_dag = make_lit(parse.value)
         parse.annotations && create_annotations(parse.annotations)
         return
     }
@@ -341,31 +370,34 @@ function add_version(resource, version, parents, changes, sort_keys, is_anc) {
 
     var annotations = {}
     
-    changes.forEach((change, i) => {
+    patches.forEach((patch, i) => {
         var sort_key = sort_keys[i]
-        var parse = parse_change(change)
+        var parse = parse_patch(patch)
         Object.assign(annotations, parse.annotations)
         var cur = resolve_path(parse)
-        if (!parse.range) {
+        if (!parse.slice) {
             if (cur.t != 'val') throw 'bad'
             var len = space_dag_length(cur.S, is_anc)
-            space_dag_add_version(cur.S, version, [[0, len, [parse.delete ? make_lit({type: 'deleted'}) : make_lit(parse.val)]]], sort_key, is_anc)
+            space_dag_add_version(cur.S, version, [[0, len, [parse.delete ? make_lit({type: 'deleted'}) : make_lit(parse.value)]]], sort_key, is_anc)
         } else {
-            if (typeof parse.val === 'string' && cur.t !== 'str')
-                throw `Cannot splice string ${JSON.stringify(parse.val)} into non-string`
-            if (parse.val instanceof Array && cur.t !== 'arr')
-                throw `Cannot splice array ${JSON.stringify(parse.val)} into non-array`
-            if (parse.val instanceof Array) parse.val = parse.val.map(x => make_lit(x))
+            if (typeof parse.value === 'string' && cur.t !== 'str')
+                throw `Cannot splice string ${JSON.stringify(parse.value)} into non-string`
+            if (parse.value instanceof Array && cur.t !== 'arr')
+                throw `Cannot splice array ${JSON.stringify(parse.value)} into non-array`
+            if (parse.value instanceof Array)
+                parse.value = parse.value.map(x => make_lit(x))
 
-            var r0 = parse.range[0]
-            var r1 = parse.range[1]
+            var r0 = parse.slice[0]
+            var r1 = parse.slice[1]
             if (r0 < 0 || Object.is(r0, -0) || r1 < 0 || Object.is(r1, -0)) {
                 let len = space_dag_length(cur.S, is_anc)
                 if (r0 < 0 || Object.is(r0, -0)) r0 = len + r0
                 if (r1 < 0 || Object.is(r1, -0)) r1 = len + r1
             }
 
-            space_dag_add_version(cur.S, version, [[r0, r1 - r0, parse.val]], sort_key, is_anc)
+            space_dag_add_version(
+                cur.S, version, [[r0, r1 - r0, parse.value]], sort_key, is_anc
+            )
         }
     })
 
@@ -374,7 +406,7 @@ function add_version(resource, version, parents, changes, sort_keys, is_anc) {
         var prev_is_anc = is_anc
         is_anc = v => prev_is_anc(v) || v == version
         Object.entries(annotations).forEach(e => {
-            e[1].range = [0, 0]
+            e[1].slice = [0, 0]
             var cur = resolve_path(e[1])
             function helper(node, offset) {
                 if (offset <= e[1].pos && e[1].pos <= offset + node.elems.length) {
@@ -394,8 +426,8 @@ function add_version(resource, version, parents, changes, sort_keys, is_anc) {
             cur = resource.space_dag = {t: 'val', S: create_space_dag_node(null, [cur])}
         var prev_S = null
         var prev_i = 0
-        for (var i=0; i<parse.keys.length; i++) {
-            var key = parse.keys[i]
+        for (var i=0; i<parse.path.length; i++) {
+            var key = parse.path[i]
             if (cur.t == 'val') cur = space_dag_get(prev_S = cur.S, prev_i = 0, is_anc)
             if (cur.t == 'lit') {
                 var new_cur = {}
@@ -416,14 +448,14 @@ function add_version(resource, version, parents, changes, sort_keys, is_anc) {
                 if (!x || typeof(x) != 'object' || x.t == 'lit')
                     x = cur.S[key] = {t: 'val', S: create_space_dag_node(null, [x == undefined ? {t: 'lit', S: {type: 'deleted'}} : x])}
                 cur = x
-            } else if (i == parse.keys.length - 1 && !parse.range) {
-                parse.range = [key, key + 1]
-                parse.val = (cur.t == 'str') ? parse.val : [parse.val]
+            } else if (i == parse.path.length - 1 && !parse.slice) {
+                parse.slice = [key, key + 1]
+                parse.value = (cur.t == 'str') ? parse.value : [parse.value]
             } else if (cur.t == 'arr') {
                 cur = space_dag_get(prev_S = cur.S, prev_i = key, is_anc)
             } else throw 'bad'
         }
-        if (parse.range) {
+        if (parse.slice) {
             if (cur.t == 'val') cur = space_dag_get(prev_S = cur.S, prev_i = 0, is_anc)
             if (typeof(cur) == 'string') {
                 cur = {t: 'str', S: create_space_dag_node(null, cur)}
@@ -721,48 +753,7 @@ function traverse_space_dag(S, f, cb, view_deleted, tail_cb) {
     }
 }
 
-function parse_change(change) {
-    var ret = { keys : [] }
-    var re = /^(delete)\s+|\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|'(\\'|[^'])*'|"(\\"|[^"])*")\]|\s*=\s*([\s\S]*)/g
-    var m
-    while (m = re.exec(change)) {
-        if (m[1])
-            ret.delete = true
-        else if (m[2])
-            ret.keys.push(m[2])
-        else if (m[3] && m[5])
-            ret.range = [
-                JSON.parse(m[4]),
-                JSON.parse(m[5].substr(1))
-            ]
-        else if (m[3])
-            ret.keys.push(JSON.parse(m[3]))
-        else if (m[8]) {
-            ret.val = JSON.parse(m[8])
-            rec(ret.val)
-            function rec(x) {
-                if (x && typeof(x) == 'object') {
-                    if (x instanceof Array) {
-                        for (var i = 0; i < x.length; i++) rec(x[i])
-                    } else {
-                        if (Object.keys(x).find(k => k == 'type' && x[k] == 'location')) {
-                            x.id = Math.random().toString(36).slice(2)
-
-                            ret.annotations = ret.annotations || {}
-                            var path = parse_change(x.path).keys
-                            ret.annotations[x.id] = {
-                                keys: path.slice(0, path.length - 1),
-                                pos: path[path.length - 1]
-                            }
-                        } else for (let k of Object.keys(x)) rec(x[k])
-                    }
-                }
-            }
-        }
-    }
-    return ret
-}
-
+var parse_patch = require('../util/utilities.js').parse_patch
 
 // modified from https://stackoverflow.com/questions/22697936/binary-search-in-javascript
 function binarySearch(ar, compare_fn) {

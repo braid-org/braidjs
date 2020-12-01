@@ -105,11 +105,11 @@ module.exports = function add_http_server(node) {
             // Extract the three relevant fields from JSON message
             let versions = [];
             if (args.method == "welcome") {
-                versions = args.versions.map(f => {return {
+                versions = args.versions.map(f => ({
                     version: f.version,
                     parents: f.parents,
-                    patches: f.changes // The node object should be changed to call this patches, and then this can be shorter
-                }})
+                    patches: f.patches
+                }))
             } else if (args.method == "set") {
                 versions = [{
                     version: args.version,

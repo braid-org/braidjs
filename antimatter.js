@@ -365,7 +365,7 @@ module.exports = require.antimatter = (node) => ({
         // This next line of code is pretty drastic.. it says: "If we're
         // connecting to someone new, then all our hard work keeping track of
         // acknowledgments is now useless, since it relies on an algorithm
-        // that assumes there will be no changes in the network topology
+        // that assumes there will be no patches in the network topology
         // whilst the algorithm is being carried out -- and the network
         // topology just changed, because now there's this new guy"
         //
@@ -377,7 +377,7 @@ module.exports = require.antimatter = (node) => ({
         
         resource.acks_in_process = {}
 
-        // Ok, we're pretty much done. We've made all the changes to our own
+        // Ok, we're pretty much done. We've made all the patches to our own
         // data structure (except for the gen_fissures, which will happen
         // next), and now we're ready to propogate the information to our
         // peers.
@@ -567,23 +567,8 @@ module.exports = require.antimatter = (node) => ({
 
         // now hand these bubbles to the mergeable's prune function..
         var seen_annotations = {}
-        resource.mergeable.prune(to_bubble, seen_annotations)
-
-        // Now we check to see if we can collapse the spacedag down to a literal.
-        //
-        // Todo: Move this code to the resource.mergeable.prune function.
-        //       (this code also assumes there is a God (a single first version adder))
-        var leaves = Object.keys(resource.current_version)
-        var acked_boundary = Object.keys(resource.acked_boundary)
-        var fiss = Object.keys(resource.fissures)
-        if (leaves.length == 1 && acked_boundary.length == 1
-            && leaves[0] == acked_boundary[0] && fiss.length == 0
-            && !Object.keys(seen_annotations).length) {
-
-            resource.time_dag = { [leaves[0]]: {} }
-            var val = resource.mergeable.read_raw()
-            resource.space_dag = (val && typeof(val) == 'object') ? {t: 'lit', S: val} : val
-        }
+        if (resource.mergeable.prune)
+            resource.mergeable.prune(to_bubble, seen_annotations)
     }
 })
 

@@ -98,9 +98,9 @@ function step(frame_num) {
                                            peer.letters[peer.letters_i++])
                 num_edits++
                 peer.set({key: 'my_key',
-                          patches: e.changes, version: e.version, parents: e.parents})
+                          patches: e.patches, version: e.version, parents: e.parents})
             }
-            log('    editing', frame_num, peer.pid, e ? e.changes : '')
+            log('    editing', frame_num, peer.pid, e ? e.patches : '')
         } else {
             // Disconnect or reconnect
             log('    toggling network', frame_num)
@@ -133,11 +133,11 @@ function create_random_edit(resource, letters) {
     resource.next_version_id = (resource.next_version_id || 0) + 1
     var version = letters[0] + resource.next_version_id
     
-    var changes = [`[${start}:${start + del}] = ` + JSON.stringify(ins)]
+    var patches = [`[${start}:${start + del}] = ` + JSON.stringify(ins)]
     return {
         version,
         parents : Object.assign({}, resource.current_version),
-        changes
+        patches
     }
 }
 

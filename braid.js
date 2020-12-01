@@ -164,29 +164,21 @@ module.exports = require.braid = function create_node(node_data = {}) {
     }
 
     node.create_welcome_message = (key, parents) => {
-        var resource = node.resource_at(key)
-        if (parents && Object.keys(parents).length) {
-            var anc = resource.ancestors(parents, true)
-        } else { var anc = {} }
-        var versions = resource.mergeable.generate_braid(x => anc[x])
-        versions = JSON.parse(JSON.stringify(versions))
+        var resource = node.resource_at(key),
+            versions = resource.mergeable.generate_braid(parents)
 
-        versions.forEach(x => {
-            // we want to put some of this stuff in a "hint" field,
-            // as per the protocol
-            if (x.sort_keys) {
-                x.hint = {sort_keys: x.sort_keys}
-                delete x.sort_keys
-            }
-        })
-
-        // G: oh yes, we also send them all of our fissures, so they can know to keep
-        // those versions alive
-
+        // G: oh yes, we also send them all of our fissures, so they can know
+        // to keep those versions alive
         var fissures = Object.values(resource.fissures)
 
-        // here we are setting "parents" equal to the leaves of "anc"
-        parents = resource.get_leaves(anc)
+        // here we are setting "parents" equal to the leaves (aka "frontier")
+        // of all ancestors of parents
+        //
+        // Mike asks: Why not just have parents?  I notice it triggers a
+        // desync bug in one of the websocket trials when I remove this line.
+        parents = (parents && Object.keys(parents).length
+                   ? resource.get_leaves(resource.ancestors(parents, true))
+                   : {})
 
         return {method: 'welcome', key, versions, fissures, parents}
     }
@@ -279,10 +271,9 @@ module.exports = require.braid = function create_node(node_data = {}) {
                      || (joiner_num > resource.joiners[version])  // Or it's a dominant joiner
         if (is_new) {
             // G: so we're going to go ahead and add this version to our
-            // datastructure, step 1 is to call "add_version" on the underlying
-            // mergeable..
+            // datastructure, step 1 is to call "add_version" on the resource..
 
-            resource.mergeable.add_version(version, parents, patches)
+            resource.add_version(version, parents, patches)
 
             // G: well, I said forwarding the version would be next, but here
             // is this line of code to remember the joiner_num of this
@@ -377,8 +368,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 if (!Object.keys(v.parents).every(p => resource.time_dag[p]))
                     return send_error()
 
-                resource.mergeable.add_version(v.version, v.parents, v.changes,
-                                               v.hint && v.hint.sort_keys)
+                resource.add_version(v.version, v.parents, v.patches, v.hint)
                 added_versions.push(v)
             }
         }
@@ -570,6 +560,31 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (!resource.time_dag) resource.time_dag = {}
         if (!resource.current_version) resource.current_version = {}
         if (!resource.version_cache) resource.version_cache = {}
+
+        resource.add_version = (version, parents, patches, hint) => {
+            if (resource.time_dag[version])
+                return
+            if (!Object.keys(parents).length
+                && Object.keys(resource.time_dag).length)
+                return
+
+            resource.time_dag[version] = {...parents}
+
+            // TODO: Store hint in the version_cache; not sort_keys
+            var sort_keys = (hint && hint.sort_keys) || undefined
+            resource.version_cache[version] = JSON.parse(JSON.stringify({
+                version, parents, patches, sort_keys
+            }))
+
+            Object.keys(parents).forEach(k => {
+                if (resource.current_version[k])
+                    delete resource.current_version[k]
+            })
+            resource.current_version[version] = true
+
+            resource.mergeable.add_version(version, parents, patches, hint)
+        }
+
         resource.ancestors = (versions, ignore_nonexistent) => {
             var result = {}
             // console.log('ancestors:', versions)
@@ -594,7 +609,10 @@ module.exports = require.braid = function create_node(node_data = {}) {
         }
 
         // A data structure that can merge simultaneous operations
-        resource.mergeable = require('./mergeables/sync9.js')(resource)
+        if (!resource.merge_type) resource.merge_type = 'sync9'
+        resource.mergeable = require(
+            './mergeables/' + resource.merge_type + '.js'
+        )(resource)
 
         // Peers that we have sent a welcome message to
         if (!resource.keepalive_peers) resource.keepalive_peers = {}
@@ -698,6 +716,8 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     // Give the node all methods of a pattern matcher, to bind keys and pipes
     Object.assign(node, pattern_matcher())
+
+    node.parse_patch = u.parse_patch
 
     node.websocket_client = (args) => require('./protocol-websocket/websocket-client.js')({
         ...args,
