@@ -199,6 +199,7 @@ store(node, db).then(node => {
 
 	console.log('Keys at startup: ' + JSON.stringify(Object.keys(node.resources)))
 	server.listen(port)
+	console.log('Listening on port', port)
 })
 
 
