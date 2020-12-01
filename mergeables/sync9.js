@@ -3,21 +3,13 @@
 module.exports = require.sync9 = function create (resource) {
     if (!resource.space_dag) resource.space_dag = null
     return {
-        add_version (version, parents, patches, hint) {
-            return add_version(resource, version, parents, patches,
-                               hint && hint.sort_keys)
-        },
-
         read (version) {
             return read(resource, version)
         },
 
-        read_raw (version) {
-            return read_raw(resource, version)
-        },
-
-        prune (to_bubble, seen_annotations) {
-            return prune(resource, to_bubble, seen_annotations)
+        add_version (version, parents, patches, hint) {
+            return add_version(resource, version, parents, patches,
+                               hint && hint.sort_keys)
         },
 
         generate_braid (versions) {
@@ -38,6 +30,10 @@ module.exports = require.sync9 = function create (resource) {
                 }
             })
             return versions
+        },
+
+        prune (to_bubble, seen_annotations) {
+            return prune(resource, to_bubble, seen_annotations)
         }
     }
 }
@@ -267,7 +263,7 @@ function prune(resource, to_bubble, seen_annotations) {
         && !Object.keys(seen_annotations).length) {
 
         resource.time_dag = { [leaves[0]]: {} }
-        var val = resource.mergeable.read_raw()
+        var val = read_raw(resource)
         resource.space_dag = (val && typeof(val) === 'object'
                               ? {t: 'lit', S: val}
                               : val)
