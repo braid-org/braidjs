@@ -3,6 +3,8 @@ var files = [
     'util/require.js',
     'util/utilities.js',
     'mergeables/sync9.js',
+    'antimatter.js',
+    'errors.js',
     'braid.js',
     'pipe.js',
     'util/diff.js',
