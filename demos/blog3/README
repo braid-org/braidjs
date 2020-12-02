@@ -7,5 +7,5 @@ To run the braidjs blog3 demo:
 
 Then open braidjs/demos/index.html in your browser.  It won't work yet because
 it doesn't trust the self-signed certificate.  To get around this, open
-https://localhost:3009/blog in your browser, and then click through the
+https://localhost:3009/ in your browser, and then click through the
 warnings to "proceed anyway".

@@ -99,6 +99,11 @@ app.put('/post/:id', async (req, res) => {
     res.end()
 })
 
+// Now serve the HTML and client files
+sendfile = (f) => (req, res) => res.sendFile(f, {root:'.'})
+app.get('/',                   sendfile('index.html'));
+app.get('/braidify-client.js', sendfile('braidify-client.js'))
+app.use('/statebus', require('express').static('statebus'))
 
 // Free the CORS!
 function free_cors (req, res, next) {
