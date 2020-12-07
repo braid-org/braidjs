@@ -28,7 +28,7 @@ var braidify = require('./braidify-server')
 var app = require('express')()
 
 // Middleware
-app.use(free_cors)
+app.use(free_the_cors)
 app.use(braidify)
 
 // HTTP Routes
@@ -106,7 +106,7 @@ app.get('/braidify-client.js', sendfile('braidify-client.js'))
 app.use('/statebus', require('express').static('statebus'))
 
 // Free the CORS!
-function free_cors (req, res, next) {
+function free_the_cors (req, res, next) {
     console.log('free the cors!', req.method, req.url)
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
     res.setHeader('Range-Request-Allow-Units', 'json')

@@ -45,29 +45,29 @@ function parse_patches (req, cb) {
         stream = req
 
     let patches = []
-    let curr_patch = ""
+    let buffer = ""
     if (num_patches === 0)
         return cb(patches)
 
     stream.on('data', function parse (chunk) {
         while (patches.length < num_patches) {
             // Merge the latest chunk into our buffer
-            curr_patch = (curr_patch + chunk)
+            buffer = (buffer + chunk)
 
             // We might have an extra newline at the start.  (mike: why?)
-            curr_patch = curr_patch.trimStart()
+            buffer = buffer.trimStart()
 
             // First parse the patch headers.  It ends with a double-newline.
             // Let's see where that is.
-            var p_headers_length = curr_patch.indexOf("\n\n")
+            var p_headers_length = buffer.indexOf("\n\n")
 
             // Give up if we don't have a set of headers yet.
-            if (curr_patch.indexOf("\n\n") === -1)
+            if (buffer.indexOf("\n\n") === -1)
                 return
 
             // Now let's parse those headers.
             var p_headers = require('parse-headers')(
-                curr_patch.substring(0, p_headers_length)
+                buffer.substring(0, p_headers_length)
             )
 
             // Content-length tells us how long the body of the patch will be.
@@ -76,7 +76,7 @@ function parse_patches (req, cb) {
             var body_length = parseInt(p_headers['content-length'])
 
             // Give up if we don't have the full patch yet.
-            if (curr_patch.length < p_headers_length + 2 + body_length)
+            if (buffer.length < p_headers_length + 2 + body_length)
                 return
 
             // Assume that content-range is of the form 'json=.index'
@@ -84,7 +84,7 @@ function parse_patches (req, cb) {
                 p_headers['content-range'].substring(5) :
                 p_headers['content-range']
             var patch_content =
-                curr_patch.substring(p_headers_length + 2,
+                buffer.substring(p_headers_length + 2,
                                      p_headers_length + 2 + body_length)
 
             // console.log('headers is', req.headers)
@@ -94,7 +94,7 @@ function parse_patches (req, cb) {
             // We've got our patch!
             patches.push({range: patch_range, content: patch_content})
 
-            curr_patch = curr_patch.substring(p_headers_length + 2 + body_length)
+            buffer = buffer.substring(p_headers_length + 2 + body_length)
         }
 
         // We got all the patches!  Pause the stream and tell the callback!
