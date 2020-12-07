@@ -113,7 +113,7 @@ function parse_patches (req, cb) {
 function braidify (req, res, next) {
     console.log('\n## Braidifying', req.method, req.url, req.headers.client)
 
-    // First, declare that we support CORS and JSON ranges!
+    // First, declare that we support Patches and JSON ranges.
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
     res.setHeader('Range-Request-Allow-Units', 'json')
     res.setHeader("Patches", "OK")
