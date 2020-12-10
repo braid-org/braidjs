@@ -8,10 +8,10 @@ var state = {
         {link: '/post/2'},
         {link: '/post/3'}
     ],
-    '/post/1': {body: 'First post madafakaaaa!!!!'},
-    '/post/2': {body: `And now it\'s time for something serious.
-
-Two men today were caught demonizing a small child.  The child kicked their butt, and the story ended there.`},
+    '/post/1': {body: 'First post OMGGG!!!!'},
+    '/post/2': {body: `Once upon a time,
+I ate a big fish.
+It was really tasty.`},
     '/post/3': {body: "It's nice when things come in threes."}
 }
 var curr_version = () => state['/blog'].length + ''
