@@ -1,7 +1,6 @@
-//var pubsub = require('./pubsub.js')
 assert = require('assert')
 
-// Chat Data
+// Blog Data
 var state = {
     '/blog': [
         {link: '/post/1'},
