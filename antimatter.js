@@ -328,7 +328,7 @@ module.exports = require.antimatter = (node) => ({
         
         if (!min_leaves) {
             if (versions.length === 0 && (!parents || Object.keys(parents).length === 0))
-                min_leaves = {...resource.acked_boundary}
+                min_leaves = {...resource.current_version}
             else {
                 min_leaves = parents ? {...parents} : {}
                 versions.forEach(v => {
