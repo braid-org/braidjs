@@ -517,10 +517,14 @@ module.exports = require.antimatter = (node) => ({
         function mark_bubble(bottom, top, tag) {
             if (!to_bubble[bottom]) {
                 to_bubble[bottom] = tag
-                if (bottom != top) Object.keys(resource.time_dag[bottom]).forEach(p => mark_bubble(p, top, tag))
+                if (bottom !== top)
+                    Object.keys(resource.time_dag[bottom]).forEach(
+                        p => mark_bubble(p, top, tag)
+                    )
             }
         }
         
+        // This begins the O(n^2) operation that we wanna shrink to O(n)
         var done = {}
         function f(cur) {
             if (!resource.time_dag[cur]) return
@@ -540,8 +544,11 @@ module.exports = require.antimatter = (node) => ({
             Object.keys(resource.time_dag[cur]).forEach(f)
         }
         Object.keys(resource.current_version).forEach(f)
-    
-        to_bubble = Object.fromEntries(Object.entries(to_bubble).map(([v, bub]) => [v, [bub, bubble_bottoms[bub]]]))
+        // This is the end of an O(n^2) algorithm
+
+        to_bubble = Object.fromEntries(Object.entries(to_bubble).map(
+            ([v, bub]) => [v, [bub, bubble_bottoms[bub]]]
+        ))
         
         function find_one_bubble(cur) {
             var seen = {[cur]: true}
