@@ -39,10 +39,12 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
 
         sock           = create_websocket()
         sock.onopen    = ()  => {
+            if (onclose_called_already) { return }
             pipe.connected()
             dispatchEvent({type: "connect"})
         }
         sock.onmessage = message => {
+            if (onclose_called_already) { return }
             var text = message.data;
             var msg = JSON.parse(text);
             if (msg.method != "ping" && msg.method != "pong") {
@@ -93,7 +95,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         addEventListener,
         enabled() {return enabled},
         enable()  {nlog('ENABLING PIPE', pipe.id);enabled = true; connect()},
-        disable() {nlog('DISABLING PIPE',pipe.id);enabled = false; sock.close()},
+        disable() {nlog('DISABLING PIPE',pipe.id);enabled = false; disconnect()},
         toggle()  {if (enabled) {disable()} else enable()}
     }
 }
