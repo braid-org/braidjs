@@ -1,7 +1,7 @@
 module.exports = require.antimatter = (node) => ({
 
     set (args) {
-        var {key, patches, version, parents, origin, joiner_num} = args
+        var {key, patches, version, parents, origin} = args
         var resource = node.resource_at(key)
         if (args.is_new) {
             // Next, we want to remember some information for the purposes of
@@ -27,17 +27,15 @@ module.exports = require.antimatter = (node) => ({
                    {origin, key, version,
                     acks_in_process: resource.acks_in_process[version]})
         }
-        else if (resource.acks_in_process[version]
-                 // Q: In what situation is acks_in_process[version] false?
-                 //
-                 // A: Good question; the answer is that in some cases we will
-                 // delete acks_in_process for a version if, say, we receive a
-                 // global ack for a descendant of this version, or if we
-                 // receive a fissure.. in such cases, we simply ignore the
-                 // ack process for that version, and rely on a descendant
-                 // version getting globally acknowledged.
-
-                 && joiner_num == resource.joiners[version])
+        else if (resource.acks_in_process[version])
+            // Q: In what situation is acks_in_process[version] false?
+            //
+            // A: Good question; the answer is that in some cases we will
+            // delete acks_in_process for a version if, say, we receive a
+            // global ack for a descendant of this version, or if we
+            // receive a fissure.. in such cases, we simply ignore the
+            // ack process for that version, and rely on a descendant
+            // version getting globally acknowledged.
 
             // Now if we're not going to add the version, most commonly
             // because we already possess the version, there is another
@@ -60,11 +58,10 @@ module.exports = require.antimatter = (node) => ({
     },
 
     ack (args) {
-        var {key, valid, seen, version, origin, joiner_num} = args
+        var {key, valid, seen, version, origin} = args
         var resource = node.resource_at(key)
         if (seen === 'local') {
-            if (resource.acks_in_process[version]
-                && (joiner_num === resource.joiners[version])) {
+            if (resource.acks_in_process[version]) {
                 log('node.ack: Got a local ack! Decrement count to',
                     resource.acks_in_process[version].count - 1)
                 resource.acks_in_process[version].count--
@@ -596,7 +593,6 @@ function add_full_ack_leaf(node, resource, version) {
             delete resource.unack_boundary[v]
             delete resource.acked_boundary[v]
             delete resource.acks_in_process[v]
-            delete resource.joiners[v]
             Object.keys(resource.time_dag[v]).forEach(f)
         }
     }
@@ -655,8 +651,7 @@ function check_ack_count(node, key, resource, version) {
 
             let p = resource.acks_in_process[version].origin
             p.send && p.send({
-                method: 'ack', key, seen:'local', version,
-                joiner_num: resource.joiners[version]
+                method: 'ack', key, seen:'local', version
             })
         } else {
 

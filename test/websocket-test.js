@@ -107,7 +107,7 @@ bHieUzx8qriZ8KrD3PbjKqap
                 notes = ['creating joiner']
 
                 // Create it!
-                p.create_joiner('my_key')
+                p.set('my_key', null, [])
                 
                 sim.vis.add_frame({
                     peer_notes: {[p.pid]: notes},

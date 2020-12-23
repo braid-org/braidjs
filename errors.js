@@ -28,7 +28,7 @@ module.exports = require.errors = (node) => ({
     },
 
     set (args) {
-        var {key, version, parents, patches, origin, joiner_num} = args
+        var {key, version, parents, patches, origin} = args
 
         if (!key || typeof(key) !== 'string')
             throw report('set', 'invalid key: ' + JSON.stringify(key))
@@ -52,9 +52,6 @@ module.exports = require.errors = (node) => ({
         if (parents && (typeof(parents) != 'object'
                         || Object.entries(parents).some(([k, v]) => v !== true)))
             report('set', 'invalid parents: ' + JSON.stringify(parents))
-
-        if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number')
-            report('set', 'invalid joiner_num: ' + JSON.stringify(joiner_num))
     },
 
     welcome (args) {
@@ -124,7 +121,7 @@ module.exports = require.errors = (node) => ({
     },
 
     ack (args) {
-        var {key, valid, seen, version, origin, joiner_num} = args
+        var {key, valid, seen, version, origin} = args
 
         // guard against invalid messages
         if (typeof(key) !== 'string')
@@ -137,14 +134,11 @@ module.exports = require.errors = (node) => ({
         if (typeof(valid) !== 'undefined')
             report('ack', 'support for valid flag not yet implemented')
 
-            if (seen !== 'local' && seen !== 'global')
-                report('ack', 'invalid seen: ' + JSON.stringify(seen))
+        if (seen !== 'local' && seen !== 'global')
+            report('ack', 'invalid seen: ' + JSON.stringify(seen))
 
-            if (typeof(version) !== 'string')
-                report('ack', 'invalid version: ' + JSON.stringify(version))
-
-            if (typeof(joiner_num) != 'undefined' && typeof(joiner_num) != 'number')
-                report('ack', 'invalid joiner_num: ' + JSON.stringify(joiner_num))
+        if (typeof(version) !== 'string')
+            report('ack', 'invalid version: ' + JSON.stringify(version))
     },
 
     fissure ({key, fissure, origin}) {

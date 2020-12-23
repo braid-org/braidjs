@@ -193,7 +193,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
     //  - set(key, null, ['= "foo"', ...])  // Patch with multiple patches
     //  - set({key, patches, origin, ...})
     node.set = (...args) => {
-        var key, patches, version, parents, origin, joiner_num
+        var key, patches, version, parents, origin
 
         // First rewrite the arguments if called as set(key, ...)
         if (typeof args[0] === 'string') {
@@ -206,7 +206,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         }
         else {
             // Else each parameter is passed explicitly
-            ({key, patches, version, parents, origin, joiner_num} = args[0])
+            ({key, patches, version, parents, origin} = args[0])
         }
 
         var resource = node.resource_at(key)
@@ -217,11 +217,11 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
         // Catch protocol errors
         try {
-            node.protocol_errors.set({...args, key, version, parents, patches, origin, joiner_num})
+            node.protocol_errors.set({...args, key, version, parents, patches, origin})
         }
         catch (errors) { return errors }
 
-        log('set:', {key, version, parents, patches, origin, joiner_num})
+        log('set:', {key, version, parents, patches, origin})
 
         for (p in parents) {
             if (!resource.time_dag[p]) {
@@ -232,7 +232,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
                     type: 'cannot merge: missing parents',
                     in_response_to: {
                         method: 'set',
-                        key, patches, version, parents, joiner_num
+                        key, patches, version, parents
                     }
                 })
                 node.on_errors.forEach(f => f(key, origin))
@@ -240,7 +240,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
             }
         }
 
-        node.ons.forEach(on => on('set', {key, patches, version, parents, origin, joiner_num}))
+        node.ons.forEach(on => on('set', {key, patches, version, parents, origin}))
 
         // Cool, someone is giving us a new version to add to our
         // datastructure.  it might seem like we would just go ahead and add
@@ -254,33 +254,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // from someone else (or !origin would be true), but we don't have
         // the version ourselves (otherwise it would be inside our time_dag),
         // so we want to add this new version we haven't seen before.
-        //
-        // (joiner_num > resource.joiners[version]) : even if we already have
-        // this version, we might want to, in some sense, add it again,
-        // in the very special case where this version is a joiner,
-        // and its joiner_num is bigger than the version of this joiner that we
-        // already have.. the issue with joiners is that they can be created
-        // on multiple peers simultaneously, and they share the same version id,
-        // and in that case, it would be unclear who should send the "global"
-        // acknowledgment for the joiner, so we use this "joiner_num" to
-        // distinguish the otherwise identical looking joiners for the purposes
-        // of electing a particular joiner to handle the full acknowledgment.
 
-        var is_new = !origin                                      // Was created locally
-                     || !resource.time_dag[version]               // Or we don't have it yet
-                     || (joiner_num > resource.joiners[version])  // Or it's a dominant joiner
+        var is_new = !origin                        // Was created locally
+                     || !resource.time_dag[version] // Or we don't have it yet
         if (is_new) {
             // G: so we're going to go ahead and add this version to our
             // datastructure, step 1 is to call "add_version" on the resource..
 
             resource.add_version(version, parents, patches)
-
-            // G: well, I said forwarding the version would be next, but here
-            // is this line of code to remember the joiner_num of this
-            // version, in case it is a joiner (we store the joiner_num for
-            // each version in a auxiliary hashmap called joiners)..
-
-            if (joiner_num) resource.joiners[version] = joiner_num
 
             // G: and now for the forwarding of the version to all our peers,
             // (unless we received this "set" from one of our peers,
@@ -296,14 +277,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
                 if (pipe.send && (!origin || (pipe.id !== origin.id))) {
                     log('set: sending now from', node.pid, pipe.type)
                     pipe.send({method: 'set',
-                               key, patches, version, parents, joiner_num})
+                               key, patches, version, parents})
                 }
             })
         }
 
         node.antimatter.set({
             ...args,
-            key, patches, version, parents, origin, joiner_num, is_new
+            key, patches, version, parents, origin, is_new
         })
 
         return version
@@ -444,14 +425,14 @@ module.exports = require.braid = function create_node(node_data = {}) {
     }
 
     node.ack = (args) => {
-        var {key, valid, seen, version, origin, joiner_num} = args
+        var {key, valid, seen, version, origin} = args
 
         try {
             node.protocol_errors.ack(args)
         }
         catch (errors) { return errors }
 
-        node.ons.forEach(on => on('ack', {key, valid, seen, version, origin, joiner_num}))
+        node.ons.forEach(on => on('ack', {key, valid, seen, version, origin}))
         log('node.ack: Acking!!!!', {key, seen, version, origin})
 
         node.antimatter.ack(args)
@@ -516,18 +497,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
         }
         return result
     }
-
-    node.create_joiner = (key) => {
-        var resource = node.resource_at(key),
-            // version = sjcl.codec.hex.fromBits(
-            //     sjcl.hash.sha256.hash(
-            //         Object.keys(resource.current_version).sort().join(':')))
-            version = 'joiner:' + Object.keys(resource.current_version).sort().join(':')
-        var joiner_num = Math.random()
-        node.set({key, patches: [], version,
-                  parents: Object.assign(u.dict(), resource.current_version),
-                  joiner_num})
-    }        
 
     node.default = (key, val) => {
         var is_wildcard = key[key.length-1] === '*'
@@ -627,9 +596,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
         if (!resource.acked_boundary) resource.acked_boundary = {}
         if (!resource.unack_boundary) resource.unack_boundary = {}
         if (!resource.acks_in_process) resource.acks_in_process = {}
-
-        // Empty versions sent to collapse outstanding parallel edits
-        if (!resource.joiners) resource.joiners = {}
         
         return resource
     }

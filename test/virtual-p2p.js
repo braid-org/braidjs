@@ -102,7 +102,7 @@ module.exports = require['virtual-p2p'] = (sim) => (
                     notes = ['creating joiner']
 
                     // Create it!
-                    p.create_joiner('my_key')
+                    p.set('my_key', null, [])
                     sent_joiner = true
                     
                     sim.vis.add_frame({
