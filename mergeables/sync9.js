@@ -32,8 +32,8 @@ module.exports = require.sync9 = function create (resource) {
             return versions
         },
 
-        prune (to_bubble, seen_annotations) {
-            return prune(resource, to_bubble, seen_annotations)
+        prune (bubbles) {
+            return prune(resource, bubbles)
         }
     }
 }
@@ -172,11 +172,11 @@ function space_dag_generate_braid(S, resource, version, is_anc) {
 
 
 
-function prune(resource, to_bubble, seen_annotations) {
+function prune(resource, to_bubble) {
     var is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
     var get_lit = x => (x && typeof(x) == 'object' && x.t == 'lit') ? x.S : x
 
-    seen_annotations = seen_annotations || {}
+    var seen_annotations = {}
     see_annotations(resource.space_dag)
     function see_annotations(x, is_lit_override) {
         if (is_lit_override || is_lit(x)) {

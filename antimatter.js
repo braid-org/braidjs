@@ -570,9 +570,8 @@ module.exports = require.antimatter = (node) => ({
         }
 
         // now hand these bubbles to the mergeable's prune function..
-        var seen_annotations = {}
         if (resource.mergeable.prune)
-            resource.mergeable.prune(to_bubble, seen_annotations)
+            resource.mergeable.prune(to_bubble)
     }
 })
 
