@@ -41,6 +41,7 @@ function braid_fetch (url, options = {}, callback) {
             .then(function (res) {
                 if (!res.ok) {
                     console.error("Fetch failed!", res)
+                    setTimeout(go, 5000)
                     return
                 }
                 //res.text().then(x=>console.log('Hooooooo', x))
