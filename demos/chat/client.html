@@ -24,8 +24,7 @@
       </div>`
 
   // Actions
-  var base_url = 'https://localhost:3009/'
-  var key = '/chat'
+  var path = '/chat'
   var hit_a_key = (e) => {
       if (e.keyCode === 13 && !(e.ctrlKey || e.shiftKey)) {
           e.preventDefault()
@@ -40,7 +39,7 @@
       input.value = ''
 
       var patches = ['[-0:-0] = ' + JSON.stringify(post)]
-      var url = new URL(key, base_url)
+      var url = new URL(path, window.location.href)
       var res = await braid_put(url, {patches})
       if (res.status === 200)
           console.debug('braid_put complete')
@@ -60,19 +59,19 @@
   render_root()
 
   // Updates
-  braid_fetch(new URL(key, base_url),
+  braid_fetch(new URL(path, window.location.href),
               {subscribe: {keep_alive: true}},
               response => {
                   console.assert(
-                      (parseInt(curr_version[key]) + 1
+                      (parseInt(curr_version[path]) + 1
                        === parseInt(response.version))
-                          || !curr_version[key],
+                          || !curr_version[path],
                       'Bad versions:' + JSON.stringify(
                           {curr_version, res_ver:response.version}
                       )
                   )
 
-                  curr_version[key] = response.version
+                  curr_version[path] = response.version
                   chat = apply_patches(response.patches, chat)
                   render_root()
               }

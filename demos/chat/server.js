@@ -94,7 +94,7 @@ app.put('/post/:id', async (req, res) => {
 
 // Now serve the HTML and client files
 sendfile = (f) => (req, res) => res.sendFile(f, {root:'.'})
-app.get('/',                   sendfile('index.html'));
+app.get('/',                   sendfile('client.html'));
 app.get('/braidify-client.js', sendfile('braidify-client.js'))
 app.use('/statebus', require('express').static('statebus'))
 
