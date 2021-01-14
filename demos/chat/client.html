@@ -1,0 +1,93 @@
+<script src="braidify-client.js"></script>
+<script type="module">
+  // Imports
+  import { h, Component, render } from 'https://unpkg.com/preact?module'
+  import htm from 'https://unpkg.com/htm?module'
+  var html = htm.bind(h)
+
+  // Styles
+  var font = 'avenext, avenir, sans'
+  var fonty = {fontFamily: font}
+
+  // Widgets
+  var Chat = (chat) => html`
+      <div style=${fonty}>
+        <h1>It's a chat!</h1>
+        ${chat.map(post => Post(post))}
+        <input type=text id=new_stuff onkeydown=${hit_a_key}/>
+        <button onclick=${send_message}>go</button>
+      </div>`
+
+  var Post = (post) => html`
+      <div style="background-color: #eee; padding: 5; margin: 5;">
+        ${post.text}
+      </div>`
+
+  // Actions
+  var base_url = 'https://localhost:3009/'
+  var key = '/chat'
+  var hit_a_key = (e) => {
+      if (e.keyCode === 13 && !(e.ctrlKey || e.shiftKey)) {
+          e.preventDefault()
+          e.stopPropagation()
+          send_message()
+      }
+  }
+
+  var send_message = async () => {
+      var input = document.getElementById('new_stuff'),
+          post = {text: input.value}
+      input.value = ''
+
+      var patches = ['[-0:-0] = ' + JSON.stringify(post)]
+      var url = new URL(key, base_url)
+      var res = await braid_put(url, {patches})
+      if (res.status === 200)
+          console.debug('braid_put complete')
+      else
+          console.debug('braid_put failed with', res.status)
+
+      chat.push(post)
+      render_root()
+  }
+
+  // State
+  var chat = []
+  var curr_version = {}
+
+  // Render
+  var render_root = () => render(Chat(chat), document.body)
+  render_root()
+
+  // Updates
+  braid_fetch(new URL(key, base_url),
+              {subscribe: {keep_alive: true}},
+              response => {
+                  console.assert(
+                      (parseInt(curr_version[key]) + 1
+                       === parseInt(response.version))
+                          || !curr_version[key],
+                      'Bad versions:' + JSON.stringify(
+                          {curr_version, res_ver:response.version}
+                      )
+                  )
+
+                  curr_version[key] = response.version
+                  chat = apply_patches(response.patches, chat)
+                  render_root()
+              }
+             )
+
+  function apply_patches (patches, object) {
+      for (var patch of patches)
+          // There are only two types of patches we could receive
+          if (patch.range === '')
+              // The entire chat in one patch
+              return JSON.parse(patch.value)
+          else
+              // A single new message, appended to the end
+              object.push(JSON.parse(patch.value))
+      return object
+  }
+
+</script>
