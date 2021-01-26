@@ -1,9 +1,12 @@
+// This file is still being used with the sync9-chat demo, but Mike will
+// refactor it soon.
+
 // Example braid-peer as a web server
 //const fs = require('fs');
 const assert = require('assert');
 //const pipe = require('../pipe.js');
 const parseHeaders = require('parse-headers');
-var u = require('../util/utilities.js');
+var u = require('../../util/utilities.js');
 
 module.exports = function add_http_server(node) {
     // Write an array of patches into the pseudoheader format.

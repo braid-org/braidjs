@@ -1,7 +1,10 @@
+// This file is still being used with the sync9-chat demo, but Mike will
+// refactor it soon.
+
 var u = require('utilities.js');
 
 // Binds a node to a url, allowing the node to send GETS and SETS to that url
-module.exports = require['http1-client'] = function add_http_client({node, url, prefix}) {
+module.exports = require['http-client-old'] = function add_http_client({node, url, prefix}) {
     url = url       || 'https://localhost:80/'
     prefix = prefix || '/*'
     var enabled = true;

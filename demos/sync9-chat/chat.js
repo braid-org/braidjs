@@ -23,7 +23,7 @@ console.log('protocol is ' + protocol)
 if (use_invisible_server)
     braid_url = 'wss://invisible.college:3009/'
 if (!use_leadertab)
-    var socket = require(protocol == 'https' ? 'http1-client.js' : 'websocket-client.js')({node, url: braid_url})
+    var socket = require(protocol == 'https' ? 'http-client-old.js' : 'websocket-client.js')({node, url: braid_url})
 
 
 // UI Code

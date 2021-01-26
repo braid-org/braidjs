@@ -537,7 +537,7 @@ async function create_server(db) {
     db.compress_if_inactive_time = 1000 * 1000
     db.compress_after_this_many = 10
 
-    var node = require('../braid.js')()
+    var node = require('../kernel/braid.js')()
     //node.fissure_lifetime = 1 // 4
     await require('../util/store.js')(node, db)
 
@@ -545,7 +545,7 @@ async function create_server(db) {
         node.unbind(key, origin)
     })
 
-    var wss = require('../protocol-websocket/websocket-server.js')(node, {wss: new debug_WSS()})
+    var wss = require('../protocols/websocket/websocket-server.js')(node, {wss: new debug_WSS()})
 
     return g_current_server = {
         node,
@@ -561,9 +561,9 @@ async function create_server(db) {
 }
 
 function create_client() {
-    var node = require('../braid.js')()
+    var node = require('../kernel/braid.js')()
     node.default(page_key, {cursors: {}, text: ''})
-    var ws_client = require('../protocol-websocket/websocket-client.js')({node, create_websocket: () => {
+    var ws_client = require('../protocols/websocket/websocket-client.js')({node, create_websocket: () => {
         return new debug_WS(node.pid)
     }})
 

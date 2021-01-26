@@ -27,7 +27,7 @@ var is_current_version = (versions, resource) =>
     && Object.keys(versions).every(v => resource.current_version[v] === true)
 
 
-var parse_patch = require('../util/utilities.js').parse_patch
+var parse_patch = require('../../../util/utilities.js').parse_patch
 function apply_patch (patch, resource) {
     // Todo: Handle slices
     var parse = parse_patch(patch)

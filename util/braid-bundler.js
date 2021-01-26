@@ -2,15 +2,16 @@
 var files = [
     'util/require.js',
     'util/utilities.js',
-    'mergeables/sync9.js',
-    'antimatter.js',
-    'errors.js',
-    'braid.js',
-    'pipe.js',
+    'kernel/algorithms/mergeables/sync9.js',
+    'kernel/algorithms/antimatter.js',
+    'kernel/errors.js',
+    'kernel/braid.js',
+    'kernel/pipe.js',
     'util/diff.js',
     'util/store.js',
-    'protocol-websocket/websocket-client.js',
-    'protocol-http1/http1-client.js',
+    'protocols/websocket/websocket-client.js',
+    'protocols/http/http-client.js',
+    'protocols/http/http-client-old.js',
     'util/leadertab-shell.js',
 ]
 

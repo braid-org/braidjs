@@ -1,4 +1,4 @@
-u = require('./util/utilities.js')
+u = require('../util/utilities.js')
 
 module.exports = require.braid = function create_node(node_data = {}) {
     var node = {}
@@ -23,7 +23,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
     
         node.incoming_subscriptions = u.one_to_many()  // Maps `key' to `pipes' subscribed to our key
 
-        node.antimatter      = require('./antimatter')(node)
+        node.antimatter      = require('./algorithms/antimatter')(node)
         node.protocol_errors = require('./errors'    )(node)
     }
     node.init(node_data)
@@ -580,7 +580,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // A data structure that can merge simultaneous operations
         if (!resource.merge_type) resource.merge_type = 'sync9'
         resource.mergeable = require(
-            './mergeables/' + resource.merge_type + '.js'
+            './algorithms/mergeables/' + resource.merge_type + '.js'
         )(resource)
 
         // Peers that we have sent a welcome message to
@@ -685,7 +685,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     node.parse_patch = u.parse_patch
 
-    node.websocket_client = (args) => require('./protocol-websocket/websocket-client.js')({
+    node.websocket_client = (args) => require('../protocols/websocket/websocket-client.js')({
         ...args,
         node: node,
         create_websocket: () => new (require('ws'))(args.url)

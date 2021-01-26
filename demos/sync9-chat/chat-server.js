@@ -11,9 +11,9 @@ var lib_path = "../../"
 require(path.join(lib_path, './util/braid-bundler.js'))
 var sqlite = require(path.join(lib_path, './util/sqlite-store.js'))
 var store = require(path.join(lib_path, './util/store.js'))
-var braid = require(path.join(lib_path, './braid.js'))
-var braid_websocket_server = require(path.join(lib_path, './protocol-websocket/websocket-server.js'))
-var braid_http_server = require(path.join(lib_path, './protocol-http1/http1-server.js'))
+var braid = require(path.join(lib_path, './kernel/braid.js'))
+var braid_websocket_server = require(path.join(lib_path, './protocols/websocket/websocket-server.js'))
+var braid_http_server = require(path.join(lib_path, './protocols/http/http-server-old.js'))
 var webpush = require("web-push")
 
 if (process.env.MAIL_TO
@@ -204,7 +204,7 @@ store(node, db).then(node => {
 
 
 //App notifications
-var notification_node = require("../../braid.js")()
+var notification_node = require("../../kernel/braid.js")()
 notification_node.websocket_client({url:'wss://invisible.college:3009'})
 notification_node.get('/usr', add_users)
 notification_node.get('/chat', update_messages)

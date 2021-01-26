@@ -74,7 +74,7 @@ module.exports = require['websocket-client'] = function add_websocket_client({no
         sock.onclose()
     }
 
-    var pipe = require('../pipe.js')({
+    var pipe = require('../../kernel/pipe.js')({
         id: node.pid,
         type: 'ws-client',
         node,
