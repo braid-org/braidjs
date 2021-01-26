@@ -7,7 +7,7 @@ module.exports = require['websocket-server'] = function add_websocket_server(nod
     if (!options) options = {}
     var s = options.wss || new (require('ws')).Server({port: options.port || 3007})
     s.on('connection', function(conn, req) {
-        var pipe = require('../pipe.js')({node, connect, disconnect, send})
+        var pipe = require('../../kernel/pipe.js')({node, connect, disconnect, send})
         const peer_name = (m) => (pipe.remote_peer || (m || {}).my_name_is || 'C-?').toString();
         const ip = req.socket.remoteAddress;
         // console.log(`New connection from ${ip}`)

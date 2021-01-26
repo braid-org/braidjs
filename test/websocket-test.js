@@ -57,10 +57,10 @@ bHieUzx8qriZ8KrD3PbjKqap
 `,
         setup () {
             // Make the hub
-            var hub = require('../braid.js')()
+            var hub = require('../kernel/braid.js')()
             hub.pid = 'hub'
             sim.add_peer(hub, 0)
-            this.server = require('../protocol-websocket/websocket-server.js')(
+            this.server = require('../protocols/websocket/websocket-server.js')(
                 hub,
                 this.certificate,
                 this.private_key
@@ -69,7 +69,7 @@ bHieUzx8qriZ8KrD3PbjKqap
             // Make the clients
             var clients = []
             for (var i = 1; i < sim.n_peers; i++) {
-                var client = require('../braid.js')()
+                var client = require('../kernel/braid.js')()
                 client.pid = 'C' + i
                 sim.add_peer(client, i)
                 clients.push(client)
@@ -78,7 +78,7 @@ bHieUzx8qriZ8KrD3PbjKqap
             // Create pipes that connect peers to the hub
             this.client_pipes = {}
             for (var i = 0; i < clients.length; i++)
-                this.client_pipes[clients[i].pid] = require('../protocol-websocket/websocket-client.js')({
+                this.client_pipes[clients[i].pid] = require('../protocols/websocket/websocket-client.js')({
                     node: clients[i],
                     url: 'ws://localhost:3007/',
                     prefix: '*'

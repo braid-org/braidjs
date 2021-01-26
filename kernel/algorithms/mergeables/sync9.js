@@ -749,7 +749,7 @@ function traverse_space_dag(S, f, cb, view_deleted, tail_cb) {
     }
 }
 
-var parse_patch = require('../util/utilities.js').parse_patch
+var parse_patch = require('../../../util/utilities.js').parse_patch
 
 // modified from https://stackoverflow.com/questions/22697936/binary-search-in-javascript
 function binarySearch(ar, compare_fn) {

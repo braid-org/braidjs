@@ -18,7 +18,7 @@ var rhash = (req) => JSON.stringify([req.headers.client, req.url])
 
 
 // Create our HTTP bindings!
-var braidify = require('./braidify-server')
+var braidify = require('../../protocols/http/http-server')
 var app = require('express')()
 
 // Middleware
@@ -46,6 +46,13 @@ function getter (req, res) {
         version: curr_version(),
         body: JSON.stringify(state[req.url])
     })
+
+    // Bug: if this isn't a subscription, then sendVersion() should set
+    // headers on the response, rather than including virtual headers in the
+    // body.
+
+    if (!req.subscribe)
+        res.end()
 }
 app.get('/chat',     getter)
 
@@ -93,9 +100,10 @@ app.put('/post/:id', async (req, res) => {
 })
 
 // Now serve the HTML and client files
-sendfile = (f) => (req, res) => res.sendFile(f, {root:'.'})
+sendfile = (f) => (req, res) => res.sendFile(require('path').join(__dirname, f))
 app.get('/',                   sendfile('client.html'));
-app.get('/braidify-client.js', sendfile('braidify-client.js'))
+app.get('/braidify-client.js', sendfile('../../protocols/http/http-client.js'))
+//app.get('/braidify-client.js', sendfile('hc.js'))
 app.use('/statebus', require('express').static('statebus'))
 
 // Free the CORS!
