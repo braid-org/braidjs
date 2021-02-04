@@ -47,8 +47,8 @@
           post = {text: input.value}
       input.value = ''
 
-    //   var patches = [{range: 'json=[-0:-0]', value: post}]
-      var patches = ['[-0:-0] = ' + JSON.stringify(post)]
+      //   var patches = [{range: 'json=[-0:-0]', value: post}]
+      var patches = [{range: 'json=[-0:-0]', value: JSON.stringify(post)}]
       var url = new URL(path, window.location.href)
       var res = await braid_put(url, {patches})
       if (res.status === 200)

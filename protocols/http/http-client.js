@@ -310,11 +310,9 @@ function braid_put (url, options = {}) {
     //    {"type": "date", "value": 1573952202370}          |
 
     var body = (options.patches || []).map(patch => {
-        // We should use the sync9 patch parser
-        var split = patch.match(/(.*?)\s*=\s*(.*)/)  // (...) = (...)
-        var length = `content-length: ${split[2].length}`
-        var range = `content-range: json=${split[1]}`
-        return `${length}\n${range}\n\n${split[2]}\n`
+        var length = `content-length: ${patch.value.length}`
+        var range = `content-range: ${patch.range}`
+        return `${length}\n${range}\n\n${patch.value}\n`
     }).join('\n')
 
     // Now send the request
