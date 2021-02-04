@@ -2,7 +2,6 @@
   "name": "braidjs",
   "version": "0.0.5",
   "description": "Synchronization for the Web (reference implementation)",
-  "main": "braid.js",
   "scripts": {
     "test": "node test/tests.js",
     "prepublish": "node util/braid-bundler.js"
@@ -11,13 +10,8 @@
   "repository": "braid-work/toomim-braidjs",
   "homepage": "https://braid.news",
   "files": [
-    "braid.js",
-    "pipe.js",
-    "merge-algos/*.js",
-    "util/braid-bundle.js",
-    "protocol-*/*.js",
-    "util/*.js",
-    "readme.md"
+    "protocols/http/http-client.js",
+    "protocols/http/http-server.js"
   ],
   "dependencies": {
     "better-sqlite3": "^5.4.3",
