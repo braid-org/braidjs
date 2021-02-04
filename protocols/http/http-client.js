@@ -320,10 +320,4 @@ function braid_put (url, options = {}) {
                        body: body,
                        mode: 'cors',
                        headers: new Headers(headers)})
-        // .then(function (res) {
-        //     res.text().then((text) => {
-        //         console.debug(`braid_put response: status ${res.status}, body "${text}"`)
-        //     })
-        // })
-        // .catch(function (err) { console.error("braid_set Fetch failed: ", err)})
 }
