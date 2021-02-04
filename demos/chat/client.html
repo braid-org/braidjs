@@ -24,7 +24,6 @@
       </div>`
 
   // Actions
-  var path = '/chat'
   var hit_a_key = (e) => {
       if (e.keyCode === 13 && !(e.ctrlKey || e.shiftKey)) {
           e.preventDefault()
@@ -33,11 +32,22 @@
       }
   }
 
+  var path = '/chat'
+
+  // State
+  var chat = []
+  var curr_version = {}
+
+  // Render
+  var render_root = () => render(Chat(chat), document.body)
+  render_root()
+
   var send_message = async () => {
       var input = document.getElementById('new_stuff'),
           post = {text: input.value}
       input.value = ''
 
+    //   var patches = [{range: 'json=[-0:-0]', value: post}]
       var patches = ['[-0:-0] = ' + JSON.stringify(post)]
       var url = new URL(path, window.location.href)
       var res = await braid_put(url, {patches})
@@ -49,14 +59,6 @@
       chat.push(post)
       render_root()
   }
-
-  // State
-  var chat = []
-  var curr_version = {}
-
-  // Render
-  var render_root = () => render(Chat(chat), document.body)
-  render_root()
 
   // Updates
   braid_fetch(new URL(path, window.location.href),
@@ -72,7 +74,12 @@
                   )
 
                   curr_version[path] = response.version
-                  chat = apply_patches(response.patches, chat)
+                  if (response.patches) {
+                      chat = apply_patches(response.patches, chat)
+                  } else {
+                      // this one doesn't happen, because server doesn't send it this way yet
+                      chat = JSON.parse(response.body)
+                  }
                   render_root()
               }
              )

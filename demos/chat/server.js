@@ -14,8 +14,7 @@ curr_version = chat_version
 
 // Subscription data
 var subscriptions = {}
-var rhash = (req) => JSON.stringify([req.headers.client, req.url])
-
+var subscriptionHash = (req) => JSON.stringify([req.headers.client, req.url])
 
 // Create our HTTP bindings!
 var braidify = require('../../protocols/http/http-server')
@@ -25,26 +24,19 @@ var app = require('express')()
 app.use(free_the_cors)
 app.use(braidify)
 
-// HTTP Routes
-function getter (req, res) {
-    // Make sure URL is valid
-    if (!(req.url in state)) {
-        res.statusCode = 404
-        res.end()
-        return
-    }
-
+app.get('/chat', (req, res) => {
     // Honor any subscription request
     if (req.subscribe) {
-        res.startSubscription({ onClose: _=> delete subscriptions[rhash(req)] })
-        subscriptions[rhash(req)] = res
-    } else
+        res.startSubscription({ onClose: _=> delete subscriptions[subscriptionHash(req)] })
+        subscriptions[subscriptionHash(req)] = res
+    } else {
         res.statusCode = 200
+    }
 
     // Send the current version
     res.sendVersion({
         version: curr_version(),
-        body: JSON.stringify(state[req.url])
+        body: JSON.stringify(state['/chat'])
     })
 
     // Bug: if this isn't a subscription, then sendVersion() should set
@@ -53,49 +45,27 @@ function getter (req, res) {
 
     if (!req.subscribe)
         res.end()
-}
-app.get('/chat',     getter)
+})
 
 app.put('/chat', async (req, res) => {
-    var patches = await req.patchesJSON()
+    var patches = await req.patches()
 
     assert(patches.length === 1)
     assert(patches[0].range === '[-0:-0]')
 
-    state['/chat'].push(patches[0].content)
-
-    patches.forEach(patch => {
-        for (var k in subscriptions) {
-            var [client, url] = JSON.parse(k)
-            if (client !== req.headers.client && url === req.url)
-                subscriptions[k].sendVersion({
-                    version: curr_version(),
-                    patches: patches.map(
-                        p => ({...p, content: JSON.stringify(p.content)})
-                    )
-                })
-        }
-    })
-    res.statusCode = 200
-    res.end()
-})
-app.put('/post/:id', async (req, res) => {
-    var patches = await req.patchesJSON()
-
-    assert(patches.length === 1)
-    assert(patches[0].range === '')
-
-    state[req.url] = patches[0].content
+    state['/chat'].push(JSON.parse(patches[0].content))
 
     for (var k in subscriptions) {
         var [client, url] = JSON.parse(k)
-        if (client !== req.headers.client && url === req.url)
+        if (client !== req.headers.client && url === req.url) {
             subscriptions[k].sendVersion({
                 version: curr_version(),
-                body: JSON.stringify(patches[0].content)
+                patches
             })
+        }
     }
-
+    
+    res.statusCode = 200
     res.end()
 })
 
@@ -103,8 +73,6 @@ app.put('/post/:id', async (req, res) => {
 sendfile = (f) => (req, res) => res.sendFile(require('path').join(__dirname, f))
 app.get('/',                   sendfile('client.html'));
 app.get('/braidify-client.js', sendfile('../../protocols/http/http-client.js'))
-//app.get('/braidify-client.js', sendfile('hc.js'))
-app.use('/statebus', require('express').static('statebus'))
 
 // Free the CORS!
 function free_the_cors (req, res, next) {

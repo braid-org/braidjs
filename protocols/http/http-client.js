@@ -276,7 +276,7 @@ function parse_response (stream, on_message, on_finished, on_error) {
 }
 
 
-function braid_put (url, options = {}, callback) {
+function braid_put (url, options = {}) {
     // Make the headers:
     //
     //    Version: "g09ur8z74r"
