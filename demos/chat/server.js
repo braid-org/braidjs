@@ -1,14 +1,14 @@
 assert = require('assert')
 
 // Chat Data
-var state = {
+var resources = {
     '/chat': [
         {text: 'Hello!'},
         {text: 'This is a post!'},
         {text: 'This is a post-modern!'}
     ]
 }
-var chat_version = () => state['/chat'].length + ''
+var chat_version = () => resources['/chat'].length + ''
 var post_versions = {}
 curr_version = chat_version
 
@@ -36,12 +36,12 @@ app.get('/chat', (req, res) => {
     // Send the current version
     res.sendVersion({
         version: curr_version(),
-        body: JSON.stringify(state['/chat'])
+        body: JSON.stringify(resources['/chat'])
     })
 
-    // Bug: if this isn't a subscription, then sendVersion() should set
-    // headers on the response, rather than including virtual headers in the
-    // body.
+    // Bug: sendVersion() sends a blank before the Version even if there is no
+    // subscription.  It only should send that blank line in subscriptions,
+    // because it's necessary to separate Versions.
 
     if (!req.subscribe)
         res.end()
@@ -53,7 +53,7 @@ app.put('/chat', async (req, res) => {
     assert(patches.length === 1)
     assert(patches[0].range === '[-0:-0]')
 
-    state['/chat'].push(JSON.parse(patches[0].content))
+    resources['/chat'].push(JSON.parse(patches[0].content))
 
     for (var k in subscriptions) {
         var [client, url] = JSON.parse(k)
@@ -77,9 +77,13 @@ app.get('/braidify-client.js', sendfile('../../protocols/http/http-client.js'))
 // Free the CORS!
 function free_the_cors (req, res, next) {
     console.log('free the cors!', req.method, req.url)
+
+    // Hey... these headers aren't about CORS!  Let's move them into the braid
+    // libraries:
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
     res.setHeader('Range-Request-Allow-Units', 'json')
     res.setHeader("Patches", "OK")
+
     var free_the_cors = {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "OPTIONS, HEAD, GET, PUT, UNSUBSCRIBE",
