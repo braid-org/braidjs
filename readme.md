@@ -1,7 +1,7 @@
 # Braidjs: Synchronization in Javascript
 
 This contains a reference implementation in Javascript of the
-[Braid protocol](https://github.com/braid-work/ietf-braid-draft), which adds
+[Braid protocol](https://github.com/braid-org/braid-spec), which adds
 *synchronization* to HTTP.
 
 This implementation is not yet complete, but aims to be fully-functioning and
