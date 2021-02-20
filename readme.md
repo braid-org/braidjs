@@ -7,7 +7,7 @@ This contains a reference implementation in Javascript of the
 This implementation is not yet complete, but aims to be fully-functioning and
 robust enough for production sites.
 
-Read more about braid at https://braid.news!
+Read more about braid at https://braid.org!
 
 
 
