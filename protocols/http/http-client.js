@@ -176,7 +176,7 @@ function parse_versions (stream, on_message, on_finished, on_error) {
         
         // Now let's grab everything from these headers
         var headers = {},
-            regex = /([\w-]+): (.*)/g,
+            regex = /([\w-_]+): (.*)/g,
             tmp,
             completed = false
         while (tmp = regex.exec(stuff_to_parse)) {
@@ -246,7 +246,6 @@ function parse_versions (stream, on_message, on_finished, on_error) {
                 }
 
                 // Content-range is of the form '<unit> <range>' e.g. 'json .index'
-                console.log('content range is', patch_headers['content-range'])
                 var [unit, range] = patch_headers['content-range'].match(/(\S+) (.*)/).slice(1)
                 var patch_content = input_buffer.substring(header_length, header_length + length)
 

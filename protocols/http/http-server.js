@@ -74,10 +74,6 @@ function parse_patches (req, cb) {
                 buffer.substring(p_headers_length + 2,
                                  p_headers_length + 2 + body_length)
 
-            // console.log('headers is', req.headers)
-            // if (req.headers['content-type'] === 'application/json')
-            //     patch_content = JSON.parse(patch_content)
-
             // We've got our patch!
             patches.push({unit, range, content: patch_content})
 
@@ -160,7 +156,6 @@ function braidify (req, res, next) {
             res.statusCode = 209
             res.setHeader("subscribe", req.headers.subscribe)
             res.setHeader('cache-control', 'no-cache, no-transform')
-            res.setHeader('content-type', 'application/json')
 
             var connected = true
             function disconnected () {
@@ -226,8 +221,6 @@ function send_version(res, data) {
     if (patches)
         res.write(generate_patches(res, patches)) // adds its own newline
     else if (body) {
-        // if (res.getHeader('content-type') === 'application/json')
-        //     body = JSON.stringify(body)
         set_header('content-length', body.length)
         write_body(body)
     } else {
