@@ -5,23 +5,21 @@ function generate_patches(res, patches) {
     // This will return something like:
     // Patches: n
     // 
-    // content-length: 14 // patch #1
-    // content-range: json .range (or) json=[indices]
+    // content-length: 21
+    // content-range: json .range
     //
-    // ["json object"]
+    // {"some": "json object"}
     //
-    // content-length: x // patch #2
+    // content-length: x
     // ...
     var result = `Patches: ${patches.length}\n`
-    for (let patch of patches) {
-        result += "\n"
-        console.log('patch is', patch)
-        
-        result += `content-length: ${patch.content.length}\n`
-        result += `content-range: ${patch.unit} ${patch.range}\n`
-        result += "\n"
-        result += `${patch.content}\n`
-    }
+    for (let patch of patches)
+        result += `
+content-length: ${patch.content.length}
+content-range: ${patch.unit} ${patch.range}
+
+${patch.content}
+`
     return result
 }
 
