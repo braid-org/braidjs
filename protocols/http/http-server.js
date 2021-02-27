@@ -149,8 +149,6 @@ function braidify (req, res, next) {
 
             // Let's disable the timeouts
             req.socket.server.timeout = 0.0
-            req.setTimeout(0, x => console.log('Request timeout!', x))
-            res.setTimeout(0, x => console.log('Response timeout!', x))
 
             // We have a subscription!
             res.statusCode = 209
@@ -174,7 +172,7 @@ function braidify (req, res, next) {
             req.on('abort',   disconnected)
         }
 
-    next()
+    next && next()
 }
 
 function send_version(res, data) {

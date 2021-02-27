@@ -77,3 +77,43 @@ This will re-run trial 68, and print out debugging info so you can find the
 problem and fix it.
 
 You can also configure parameters to test at the top of `test/tests.js`.
+
+## Using the Protocol Libraries
+
+On the server:
+
+```javascript
+var braidify = require('./protocols/http/http-server')
+var http = require('http')
+
+// Braidify will give you these fields and methods:
+// - req.subscribe
+// - req.startSubscription({onClose: cb})
+// - res.sendVersion()
+// - await req.patches()
+
+// Here's an example:
+http.createServer(
+    {},
+    (req, res) => {
+        braidify(req, res)
+        if (req.subscribe)
+            res.startSubscription({ onClose: _=> null })
+        else
+            res.statusCode = 200
+
+        // Send the current version
+        res.sendVersion({
+            version: 'greg',
+            parents: [],
+            body: JSON.stringify({greg: 'greg'})
+        })
+    }
+).listen(9935)
+```
+
+On the client:
+
+```
+TBD
+```
