@@ -84,7 +84,6 @@ On the server:
 
 ```javascript
 var braidify = require('./protocols/http/http-server')
-var http = require('http')
 
 // Braidify will give you these fields and methods:
 // - req.subscribe
@@ -92,11 +91,32 @@ var http = require('http')
 // - res.sendVersion()
 // - await req.patches()
 
-// Here's an example:
-http.createServer(
-    {},
+// Here's an example using require('express')
+var app = require('express')()
+app.use(braidify)   // Adds braid stuff to req and res
+require('http').createServer(app).listen(8583)
+app.get('/', (req, res) => {
+    // Now use it
+    if (req.subscribe)
+        res.startSubscription({ onClose: _=> null })
+    else
+        res.statusCode = 200
+
+    // Send the current version
+    res.sendVersion({
+        version: 'greg',
+        parents: ['gr','eg'],
+        body: JSON.stringify({greg: 'greg'})
+    })
+})
+
+// Here's an example using require('http')
+require('http').createServer(
     (req, res) => {
+        // Adds braid stuff to req and res
         braidify(req, res)
+
+        // Now use it
         if (req.subscribe)
             res.startSubscription({ onClose: _=> null })
         else
@@ -105,7 +125,6 @@ http.createServer(
         // Send the current version
         res.sendVersion({
             version: 'greg',
-            parents: [],
             body: JSON.stringify({greg: 'greg'})
         })
     }
