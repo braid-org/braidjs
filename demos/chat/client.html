@@ -47,7 +47,7 @@
           post = {text: input.value}
       input.value = ''
 
-      var patches = [{range: 'json=[-0:-0]', value: JSON.stringify(post)}]
+      var patches = [{unit: 'json', range: '[-0:-0]', content: JSON.stringify(post)}]
       var url = new URL(path, window.location.href)
       var res = await braid_put(url, {patches})
       if (res.status === 200)
@@ -95,10 +95,10 @@
           // There are only two types of patches we could receive
           if (patch.range === '')
               // The entire chat in one patch
-              return JSON.parse(patch.value)
+              return JSON.parse(patch.content)
           else
               // A single new message, appended to the end
-              object.push(JSON.parse(patch.value))
+              object.push(JSON.parse(patch.content))
       return object
   }
 

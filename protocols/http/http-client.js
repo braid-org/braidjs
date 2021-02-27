@@ -1,4 +1,4 @@
-var client = Math.random().toString(36).substr(2)
+var peer = Math.random().toString(36).substr(2)
 var abort_controller = new AbortController()
 
 function make_and_promise () {
@@ -20,13 +20,13 @@ function braid_fetch (url, options = {}, onversion, onclose) {
     // parents left off.
     //
     //   - should it remember the parents?
-    //   - or should it use a client, or fissure id?
+    //   - or should it use a peer, or fissure id?
 
     if (!onclose)
         onclose = () => console.warn(`Goodbye!`)
 
     // Create the headers object
-    var headers = {"client": client}
+    var headers = {"peer": peer}
     if (options.version) headers.version = JSON.stringify(options.version)
     if (options.parents) headers.parents = options.parents.map(JSON.stringify).join(', ')
     if (options.subscribe)
@@ -49,26 +49,16 @@ function braid_fetch (url, options = {}, onversion, onclose) {
                 }
                 //res.text().then(x=>console.log('Hooooooo', x))
                 parse_response(res.body, onversion, onclose,
-                               () => setTimeout(go, 5000))
+                               (err) => {console.log('errrrrrr!!!!', err);
+                                      setTimeout(go, 5000)})
             })
             .catch((err) => {
-                //console.error("GET fetch failed: ", err)
+                console.error("GET fetch failed with: ", err)
                 onclose()
                 setTimeout(go, 5000)
             })
     }
     go()
-
-    if (false) {
-        var p = new Promise((resolve, error) => {
-            
-        })
-        a.each = x => {
-            console.log('ooo someone wants to each me with', x)
-            a.then(x)
-            setTimeout(_=>x('last call!'), 1500)
-        }
-    }
 }
 
 // Parse a stream of versions from the incoming bytes
@@ -115,7 +105,7 @@ function parse_response (stream, on_message, on_finished, on_error) {
                 if (parsedH) {
                     parsed_headers = parsedH.headers
                     // Take the parsed headers out of the buffer
-                    input_buffer = input_buffer.substring(parsedH.consumeLength)
+                    input_buffer = input_buffer.substring(parsedH.consumed_length)
                     //console.debug("Header parsing Success:", parsed_headers)
                 } else {
                     console.debug("Failed to parse headers.")
@@ -131,17 +121,19 @@ function parse_response (stream, on_message, on_finished, on_error) {
                 // Now we have a complete message!
                 console.debug("Patch parse Success:", parsed_patches)
 
-                // First, the parameters for the callback
-                let version = JSON.parse(parsed_headers.version || 'null'),
-                    patches = parsed_patches && parsed_patches.slice(),
-                    parents = parsed_headers.parents
+                // Parse the versions from the HTTP structured headers format
+                parsed_headers.version = JSON.parse(parsed_headers.version || 'null')
+                parsed_headers.patches = parsed_patches && parsed_patches.slice()
                 if (parsed_headers.parents)
-                    parents = JSON.parse('['+parsed_headers.parents+']')
-                console.debug("Assembled complete message: ",
-                              {version, patches, parents, on_message})
+                    parsed_headers.parents = JSON.parse('['+parsed_headers.parents+']')
+
+                // Add the patches in
+                parsed_headers.patches = parsed_patches
+
+                console.debug("Assembled complete message: ", parsed_headers)
 
                 // Now tell everyone!
-                on_message({version, patches, parents})
+                on_message(parsed_headers)
 
                 // Reset our parser state, to read the next message
                 parsed_headers = false
@@ -175,12 +167,12 @@ function parse_response (stream, on_message, on_finished, on_error) {
         console.debug('Parsing headers from', input_buffer)
         // This string could contain a whole response.
         // So first let's isolate to just the headers.
-        var end_of_headers = input_buffer.indexOf('\n\n')
-        if (end_of_headers === -1) {
+        var headers_length = input_buffer.indexOf('\n\n')
+        if (headers_length === -1) {
             console.debug('parse_headers: no double-newline')
             return false
         }
-        var stuff_to_parse = input_buffer.substring(0, end_of_headers)
+        var stuff_to_parse = input_buffer.substring(0, headers_length)
         
         // Now let's grab everything from these headers
         var headers = {},
@@ -190,7 +182,7 @@ function parse_response (stream, on_message, on_finished, on_error) {
         while (tmp = regex.exec(stuff_to_parse)) {
             //console.debug('Parse line:', tmp)
             headers[tmp[1].toLowerCase()] = tmp[2]
-            if (regex.lastIndex === end_of_headers) {
+            if (regex.lastIndex === headers_length) {
                 completed = true
                 break
             }
@@ -201,7 +193,7 @@ function parse_response (stream, on_message, on_finished, on_error) {
             console.debug('parse_headers: not completed')
             return false
         } else
-            return {headers: headers, consumeLength: end_of_headers + 2}
+            return {headers, consumed_length: headers_length + 2}
     }
 
     function parse_body() {
@@ -222,11 +214,11 @@ function parse_response (stream, on_message, on_finished, on_error) {
 
             parsed_patches = [{
                 range: '',
-                value: input_buffer.substring(0, content_length)
+                content: input_buffer.substring(0, content_length)
             }]
             input_buffer = input_buffer.substring(content_length + 2)
             console.debug('Now, we parsed',
-                          JSON.stringify(parsed_patches[0].value),
+                          JSON.stringify(parsed_patches[0].content),
                           'and input buffer is', JSON.stringify(input_buffer))
             return true
         }
@@ -235,32 +227,32 @@ function parse_response (stream, on_message, on_finished, on_error) {
             // all of them
             while (parsed_patches.length < parsed_headers.patches) {
                 input_buffer = input_buffer.trimStart()
-                var parsePatchHeaders = parse_headers()
-                if (!parsePatchHeaders) {
+                var parsed_patch_headers = parse_headers()
+                if (!parsed_patch_headers) {
                     console.debug("Failed to parse patch headers!")
                     return false
                 }
-                var patchHeaders = parsePatchHeaders.headers
-                var headerLength = parsePatchHeaders.consumeLength
+                var patch_headers = parsed_patch_headers.headers
+                var header_length = parsed_patch_headers.consumed_length
                 // assume we have content-length...
-                var length = parseInt(patchHeaders['content-length'])
+                var length = parseInt(patch_headers['content-length'])
 
                 // Does our current buffer contain enough data that we
                 // have the entire patch?
-                if (input_buffer.length < headerLength + length) {
+                if (input_buffer.length < header_length + length) {
                     console.debug("Buffer is too small to contain",
                                   "the rest of the patch...")
                     return false
                 }
 
-                // Assume that content-range is of the form 'json=.index'
-                var r = patchHeaders['content-range']
-                var patchRange = r.startsWith("json=") ? r.substring(5) : r
-                var patchValue = input_buffer.substring(headerLength, headerLength + length)
+                // Content-range is of the form '<unit> <range>' e.g. 'json .index'
+                console.log('content range is', patch_headers['content-range'])
+                var [unit, range] = patch_headers['content-range'].match(/(\S+) (.*)/).slice(1)
+                var patch_content = input_buffer.substring(header_length, header_length + length)
 
                 // We've got our patch!
-                parsed_patches.push({range: patchRange, value: patchValue})
-                input_buffer = input_buffer.substring(headerLength + length + 2)
+                parsed_patches.push({range, unit, content: patch_content})
+                input_buffer = input_buffer.substring(header_length + length + 2)
                 console.debug('Successfully parsed a patch.',
                               `We now have ${parsed_patches.length}/${parsed_headers.patches}`)
             }
@@ -286,7 +278,7 @@ function braid_put (url, options = {}) {
     //    Patches: 2
     //  
     var headers = {
-        'client': client,
+        'peer': peer,
         'Cache-Control': 'no-cache, no-transform',
         ...options.headers
     }
@@ -299,20 +291,20 @@ function braid_put (url, options = {}) {
     // Make the body a sequence of patches:
     //
     //    Content-Length: 62                                | Patch 1
-    //    Content-Range: json=.messages[1:1]                |
+    //    Content-Range: json .messages[1:1]                |
     //                                                      |
     //    [{text: "Yo!",                                    |
     //      author: {type: "link", value: "/user/yobot"}]   |
     //   
     //    Content-Length: 40                                | Patch 2
-    //    Content-Range: json=.latest_change                |
+    //    Content-Range: json .latest_change                |
     //                                                      |
     //    {"type": "date", "value": 1573952202370}          |
 
     var body = (options.patches || []).map(patch => {
-        var length = `content-length: ${patch.value.length}`
-        var range = `content-range: ${patch.range}`
-        return `${length}\n${range}\n\n${patch.value}\n`
+        var length = `content-length: ${patch.content.length}`
+        var range = `content-range: ${patch.unit} ${patch.range}`
+        return `${length}\n${range}\n\n${patch.content}\n`
     }).join('\n')
 
     // Now send the request
