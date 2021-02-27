@@ -2,7 +2,6 @@ var assert = require('assert')
 
 // Write an array of patches into the pseudoheader format.
 function generate_patches(res, patches) {
-    var patches_as_strings = false
     // This will return something like:
     // Patches: n
     // 
@@ -13,30 +12,17 @@ function generate_patches(res, patches) {
     //
     // content-length: x // patch #2
     // ...
-    let out = `Patches: ${patches.length}\n`
+    var result = `Patches: ${patches.length}\n`
     for (let patch of patches) {
-        out += "\n"
-        if (patches_as_strings) {
-            // This should be rewritten to use sync9's patch parser.
-            var split = patch.match(/(.*?)\s*=\s*(.*)/)
-            assert(split.length == 3)
-            var range = split[1]
-            var change = split[2]
-        } else {
-            console.log('patch is', patch)
-            var range = patch.range,
-                change = patch.content
-            // if (res.getHeader('content-type') === 'application/json')
-            //     change = JSON.stringify(change)
-        }
-        console.log({range, change})
+        result += "\n"
+        console.log('patch is', patch)
         
-        out += `content-length: ${change.length}\n`
-        out += `content-range: json ${range}\n`
-        out += "\n"
-        out += `${change}\n`
+        result += `content-length: ${patch.content.length}\n`
+        result += `content-range: ${patch.unit} ${patch.range}\n`
+        result += "\n"
+        result += `${patch.content}\n`
     }
-    return out
+    return result
 }
 
 
@@ -146,7 +132,7 @@ function braidify (req, res, next) {
     req.subscribe = subscribe
 
     // Add the braidly request/response helper methods
-    res.sendVersion = (stuff) => send_version({res: res, ...stuff})
+    res.sendVersion = (stuff) => send_version(res, stuff)
     req.patches = () => new Promise(
         (done, err) => parse_patches(req, (patches) => done(patches))
     )
@@ -198,7 +184,9 @@ function braidify (req, res, next) {
     next()
 }
 
-function send_version({res, version, parents, patches, body}) {
+function send_version(res, data) {
+    var {version, parents, patches, body} = data
+
     function set_header (key, val) {
         if (res.isSubscription)
             res.write(`${key}: ${val}\n`)
@@ -222,13 +210,19 @@ function send_version({res, version, parents, patches, body}) {
         patches.forEach(p => assert(typeof p.content === 'string'))
 
     // Write the headers or virtual headers
-    if (version)
-        set_header('version', JSON.stringify(version))
-    if (parents && parents.length)
-        set_header('parents', parents.map(JSON.stringify).join(", "))
+    for (var [header, value] of Object.entries(data)) {
+        // Version and Parents get output in the Structured Headers format
+        if (header === 'version')
+            value = JSON.stringify(value)
+        else if (header === 'parents')
+            value = parents.map(JSON.stringify).join(", ")
 
-    set_header('content-type', 'application/json')
-    set_header('merge-type', 'sync9')
+        // We don't output patches or body yet
+        else if (header === 'patches' || header == 'body')
+            continue
+
+        set_header(header, value)
+    }
 
     // Write the patches or body
     if (patches)

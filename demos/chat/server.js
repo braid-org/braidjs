@@ -50,6 +50,7 @@ app.put('/chat', async (req, res) => {
     // Bug: Should return error code (40x?) for invalid request instead of crashing
     assert(patches.length === 1)
     assert(patches[0].range === '[-0:-0]')
+    assert(patches[0].unit === 'json')
 
     resources['/chat'].push(JSON.parse(patches[0].content))
 
@@ -57,14 +58,12 @@ app.put('/chat', async (req, res) => {
     for (var k in subscriptions) {
         var [peer, url] = JSON.parse(k)
         if (url === req.url  // Send only to subscribers of this URL
-            && peer !== req.headers.peer  // Skip the peer that sent this PUT
-           ) {
-            console.log('sending for peer', peer)
+            && peer !== req.headers.peer)  // Skip the peer that sent this PUT
+
             subscriptions[k].sendVersion({
                 version: chat_version(),
                 patches
             })
-        }
     }
     
     res.statusCode = 200
@@ -85,6 +84,7 @@ function free_the_cors (req, res, next) {
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
     res.setHeader('Range-Request-Allow-Units', 'json')
     res.setHeader("Patches", "OK")
+    // ^^ Actually, it looks like we're going to delete these soon.
 
     var free_the_cors = {
         "Access-Control-Allow-Origin": "*",

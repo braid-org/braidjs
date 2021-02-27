@@ -56,6 +56,7 @@
           console.debug('braid_put failed with', res.status)
 
       chat.push(post)
+      curr_version['/chat']++
       render_root()
   }
 
@@ -71,7 +72,7 @@
               || (parseInt(curr_version[path]) + 1 === parseInt(response.version)),
               // If not, let's print a warning:
               'Bad versions:' + JSON.stringify(
-                  {curr_version, res_ver:response.version}
+                  {curr_version, response_version:response.version}
               )
           )
 

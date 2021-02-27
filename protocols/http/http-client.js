@@ -48,9 +48,9 @@ function braid_fetch (url, options = {}, onversion, onclose) {
                     return
                 }
                 //res.text().then(x=>console.log('Hooooooo', x))
-                parse_response(res.body, onversion, onclose,
+                parse_versions(res.body, onversion, onclose,
                                (err) => {console.log('errrrrrr!!!!', err);
-                                      setTimeout(go, 5000)})
+                                         setTimeout(go, 5000)})
             })
             .catch((err) => {
                 console.error("GET fetch failed with: ", err)
@@ -62,7 +62,7 @@ function braid_fetch (url, options = {}, onversion, onclose) {
 }
 
 // Parse a stream of versions from the incoming bytes
-function parse_response (stream, on_message, on_finished, on_error) {
+function parse_versions (stream, on_message, on_finished, on_error) {
     // Set up a reader
     var reader = stream.getReader(),
         decoder = new TextDecoder('utf-8'),
@@ -196,7 +196,7 @@ function parse_response (stream, on_message, on_finished, on_error) {
             return {headers, consumed_length: headers_length + 2}
     }
 
-    function parse_body() {
+    function parse_body () {
         var content_length = parseInt(parsed_headers['content-length'])
         // console.debug("Trying to parse",
         //               content_length
