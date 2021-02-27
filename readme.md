@@ -92,8 +92,9 @@ var braidify = require('./protocols/http/http-server')
 // - await req.patches()
 
 var app = require('express')()
-app.use(braidify)   // Adds braid stuff to req and res
-require('http').createServer(app).listen(8583)
+
+app.use(braidify)    // Add braid stuff to req and res
+
 app.get('/', (req, res) => {
     // Now use it
     if (req.subscribe)
@@ -108,16 +109,18 @@ app.get('/', (req, res) => {
         body: JSON.stringify({greg: 'greg'})
     })
 })
+
+require('http').createServer(app).listen(8583)
 ```
 
-On the server using regular require('http'):
+On the server using regular `require('http')`:
 
 ```javascript
 var braidify = require('./protocols/http/http-server')
 
 require('http').createServer(
     (req, res) => {
-        // Adds braid stuff to req and res
+        // Add braid stuff to req and res
         braidify(req, res)
 
         // Now use it
