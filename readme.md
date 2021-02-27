@@ -108,6 +108,13 @@ app.get('/', (req, res) => {
         parents: ['gr','eg'],
         body: JSON.stringify({greg: 'greg'})
     })
+
+    // Or you can send patches like this:
+    // res.sendVersion({
+    //     version: 'greg',
+    //     parents: ['gr','eg'],
+    //     patches: [{range: '.greg', unit: 'json', content: '"greg"'}]
+    // })
 })
 
 require('http').createServer(app).listen(8583)
