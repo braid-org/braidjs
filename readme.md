@@ -80,7 +80,7 @@ You can also configure parameters to test at the top of `test/tests.js`.
 
 ## Using the Protocol Libraries
 
-On the server:
+On the server using express:
 
 ```javascript
 var braidify = require('./protocols/http/http-server')
@@ -91,7 +91,6 @@ var braidify = require('./protocols/http/http-server')
 // - res.sendVersion()
 // - await req.patches()
 
-// Here's an example using require('express')
 var app = require('express')()
 app.use(braidify)   // Adds braid stuff to req and res
 require('http').createServer(app).listen(8583)
@@ -109,8 +108,13 @@ app.get('/', (req, res) => {
         body: JSON.stringify({greg: 'greg'})
     })
 })
+```
 
-// Here's an example using require('http')
+On the server using regular require('http'):
+
+```javascript
+var braidify = require('./protocols/http/http-server')
+
 require('http').createServer(
     (req, res) => {
         // Adds braid stuff to req and res
