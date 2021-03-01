@@ -1,21 +1,8 @@
 var peer = Math.random().toString(36).substr(2)
-var abort_controller = new AbortController()
-
-function make_and_promise () {
-    var a = new Promise((r, e) => {
-        setTimeout(_=>r(3),1000)
-    })
-    a.each = x => {
-        console.log('ooo someone wants to each me with', x)
-        a.then(x)
-        setTimeout(_=>x('last call!'), 1500)
-    }
-    a.each(x => console.log('We got a result!', x))
-}
+var enable_cors_default = false
 
 
-
-function braid_fetch (url, options = {}, onversion, onclose) {
+function braid_fetch (url, params = {}, onversion, onclose) {
     // Todo: when reconnecting, this needs a way of asking to continue where
     // parents left off.
     //
@@ -25,22 +12,33 @@ function braid_fetch (url, options = {}, onversion, onclose) {
     if (!onclose)
         onclose = () => console.warn(`Goodbye!`)
 
-    // Create the headers object
-    var headers = {"peer": peer}
-    if (options.version) headers.version = JSON.stringify(options.version)
-    if (options.parents) headers.parents = options.parents.map(JSON.stringify).join(', ')
-    if (options.subscribe)
-        headers.subscribe = (typeof options.subscribe === 'number'
-                             ? 'keep-alive=' + options.subscribe
-                             : 'keep-alive')
+    // Initialize the headers object
+    if (!params.headers)
+        params.headers = new Headers()
+
+    // Always set the peer
+    params.headers.set('peer', peer)
+
+    // We provide some shortcuts for Braid params
+    if (params.version)
+        params.headers.set('version', JSON.stringify(params.version))
+    if (params.parents)
+        params.headers.set('parents', params.parents.map(JSON.stringify).join(', '))
+    if (params.subscribe)
+        params.headers.set('subscribe',
+                            (typeof params.subscribe === 'number'
+                             ? 'keep-alive=' + params.subscribe
+                             : 'keep-alive'))
+
+    params.method = params.method || 'GET'
+
+    if (enable_cors_default)
+        params.mode = params.mode || 'cors'
 
     // Send the underlying fetch request
     function go () {
         console.log(`Fetching ${url}`);
-        fetch(url, {method: 'GET',
-                    mode: 'cors',
-                    headers: new Headers(headers),
-                    signal: abort_controller.signal})
+        fetch(url, params)
             .then(function (res) {
                 if (!res.ok) {
                     console.error("Fetch failed!", res)
@@ -267,7 +265,7 @@ function parse_versions (stream, on_message, on_finished, on_error) {
 }
 
 
-function braid_put (url, options = {}) {
+function braid_put (url, params = {}) {
     // Make the headers:
     //
     //    Version: "g09ur8z74r"
@@ -276,16 +274,28 @@ function braid_put (url, options = {}) {
     //    Merge-Type: sync9
     //    Patches: 2
     //  
-    var headers = {
-        'peer': peer,
-        'Cache-Control': 'no-cache, no-transform',
-        ...options.headers
-    }
-    if (options.version) headers.version = JSON.stringify(options.version)
-    if (options.parents && options.parents.length > 0)
-        headers.parents = options.parents.map(JSON.stringify).join(', ')
-    options.patches = options.patches || []
-    headers.patches = options.patches.length
+
+    // Initialize the headers
+    if (!params.headers)
+        params.headers = new Headers()
+
+    // Always set the peer
+    params.headers.set('peer', peer)
+
+    // We provide some shortcuts for Braid params
+    if (params.version)
+        params.headers.set('version', JSON.stringify(params.version))
+    if (params.parents)
+        params.headers.set('parents', params.parents.map(JSON.stringify).join(', '))
+
+    params.patches = params.patches || []
+    params.headers.set('patches', params.patches.length)
+
+    params.method = params.method || 'PUT'
+
+    // Default to allowing cross-origin requests.  (Re-evaluate this soon?)
+    if (enable_cors_default)
+        params.mode = params.mode || 'cors'
 
     // Make the body a sequence of patches:
     //
@@ -300,15 +310,12 @@ function braid_put (url, options = {}) {
     //                                                      |
     //    {"type": "date", "value": 1573952202370}          |
 
-    var body = (options.patches || []).map(patch => {
+    params.body = params.body || (params.patches || []).map(patch => {
         var length = `content-length: ${patch.content.length}`
         var range = `content-range: ${patch.unit} ${patch.range}`
         return `${length}\n${range}\n\n${patch.content}\n`
     }).join('\n')
 
     // Now send the request
-    return fetch(url, {method: 'PUT',
-                       body: body,
-                       mode: 'cors',
-                       headers: new Headers(headers)})
+    return fetch(url, params)
 }
