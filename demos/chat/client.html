@@ -64,32 +64,33 @@
   braid_fetch(
       new URL(path, window.location.href),
       {subscribe: {keep_alive: true}},
-      response => {
-          console.assert(
-              // Either we haven't received any versions yet
-              !curr_version[path]
-              // Or the new version should be 1+ our last version
+  ).andThen(response => {
+      console.assert(
+          // Either we haven't received any versions yet
+          !curr_version[path]
+          // Or the new version should be 1+ our last version
               || (parseInt(curr_version[path]) + 1 === parseInt(response.version)),
-              // If not, let's print a warning:
-              'Bad versions:' + JSON.stringify(
-                  {curr_version, response_version:response.version}
-              )
+          // If not, let's print a warning:
+          'Bad versions:' + JSON.stringify(
+              {curr_version, response_version:response.version}
           )
+      )
 
-          curr_version[path] = response.version
+      curr_version[path] = response.version
 
-          // When we receive updates, they might come in the form of patches:
-          if (response.patches)
-              chat = apply_patches(response.patches, chat)
+      console.log('hi body', response.body)
 
-          // Or a complete version:
-          else
-              // Beware the server doesn't send these yet.
-              chat = JSON.parse(response.body)
+      // When we receive updates, they might come in the form of patches:
+      if (response.patches)
+          chat = apply_patches(response.patches, chat)
 
-          render_root()
-      }
-  )
+      // Or a complete version:
+      else
+          // Beware the server doesn't send these yet.
+          chat = JSON.parse(response.body)
+
+      render_root()
+  })
 
   function apply_patches (patches, object) {
       for (var patch of patches)

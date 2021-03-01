@@ -35,28 +35,45 @@ function braid_fetch (url, params = {}, onversion, onclose) {
     if (enable_cors_default)
         params.mode = params.mode || 'cors'
 
-    // Send the underlying fetch request
-    function go () {
-        console.log(`Fetching ${url}`);
-        fetch(url, params)
-            .then(function (res) {
-                if (!res.ok) {
-                    console.error("Fetch failed!", res)
-                    setTimeout(go, 5000)
-                    return
-                }
-                //res.text().then(x=>console.log('Hooooooo', x))
-                parse_versions(res.body, onversion, onclose,
-                               (err) => {console.log('errrrrrr!!!!', err);
-                                         setTimeout(go, 5000)})
-            })
-            .catch((err) => {
-                console.error("GET fetch failed with: ", err)
-                onclose()
-                setTimeout(go, 5000)
-            })
+    if (params.reconnect) {
+        function reconnect () {
+            console.log(`Fetching ${url}`);
+            fetch(url, params)
+                .then(function (res) {
+                    if (!res.ok) {
+                        console.error("Fetch failed!", res)
+                        setTimeout(reconnect, 5000)
+                        return
+                    }
+                    //res.text().then(x=>console.log('Hooooooo', x))
+                    parse_versions(res.body, onversion, onclose,
+                                   (err) => {console.log('errrrrrr!!!!', err);
+                                             setTimeout(reconnect, 5000)})
+                })
+                .catch((err) => {
+                    console.error("GET fetch failed with: ", err)
+                    onclose()
+                    setTimeout(reconnect, 5000)
+                })
+        }
+        reconnect()
+    } else {
+        var fetch_promise = fetch(url, params)
+        console.log('meep')
+        fetch_promise.andThen = func => fetch_promise.then(function (res) {
+            console.log('hello')
+            if (!res.ok) {
+                console.error("Fetch failed!", res)
+                throw new Error('Subscription request failed', res)
+            }
+            parse_versions(res.body, func, onclose,
+                           (err) => {
+                               throw new Error('Subscription read failed', err)
+                           })
+
+        })
+        return fetch_promise
     }
-    go()
 }
 
 // Parse a stream of versions from the incoming bytes
