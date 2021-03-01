@@ -50,7 +50,7 @@ function braid_fetch (url, params = {}, onversion, onclose) {
     // Now run the actual fetch!
     if (params.reconnect) {
         function reconnect () {
-            console.log(`Fetching ${url}`);
+            console.debug(`Fetching ${url}`);
             fetch(url, params)
                 .then(function (res) {
                     if (!res.ok) {
@@ -58,7 +58,6 @@ function braid_fetch (url, params = {}, onversion, onclose) {
                         setTimeout(reconnect, 5000)
                         return
                     }
-                    //res.text().then(x=>console.log('Hooooooo', x))
                     parse_versions(res.body, onversion, onclose,
                                    (err) => {console.log('errrrrrr!!!!', err);
                                              setTimeout(reconnect, 5000)})
@@ -71,21 +70,15 @@ function braid_fetch (url, params = {}, onversion, onclose) {
         }
         reconnect()
     } else {
-        var fetch_promise = fetch(url, params)
-        console.log('meep')
-        fetch_promise.andThen = func => fetch_promise.then(function (res) {
-            console.log('hello')
-            if (!res.ok) {
-                console.error("Fetch failed!", res)
-                throw new Error('Subscription request failed', res)
-            }
-            parse_versions(res.body, func, onclose,
-                           (err) => {
-                               throw new Error('Subscription read failed', err)
-                           })
-
+        var promise = fetch(url, params)
+        promise.andThen = func => promise.then(function (res) {
+            if (!res.ok) throw new Error('Subscription request failed', res)
+            parse_versions(
+                res.body, func, onclose,
+                (err) => { throw new Error('Subscription read failed', err) }
+            )
         })
-        return fetch_promise
+        return promise
     }
 }
 
@@ -181,14 +174,8 @@ function parse_versions (stream, on_message, on_finished, on_error) {
 
         // Now let's restart the whole process
         console.debug("Waiting for next chunk to continue reading")
-        reader.read().then(read).catch(e => {
-            // console.error('This reader failed with', e)
-            on_error(e)
-        })
-    }).catch(e => {
-        console.error('The reader failed with', e)
-        on_error(e)
-    })
+        reader.read().then(read).catch(on_error)
+    }).catch(on_error)
 
     // Parsing helpers
     function parse_headers() {
