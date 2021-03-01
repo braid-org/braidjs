@@ -49,11 +49,11 @@
 
       var patches = [{unit: 'json', range: '[-0:-0]', content: JSON.stringify(post)}]
       var url = new URL(path, window.location.href)
-      var res = await braid_put(url, {patches})
+      var res = await braid_fetch(url, {method: 'put', patches})
       if (res.status === 200)
-          console.debug('braid_put complete')
+          console.debug('put complete')
       else
-          console.debug('braid_put failed with', res.status)
+          console.debug('put failed with', res.status)
 
       chat.push(post)
       curr_version['/chat']++

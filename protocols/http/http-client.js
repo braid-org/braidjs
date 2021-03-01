@@ -30,11 +30,24 @@ function braid_fetch (url, params = {}, onversion, onclose) {
                              ? 'keep-alive=' + params.subscribe
                              : 'keep-alive'))
 
-    params.method = params.method || 'GET'
+    // Prepare patches
+    if (params.patches) {
+        console.assert(Array.isArray(params.patches), 'Patches must be array')
+        console.assert(!params.body, 'Cannot send both patches and body')
+
+        params.patches = params.patches || []
+        params.headers.set('patches', params.patches.length)
+        params.body = (params.patches).map(patch => {
+            var length = `content-length: ${patch.content.length}`
+            var range = `content-range: ${patch.unit} ${patch.range}`
+            return `${length}\n${range}\n\n${patch.content}\n`
+        }).join('\n')
+    }
 
     if (enable_cors_default)
         params.mode = params.mode || 'cors'
 
+    // Now run the actual fetch!
     if (params.reconnect) {
         function reconnect () {
             console.log(`Fetching ${url}`);
@@ -279,60 +292,4 @@ function parse_versions (stream, on_message, on_finished, on_error) {
             return true
         }
     }
-}
-
-
-function braid_put (url, params = {}) {
-    // Make the headers:
-    //
-    //    Version: "g09ur8z74r"
-    //    Parents: "ej4lhb9z78"
-    //    Content-Type: application/json
-    //    Merge-Type: sync9
-    //    Patches: 2
-    //  
-
-    // Initialize the headers
-    if (!params.headers)
-        params.headers = new Headers()
-
-    // Always set the peer
-    params.headers.set('peer', peer)
-
-    // We provide some shortcuts for Braid params
-    if (params.version)
-        params.headers.set('version', JSON.stringify(params.version))
-    if (params.parents)
-        params.headers.set('parents', params.parents.map(JSON.stringify).join(', '))
-
-    params.patches = params.patches || []
-    params.headers.set('patches', params.patches.length)
-
-    params.method = params.method || 'PUT'
-
-    // Default to allowing cross-origin requests.  (Re-evaluate this soon?)
-    if (enable_cors_default)
-        params.mode = params.mode || 'cors'
-
-    // Make the body a sequence of patches:
-    //
-    //    Content-Length: 62                                | Patch 1
-    //    Content-Range: json .messages[1:1]                |
-    //                                                      |
-    //    [{text: "Yo!",                                    |
-    //      author: {type: "link", value: "/user/yobot"}]   |
-    //   
-    //    Content-Length: 40                                | Patch 2
-    //    Content-Range: json .latest_change                |
-    //                                                      |
-    //    {"type": "date", "value": 1573952202370}          |
-
-    params.body = params.body || (params.patches || []).map(patch => {
-        var length = `content-length: ${patch.content.length}`
-        var range = `content-range: ${patch.unit} ${patch.range}`
-        return `${length}\n${range}\n\n${patch.content}\n`
-    }).join('\n')
-
-    // Now send the request
-    return fetch(url, params)
 }
