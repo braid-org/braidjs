@@ -1,0 +1,28 @@
+Todos:
+ x Blank Line
+   - Alter sendVersion so that it knows to set actual headers if this isn't a
+     stream
+ x Reproduce error with callback called multiple times
+ x Canonicalize the range patch format
+ x Remove hard-coded content-type and merge-type
+   x JSON: Range Unit and Parse/Stringify
+ x Pass through the options into braid_fetch
+   x And remove the independent AbortController
+ x nodejs fetches
+ - Client API with reactions
+   x andThen
+   - for await
+ - Convert promises to async/await
+ - Reconnect logic
+ - Support arbitrary custom patch types
+ - Writeup readme
+ - Publish to NPM
+ - Websocket fallback for localhost development
+ - Error handling and reporting
+   - Like the on_error callback
+   - And the handler passed to parse_response in client
+ - Move the headers into a .headers field in API?
+ - Better debug info logging or displaying
+ - Add to spec "should not limit client connections" if some header is present
+ - Move the parse state variables into function parameters and return values
+ - Handle binary response in client
