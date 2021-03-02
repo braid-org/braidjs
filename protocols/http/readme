@@ -12,6 +12,7 @@ Todos:
  - Client API with reactions
    x andThen
    - for await
+ - Make andThen error if not subscription request
  - Convert promises to async/await
  - Reconnect logic
  - Support arbitrary custom patch types
