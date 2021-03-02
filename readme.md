@@ -99,6 +99,7 @@ app.get('/', (req, res) => {
     // Now use it
     if (req.subscribe)
         res.startSubscription({ onClose: _=> null })
+        // startSubscription automatically sets statusCode = 209
     else
         res.statusCode = 200
 
@@ -133,6 +134,7 @@ require('http').createServer(
         // Now use it
         if (req.subscribe)
             res.startSubscription({ onClose: _=> null })
+            // startSubscription automatically sets statusCode = 209
         else
             res.statusCode = 200
 

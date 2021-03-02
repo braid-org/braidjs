@@ -1,6 +1,13 @@
 var peer = Math.random().toString(36).substr(2)
 var enable_cors_default = false
 
+// On nodejs, this requires "npm install node-fetch node-web-streams"
+if (typeof window === 'undefined') {
+    var fetch = require('node-fetch')
+    var Headers = fetch.Headers
+    var to_whatwg_stream = require('node-web-streams').toWebReadableStream
+    module.exports = braid_fetch
+}
 
 function braid_fetch (url, params = {}, onversion, onclose) {
     // Todo: when reconnecting, this needs a way of asking to continue where
@@ -82,8 +89,13 @@ function braid_fetch (url, params = {}, onversion, onclose) {
     }
 }
 
+
+
 // Parse a stream of versions from the incoming bytes
 function parse_versions (stream, on_message, on_finished, on_error) {
+    if (typeof window === 'undefined')
+        stream = to_whatwg_stream(stream)
+
     // Set up a reader
     var reader = stream.getReader(),
         decoder = new TextDecoder('utf-8'),
@@ -115,19 +127,14 @@ function parse_versions (stream, on_message, on_finished, on_error) {
         // Now loop through the input_buffer until we hit a dead end
         while (true) {
 
-            // Remove newlines at the beginning. (May be unnecessary.)
-            //input_buffer.trimStart()
-
             // If we don't have headers yet, let's try to parse some
             if (!parsed_headers) {
-                //console.debug("Trying to parse headers...")
                 var parsedH = parse_headers()
                 // Todo: Handle malformed headers by disconnecting
                 if (parsedH) {
                     parsed_headers = parsedH.headers
                     // Take the parsed headers out of the buffer
                     input_buffer = input_buffer.substring(parsedH.consumed_length)
-                    //console.debug("Header parsing Success:", parsed_headers)
                 } else {
                     console.debug("Failed to parse headers.")
                     // This means we need to exit the loop and wait for
@@ -213,11 +220,6 @@ function parse_versions (stream, on_message, on_finished, on_error) {
 
     function parse_body () {
         var content_length = parseInt(parsed_headers['content-length'])
-        // console.debug("Trying to parse",
-        //               content_length
-        //               ? JSON.stringify(content_length) + ' bytes'
-        //               : JSON.stringify(parsed_headers.patches) + ' patches',
-        //               "from", JSON.stringify(input_buffer))
 
         if (content_length) {
             console.debug("Got an absolute body")
