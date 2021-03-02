@@ -114,10 +114,10 @@ function braidify (req, res, next) {
     //
     var subscribe = req.headers.subscribe
     if (subscribe) {
-        let match = req.headers.subscribe.match(/keep-alive(=\w+)?/)
+        let match = req.headers.subscribe.match(/keep-alive(=(\w+))?/)
         if (match)
             subscribe =
-                match[1] ? {keep_alive: true} : {keep_alive: parseInt(match[1])}
+                match[2] ? {keep_alive: parseInt(match[2])} : {keep_alive: true}
     }
 
     // Define convenience variables
