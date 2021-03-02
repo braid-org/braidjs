@@ -89,8 +89,6 @@ function braid_fetch (url, params = {}, onversion, onclose) {
     }
 }
 
-
-
 // Parse a stream of versions from the incoming bytes
 function parse_versions (stream, on_message, on_finished, on_error) {
     if (typeof window === 'undefined')
