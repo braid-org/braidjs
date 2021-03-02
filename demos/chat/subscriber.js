@@ -6,7 +6,7 @@ var url = new URL(path, "https://localhost:3009");
 
 (async function () {
   console.log("Subscriber listening...", url);
-  braid_fetch(url).andThen((res) => {
+  braid_fetch(url, { subscribe: {'keep-alive':true} }).andThen((res) => {
     console.log("response", res);
   });
 })();
