@@ -468,8 +468,6 @@ module.exports = require.braid = function create_node(node_data = {}) {
         // may be useful for this
     }
 
-    node.prune = node.antimatter.prune
-
     node.current_version = (key) =>
         Object.keys(node.resource_at(key).current_version).join('-') || null
     node.versions = (key) => Object.keys(node.resource_at(key).time_dag)

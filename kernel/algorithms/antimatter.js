@@ -410,168 +410,6 @@ module.exports = require.antimatter = (node) => ({
         // rely on information which is in the welcome for other people to
         // understand them)
         gen_fissures.forEach(f => node.fissure({key, fissure:f}))
-    },
-
-    prune (resource) {
-        var unremovable = {}
-
-        // First, let's prune old fissures
-
-        // Calculate which fissures we have to keep due to parenting
-        // rule... which we will be removing soon.
-        Object.entries(resource.fissures).forEach(x => {
-            if (!resource.fissures[x[1].b + ':' + x[1].a + ':' + x[1].conn]) {
-                function f(y) {
-                    if (!unremovable[y.a + ':' + y.b + ':' + y.conn]) {
-                        unremovable[y.a + ':' + y.b + ':' + y.conn] = true
-                        unremovable[y.b + ':' + y.a + ':' + y.conn] = true
-                        Object.keys(y.parents).forEach(p => {
-                            if (resource.fissures[p]) f(resource.fissures[p])
-                        })
-                    }
-                }
-                f(x[1])
-            }
-        })
-        
-        // Now remove the fissures
-        Object.entries(resource.fissures).forEach(x => {
-            var other_key = x[1].b + ':' + x[1].a + ':' + x[1].conn
-            var other = resource.fissures[other_key]
-            if (other) {
-                if (unremovable[x[0]]) {
-                    resource.fissures[x[0]].versions = {}
-                    resource.fissures[other_key].versions = {}
-                } else {
-                    delete resource.fissures[x[0]]
-                    delete resource.fissures[other_key]
-                }
-            }
-        })
-
-        // Remove fissures that have expired due to time
-        if (node.fissure_lifetime != null) {
-            var now = Date.now()
-            Object.entries(resource.fissures).forEach(([k, f]) => {
-                if (f.time == null) f.time = now
-                if (f.time <= now - node.fissure_lifetime) {
-                    delete resource.fissures[k]
-                }
-            })
-        }
-
-        // Remove fissures that are beyond our max_fissures limit
-        if (node.max_fissures != null) {
-            let count = Object.keys(resource.fissures).length
-            if (count > node.max_fissures) {
-                Object.entries(resource.fissures).sort((a, b) => {
-                    if (a[1].time == null) a[1].time = now
-                    if (b[1].time == null) b[1].time = now
-                    return a[1].time - b[1].time
-                }).slice(0, count - node.max_fissures).forEach(e => {
-                    delete resource.fissures[e[0]]
-                })
-            }
-        }
-
-        // Now figure out which versions we want to keep,
-        var keep_us = {}
-
-        // incluing versions in fissures..
-        Object.values(resource.fissures).forEach(f => {
-            Object.keys(f.versions).forEach(v => keep_us[v] = true)
-        })
-
-        // and versions which are not fully acknowledged, or on the boundary
-        var acked = resource.ancestors(resource.acked_boundary)
-        Object.keys(resource.time_dag).forEach(x => {
-            if (!acked[x] || resource.acked_boundary[x]) keep_us[x] = true
-        })
-
-        // ok, now we want to find "bubbles" in the dag,
-        // with a "bottom" and "top" version,
-        // where any path down from the top will hit the bottom,
-        // and any path up from the bottom will hit the top,
-        // and also, the bubble should not contain any versions we want to keep
-        // (unless it's the bottom)
-
-        // to help us calculate bubbles,
-        // let's calculate children for our time dag
-        // (whereas the time dag just gives us parents)
-        var children = {}
-        Object.entries(resource.time_dag).forEach(([v, parents]) => {
-            Object.keys(parents).forEach(parent => {
-                if (!children[parent]) children[parent] = {}
-                children[parent][v] = true
-            })
-        })
-
-        // now we'll actually compute the bubbles
-        var to_bubble = {}
-        var bubble_tops = {}
-        var bubble_bottoms = {}
-        
-        function mark_bubble(bottom, top, tag) {
-            if (!to_bubble[bottom]) {
-                to_bubble[bottom] = tag
-                if (bottom !== top)
-                    Object.keys(resource.time_dag[bottom]).forEach(
-                        p => mark_bubble(p, top, tag)
-                    )
-            }
-        }
-        
-        // This begins the O(n^2) operation that we wanna shrink to O(n)
-        var done = {}
-        function f(cur) {
-            if (!resource.time_dag[cur]) return
-            if (done[cur]) return
-            done[cur] = true
-            
-            if (!to_bubble[cur] || bubble_tops[cur]) {
-                var bubble_top = find_one_bubble(cur)
-                if (bubble_top) {
-                    delete to_bubble[cur]
-                    mark_bubble(cur, bubble_top, bubble_tops[cur] || cur)
-                    bubble_tops[bubble_top] = bubble_tops[cur] || cur
-                    bubble_bottoms[bubble_tops[cur] || cur] = bubble_top
-                }
-            }
-    
-            Object.keys(resource.time_dag[cur]).forEach(f)
-        }
-        Object.keys(resource.current_version).forEach(f)
-        // This is the end of an O(n^2) algorithm
-
-        to_bubble = Object.fromEntries(Object.entries(to_bubble).map(
-            ([v, bub]) => [v, [bub, bubble_bottoms[bub]]]
-        ))
-        
-        function find_one_bubble(cur) {
-            var seen = {[cur]: true}
-            var q = Object.keys(resource.time_dag[cur])
-            var expecting = Object.fromEntries(q.map(x => [x, true]))
-            while (q.length) {
-                cur = q.pop()
-                if (!resource.time_dag[cur]) return null
-                if (keep_us[cur]) return null
-                if (Object.keys(children[cur]).every(c => seen[c])) {
-                    seen[cur] = true
-                    delete expecting[cur]
-                    if (!Object.keys(expecting).length) return cur
-                    
-                    Object.keys(resource.time_dag[cur]).forEach(p => {
-                        q.push(p)
-                        expecting[p] = true
-                    })
-                }
-            }
-            return null
-        }
-
-        // now hand these bubbles to the mergeable's prune function..
-        if (resource.mergeable.prune)
-            resource.mergeable.prune(to_bubble)
     }
 })
 
@@ -616,7 +454,7 @@ function add_full_ack_leaf(node, resource, version) {
     // more stuff than we could prune before (but we could also let the user
     // call "prune" explicitly at their leisure)
 
-    node.prune(resource)
+    prune(node, resource)
 }
 function check_ack_count(node, key, resource, version) {
     // TODO: could this only take key, instead of key and resource?  Or
@@ -676,4 +514,166 @@ function check_ack_count(node, key, resource, version) {
             })
         }
     }
+}
+
+function prune (node, resource) {
+    var unremovable = {}
+
+    // First, let's prune old fissures
+
+    // Calculate which fissures we have to keep due to parenting
+    // rule... which we will be removing soon.
+    Object.entries(resource.fissures).forEach(x => {
+        if (!resource.fissures[x[1].b + ':' + x[1].a + ':' + x[1].conn]) {
+            function f(y) {
+                if (!unremovable[y.a + ':' + y.b + ':' + y.conn]) {
+                    unremovable[y.a + ':' + y.b + ':' + y.conn] = true
+                    unremovable[y.b + ':' + y.a + ':' + y.conn] = true
+                    Object.keys(y.parents).forEach(p => {
+                        if (resource.fissures[p]) f(resource.fissures[p])
+                    })
+                }
+            }
+            f(x[1])
+        }
+    })
+    
+    // Now remove the fissures
+    Object.entries(resource.fissures).forEach(x => {
+        var other_key = x[1].b + ':' + x[1].a + ':' + x[1].conn
+        var other = resource.fissures[other_key]
+        if (other) {
+            if (unremovable[x[0]]) {
+                resource.fissures[x[0]].versions = {}
+                resource.fissures[other_key].versions = {}
+            } else {
+                delete resource.fissures[x[0]]
+                delete resource.fissures[other_key]
+            }
+        }
+    })
+
+    // Remove fissures that have expired due to time
+    if (node.fissure_lifetime != null) {
+        var now = Date.now()
+        Object.entries(resource.fissures).forEach(([k, f]) => {
+            if (f.time == null) f.time = now
+            if (f.time <= now - node.fissure_lifetime) {
+                delete resource.fissures[k]
+            }
+        })
+    }
+
+    // Remove fissures that are beyond our max_fissures limit
+    if (node.max_fissures != null) {
+        let count = Object.keys(resource.fissures).length
+        if (count > node.max_fissures) {
+            Object.entries(resource.fissures).sort((a, b) => {
+                if (a[1].time == null) a[1].time = now
+                if (b[1].time == null) b[1].time = now
+                return a[1].time - b[1].time
+            }).slice(0, count - node.max_fissures).forEach(e => {
+                delete resource.fissures[e[0]]
+            })
+        }
+    }
+
+    // Now figure out which versions we want to keep,
+    var keep_us = {}
+
+    // incluing versions in fissures..
+    Object.values(resource.fissures).forEach(f => {
+        Object.keys(f.versions).forEach(v => keep_us[v] = true)
+    })
+
+    // and versions which are not fully acknowledged, or on the boundary
+    var acked = resource.ancestors(resource.acked_boundary)
+    Object.keys(resource.time_dag).forEach(x => {
+        if (!acked[x] || resource.acked_boundary[x]) keep_us[x] = true
+    })
+
+    // ok, now we want to find "bubbles" in the dag,
+    // with a "bottom" and "top" version,
+    // where any path down from the top will hit the bottom,
+    // and any path up from the bottom will hit the top,
+    // and also, the bubble should not contain any versions we want to keep
+    // (unless it's the bottom)
+
+    // to help us calculate bubbles,
+    // let's calculate children for our time dag
+    // (whereas the time dag just gives us parents)
+    var children = {}
+    Object.entries(resource.time_dag).forEach(([v, parents]) => {
+        Object.keys(parents).forEach(parent => {
+            if (!children[parent]) children[parent] = {}
+            children[parent][v] = true
+        })
+    })
+
+    // now we'll actually compute the bubbles
+    var to_bubble = {}
+    var bubble_tops = {}
+    var bubble_bottoms = {}
+    
+    function mark_bubble(bottom, top, tag) {
+        if (!to_bubble[bottom]) {
+            to_bubble[bottom] = tag
+            if (bottom !== top)
+                Object.keys(resource.time_dag[bottom]).forEach(
+                    p => mark_bubble(p, top, tag)
+                )
+        }
+    }
+    
+    // This begins the O(n^2) operation that we wanna shrink to O(n)
+    var done = {}
+    function f(cur) {
+        if (!resource.time_dag[cur]) return
+        if (done[cur]) return
+        done[cur] = true
+        
+        if (!to_bubble[cur] || bubble_tops[cur]) {
+            var bubble_top = find_one_bubble(cur)
+            if (bubble_top) {
+                delete to_bubble[cur]
+                mark_bubble(cur, bubble_top, bubble_tops[cur] || cur)
+                bubble_tops[bubble_top] = bubble_tops[cur] || cur
+                bubble_bottoms[bubble_tops[cur] || cur] = bubble_top
+            }
+        }
+        
+        Object.keys(resource.time_dag[cur]).forEach(f)
+    }
+    Object.keys(resource.current_version).forEach(f)
+    // This is the end of an O(n^2) algorithm
+
+    to_bubble = Object.fromEntries(Object.entries(to_bubble).map(
+        ([v, bub]) => [v, [bub, bubble_bottoms[bub]]]
+    ))
+    
+    function find_one_bubble(cur) {
+        var seen = {[cur]: true}
+        var q = Object.keys(resource.time_dag[cur])
+        var expecting = Object.fromEntries(q.map(x => [x, true]))
+        while (q.length) {
+            cur = q.pop()
+            if (!resource.time_dag[cur]) return null
+            if (keep_us[cur]) return null
+            if (Object.keys(children[cur]).every(c => seen[c])) {
+                seen[cur] = true
+                delete expecting[cur]
+                if (!Object.keys(expecting).length) return cur
+                
+                Object.keys(resource.time_dag[cur]).forEach(p => {
+                    q.push(p)
+                    expecting[p] = true
+                })
+            }
+        }
+        return null
+    }
+
+    // now hand these bubbles to the mergeable's prune function..
+    if (resource.mergeable.prune)
+        resource.mergeable.prune(to_bubble)
 }
