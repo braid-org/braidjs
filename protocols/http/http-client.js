@@ -1,12 +1,20 @@
 var peer = Math.random().toString(36).substr(2)
 var enable_cors_default = false
 
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = braid_fetch
+}
+
+var fetch
+var Headers
 // On nodejs, this requires "npm install node-fetch node-web-streams"
 if (typeof window === 'undefined') {
-    var fetch = require('node-fetch')
-    var Headers = fetch.Headers
+    fetch = require('node-fetch')
+    Headers = fetch.Headers
     var to_whatwg_stream = require('node-web-streams').toWebReadableStream
-    module.exports = braid_fetch
+} else {
+    fetch = window.fetch
+    Headers = window.Headers
 }
 
 function braid_fetch (url, params = {}, onversion, onclose) {

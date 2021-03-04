@@ -1,18 +1,22 @@
 {
   "name": "braidjs",
-  "version": "0.0.5",
+  "version": "0.1.0",
   "description": "Synchronization for the Web (reference implementation)",
   "scripts": {
     "test": "node test/tests.js",
     "prepublish": "node util/braid-bundler.js"
   },
   "author": "Braid Working Group",
-  "repository": "braid-work/toomim-braidjs",
-  "homepage": "https://braid.news",
-  "files": [
-    "protocols/http/http-client.js",
-    "protocols/http/http-server.js"
-  ],
+  "repository": "braid-org/braidjs",
+  "homepage": "https://braid.org",
+
+  "comment": "See package.md for notes and comments on this file.",
+
+  "files": [ "protocols/http/**/*" ],
+  "exports": {
+    "require": "./index.js",
+    "import": "./esm/wrapper.js"
+  },
   "dependencies": {
     "better-sqlite3": "^5.4.3",
     "dotenv": "^8.2.0",
