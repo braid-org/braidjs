@@ -147,6 +147,48 @@ require('http').createServer(
 ).listen(9935)
 ```
 
+In a browser client:
+
+```html
+<script src="http-client.js"></script>
+<script>
+    fetch(
+        'https://braid.org/chat',
+        {subscribe: {keep_alive: true}},
+    ).andThen(version => {
+        console.log('We got a new version!', version)
+        // {
+        //   version: "me",
+        //   parents: ["mom", "dad"],
+        //   patches: [{unit: "json", range: ".foo", content: "3"}]
+        //   body:    "3"
+        // }
+        //   // Version will contain either patches *or* body, but not both
+    })
+</script>
+```
+
+And if you want automatic reconnections, you can use:
+
+```javascript
+function connect() {
+    fetch(
+        'https://braid.org/chat',
+        {subscribe: {keep_alive: true}},
+    ).andThen(version => {
+        console.log('We got a new version!', version)
+        // {
+        //   version: "me",
+        //   parents: ["mom", "dad"],
+        //   patches: [{unit: "json", range: ".foo", content: "3"}]
+        //   body:    "3"
+        // }
+        //   // Version will contain either patches *or* body, but not both
+    }).catch(e => setTimeout(connect, 1000))
+}
+connect()
+```
+
 On nodejs as a client:
 
 ```javascript
@@ -186,48 +228,6 @@ function connect () {
             res.on('end',   e => setTimeout(connect, 1000))
             res.on('error', e => setTimeout(connect, 1000))
         })
-}
-connect()
-```
-
-In a browser as a client:
-
-```html
-<script src="http-client.js"></script>
-<script>
-    fetch(
-        'https://braid.org/chat',
-        {subscribe: {keep_alive: true}},
-    ).andThen(version => {
-        console.log('We got a new version!', version)
-        // {
-        //   version: "me",
-        //   parents: ["mom", "dad"],
-        //   patches: [{unit: "json", range: ".foo", content: "3"}]
-        //   body:    "3"
-        // }
-        //   // Version will contain either patches *or* body, but not both
-    })
-</script>
-```
-
-And if you want automatic reconnections, you can use:
-
-```javascript
-function connect() {
-    fetch(
-        'https://braid.org/chat',
-        {subscribe: {keep_alive: true}},
-    ).andThen(version => {
-        console.log('We got a new version!', version)
-        // {
-        //   version: "me",
-        //   parents: ["mom", "dad"],
-        //   patches: [{unit: "json", range: ".foo", content: "3"}]
-        //   body:    "3"
-        // }
-        //   // Version will contain either patches *or* body, but not both
-    }).catch(e => setTimeout(connect, 1000))
 }
 connect()
 ```
