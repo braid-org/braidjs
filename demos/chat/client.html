@@ -49,7 +49,7 @@
 
       var patches = [{unit: 'json', range: '[-0:-0]', content: JSON.stringify(post)}]
       var url = new URL(path, window.location.href)
-      var res = await braid_fetch(url, {method: 'put', patches})
+      var res = await fetch(url, {method: 'put', patches})
       if (res.status === 200)
           console.debug('put complete')
       else
@@ -61,36 +61,42 @@
   }
 
   // Updates
-  braid_fetch(
-      new URL(path, window.location.href),
-      {subscribe: {keep_alive: true}},
-  ).andThen(response => {
-      console.assert(
-          // Either we haven't received any versions yet
-          !curr_version[path]
-          // Or the new version should be 1+ our last version
-              || (parseInt(curr_version[path]) + 1 === parseInt(response.version)),
-          // If not, let's print a warning:
-          'Bad versions:' + JSON.stringify(
-              {curr_version, response_version:response.version}
+  function connect () {
+      fetch(
+          new URL(path, window.location.href),
+          {subscribe: {keep_alive: true}},
+      ).andThen(response => {
+          console.log('Connected!', response)
+
+          console.assert(
+              // Either we haven't received any versions yet
+              !curr_version[path]
+              // Or the new version should be 1+ our last version
+                  || (parseInt(curr_version[path]) + 1 === parseInt(response.version)),
+              // If not, let's print a warning:
+              'Bad versions:' + JSON.stringify(
+                  {curr_version, response_version:response.version}
+              )
           )
-      )
 
-      curr_version[path] = response.version
+          curr_version[path] = response.version
 
-      console.log('hi body', response.body)
+          // When we receive updates, they might come in the form of patches:
+          if (response.patches)
+              chat = apply_patches(response.patches, chat)
 
-      // When we receive updates, they might come in the form of patches:
-      if (response.patches)
-          chat = apply_patches(response.patches, chat)
+          // Or a complete version:
+          else
+              // Beware the server doesn't send these yet.
+              chat = JSON.parse(response.body)
 
-      // Or a complete version:
-      else
-          // Beware the server doesn't send these yet.
-          chat = JSON.parse(response.body)
+          render_root()
+      }).catch(e => {setTimeout(connect, 1000)})
+  }
+  connect()
 
-      render_root()
-  })
+
+
 
   function apply_patches (patches, object) {
       for (var patch of patches)
