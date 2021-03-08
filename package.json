@@ -14,8 +14,8 @@
 
   "files": [ "protocols/http/**/*" ],
   "exports": {
-    "require": "./index.js",
-    "import": "./esm/wrapper.js"
+    "require": "./package/commonjs-index.js",
+    "import": "./package/esm-index.js"
   },
   "dependencies": {
     "better-sqlite3": "^5.4.3",
