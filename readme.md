@@ -147,8 +147,87 @@ require('http').createServer(
 ).listen(9935)
 ```
 
-On the client:
+On nodejs as a client:
 
 ```
-TBD
+// Use this line if necessary for self-signed certs
+// process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
+
+var https = require('braidjs').braidify.http.client(require('https'))
+https.get(
+   'https://braid.org/chat',
+   {subscribe: true},
+   (res) => {
+      res.on('version', (version) => {
+          console.log('well we got one', version)
+      })
+   }
+```
+
+To get auto-reconnections use:
+
+```
+function connect () {
+    https.get(
+        'https://braid.org/chat',
+        {subscribe: true},
+        (res) => {
+            res.on('version', (version) => {
+                // {
+                //   version: "me",
+                //   parents: ["mom", "dad"],
+                //   patches: [{unit: "json", range: ".foo", content: "3"}]
+                //   body:    "3"
+                // }
+                //   // Version will contain either patches *or* body, but not both
+                console.log('We got a new version!', version)
+            })
+
+            res.on('end',   e => setTimeout(connect, 1000))
+            res.on('error', e => setTimeout(connect, 1000))
+        })
+}
+connect()
+```
+
+In a browser as a client:
+
+```
+<script src="http-client.js"></script>
+<script>
+    fetch(
+        'https://braid.org/chat',
+        {subscribe: {keep_alive: true}},
+    ).andThen(version => {
+        console.log('We got a new version!', version)
+        // {
+        //   version: "me",
+        //   parents: ["mom", "dad"],
+        //   patches: [{unit: "json", range: ".foo", content: "3"}]
+        //   body:    "3"
+        // }
+        //   // Version will contain either patches *or* body, but not both
+    })
+</script>
+```
+
+And if you want automatic reconnections, you can use:
+
+```
+function connect() {
+    fetch(
+        'https://braid.org/chat',
+        {subscribe: {keep_alive: true}},
+    ).andThen(version => {
+        console.log('We got a new version!', version)
+        // {
+        //   version: "me",
+        //   parents: ["mom", "dad"],
+        //   patches: [{unit: "json", range: ".foo", content: "3"}]
+        //   body:    "3"
+        // }
+        //   // Version will contain either patches *or* body, but not both
+    }).catch(e => setTimeout(connect, 1000))
+}
+connect()
 ```
