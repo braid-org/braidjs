@@ -1,46 +1,35 @@
+var assert = require('assert')
+
 // Write an array of patches into the pseudoheader format.
 function generate_patches(res, patches) {
-    var patches_as_strings = false
     // This will return something like:
     // Patches: n
     // 
-    // content-length: 14 // patch #1
-    // content-range: json=.range (or) json=[indices]
+    // content-length: 21
+    // content-range: json .range
     //
-    // ["json object"]
+    // {"some": "json object"}
     //
-    // content-length: x // patch #2
+    // content-length: x
     // ...
-    let out = `Patches: ${patches.length}\n`
-    for (let patch of patches) {
-        out += "\n"
-        if (patches_as_strings) {
-            // This should be rewritten to use sync9's patch parser.
-            var split = patch.match(/(.*?)\s*=\s*(.*)/)
-            assert(split.length == 3)
-            var range = split[1]
-            var change = split[2]
-        } else {
-            console.log('patch is', patch)
-            var range = patch.range,
-                change = patch.content
-            // if (res.getHeader('content-type') === 'application/json')
-            //     change = JSON.stringify(change)
-        }
-        console.log({range, change})
-        
-        out += `content-length: ${change.length}\n`
-        out += `content-range: json=${range}\n`
-        out += "\n"
-        out += `${change}\n`
-    }
-    return out
+    var result = `Patches: ${patches.length}\n`
+    for (let patch of patches)
+        result += `
+content-length: ${patch.content.length}
+content-range: ${patch.unit} ${patch.range}
+
+${patch.content}
+`
+    return result
 }
 
 
 // This function reads num_patches in pseudoheader format from a
 // ReadableStream and then fires a callback when they're finished.
 function parse_patches (req, cb) {
+    // Todo: make this work in the case where there is no Patches: header, but
+    // Content-Range is still set, nonetheless.
+
     var num_patches = req.headers.patches,
         stream = req
 
@@ -50,13 +39,13 @@ function parse_patches (req, cb) {
         return cb(patches)
 
     stream.on('data', function parse (chunk) {
+        // Merge the latest chunk into our buffer
+        buffer = (buffer + chunk)
+
+        // We might have an extra newline at the start.  (mike: why?)
+        buffer = buffer.trimStart()
+
         while (patches.length < num_patches) {
-            // Merge the latest chunk into our buffer
-            buffer = (buffer + chunk)
-
-            // We might have an extra newline at the start.  (mike: why?)
-            buffer = buffer.trimStart()
-
             // First parse the patch headers.  It ends with a double-newline.
             // Let's see where that is.
             var p_headers_length = buffer.indexOf("\n\n")
@@ -79,20 +68,14 @@ function parse_patches (req, cb) {
             if (buffer.length < p_headers_length + 2 + body_length)
                 return
 
-            // Assume that content-range is of the form 'json=.index'
-            var patch_range = p_headers['content-range'].startsWith("json=") ?
-                p_headers['content-range'].substring(5) :
-                p_headers['content-range']
+            // Content-range is of the form '<unit> <range>' e.g. 'json .index'
+            var [unit, range] = p_headers['content-range'].match(/(\S+) (.*)/).slice(1)
             var patch_content =
                 buffer.substring(p_headers_length + 2,
-                                     p_headers_length + 2 + body_length)
-
-            // console.log('headers is', req.headers)
-            // if (req.headers['content-type'] === 'application/json')
-            //     patch_content = JSON.parse(patch_content)
+                                 p_headers_length + 2 + body_length)
 
             // We've got our patch!
-            patches.push({range: patch_range, content: patch_content})
+            patches.push({unit, range, content: patch_content})
 
             buffer = buffer.substring(p_headers_length + 2 + body_length)
         }
@@ -111,7 +94,7 @@ function parse_patches (req, cb) {
 }
 
 function braidify (req, res, next) {
-    console.log('\n## Braidifying', req.method, req.url, req.headers.client)
+    console.log('\n## Braidifying', req.method, req.url, req.headers.peer)
 
     // First, declare that we support Patches and JSON ranges.
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
@@ -121,7 +104,7 @@ function braidify (req, res, next) {
     // Extract braid info from headers
     var version = req.headers.version && JSON.parse(req.headers.version),
         parents = req.headers.parents && JSON.parse('['+req.headers.parents+']'),
-        client = req.headers['client'],
+        peer = req.headers['peer'],
         url = req.url.substr(1)
 
     // Parse the subscribe header as one of these forms:
@@ -131,10 +114,10 @@ function braidify (req, res, next) {
     //
     var subscribe = req.headers.subscribe
     if (subscribe) {
-        let match = req.headers.subscribe.match(/keep-alive(=\w+)?/)
+        let match = req.headers.subscribe.match(/keep-alive(=(\w+))?/)
         if (match)
             subscribe =
-                match[1] ? {keep_alive: true} : {keep_alive: parseInt(match[1])}
+                match[2] ? {keep_alive: parseInt(match[2])} : {keep_alive: true}
     }
 
     // Define convenience variables
@@ -143,8 +126,7 @@ function braidify (req, res, next) {
     req.subscribe = subscribe
 
     // Add the braidly request/response helper methods
-    res.sendVersion = (stuff) => send_version({res: res, ...stuff})
-    res.sendVersion = (stuff) => send_version({res: res, ...stuff})
+    res.sendVersion = (stuff) => send_version(res, stuff)
     req.patches = () => new Promise(
         (done, err) => parse_patches(req, (patches) => done(patches))
     )
@@ -163,16 +145,15 @@ function braidify (req, res, next) {
                         req.socket.server.timeout,
                         req.socket.server.keepAliveTimeout)
 
+            res.isSubscription = true
+
             // Let's disable the timeouts
             req.socket.server.timeout = 0.0
-            req.setTimeout(0, x => console.log('Request timeout!', x))
-            res.setTimeout(0, x => console.log('Response timeout!', x))
 
             // We have a subscription!
             res.statusCode = 209
             res.setHeader("subscribe", req.headers.subscribe)
             res.setHeader('cache-control', 'no-cache, no-transform')
-            res.setHeader('content-type', 'application/json')
 
             var connected = true
             function disconnected () {
@@ -191,33 +172,64 @@ function braidify (req, res, next) {
             req.on('abort',   disconnected)
         }
 
-    next()
+    next && next()
 }
 
-function send_version({res, version, parents, patches, body}) {
-    console.log('sending version', {version, parents, patches, body})
-    if (body) assert(typeof body === 'string');
-    (patches||[]).forEach(p=>assert(typeof p.content === 'string'))
-    if (version)
-        res.write(`Version: ${JSON.stringify(version)}\n`)
-    if (parents && parents.length) {
-        res.write(`Parents: ${parents.map(JSON.stringify).join(", ")}\n`)
+function send_version(res, data) {
+    var {version, parents, patches, body} = data
+
+    function set_header (key, val) {
+        if (res.isSubscription)
+            res.write(`${key}: ${val}\n`)
+        else
+            res.setHeader(key, val)
+    }
+    function write_body (body) {
+        if (res.isSubscription)
+            res.write('\n' + body + '\n')
+        else
+            res.write(body)
     }
 
-    res.write("Content-Type: application/json\n")
-    res.write("Merge-Type: sync9\n")
+    console.log('sending version', {version, parents, patches, body,
+                                    subscription: res.isSubscription})
+
+    // Validate that the body and patches are strings
+    if (body)
+        assert(typeof body === 'string')
+    else
+        patches.forEach(p => assert(typeof p.content === 'string'))
+
+    // Write the headers or virtual headers
+    for (var [header, value] of Object.entries(data)) {
+        // Version and Parents get output in the Structured Headers format
+        if (header === 'version')
+            value = JSON.stringify(value)
+        else if (header === 'parents')
+            value = parents.map(JSON.stringify).join(", ")
+
+        // We don't output patches or body yet
+        else if (header === 'patches' || header == 'body')
+            continue
+
+        set_header(header, value)
+    }
+
+    // Write the patches or body
     if (patches)
         res.write(generate_patches(res, patches)) // adds its own newline
     else if (body) {
-        // if (res.getHeader('content-type') === 'application/json')
-        //     body = JSON.stringify(body)
-        res.write('Content-Length: ' + body.length + '\n')
-        res.write('\n' + body + '\n')
+        set_header('content-length', body.length)
+        write_body(body)
     } else {
         console.trace("Missing body or patches")
         process.exit()
     }
-    res.write("\n")
+
+    // Add a newline to prepare for the next version
+    // See also https://github.com/braid-org/braid-spec/issues/73
+    if (res.isSubscription)
+        res.write("\n")
 }
 
 

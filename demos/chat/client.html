@@ -47,31 +47,35 @@
           post = {text: input.value}
       input.value = ''
 
-      var patches = [{range: 'json=[-0:-0]', value: JSON.stringify(post)}]
+      var patches = [{unit: 'json', range: '[-0:-0]', content: JSON.stringify(post)}]
       var url = new URL(path, window.location.href)
-      var res = await braid_put(url, {patches})
+      var res = await fetch(url, {method: 'put', patches})
       if (res.status === 200)
-          console.debug('braid_put complete')
+          console.debug('put complete')
       else
-          console.debug('braid_put failed with', res.status)
+          console.debug('put failed with', res.status)
 
       chat.push(post)
+      curr_version['/chat']++
       render_root()
   }
 
   // Updates
-  braid_fetch(
-      new URL(path, window.location.href),
-      {subscribe: {keep_alive: true}},
-      response => {
+  function connect () {
+      fetch(
+          new URL(path, window.location.href),
+          {subscribe: {keep_alive: true}},
+      ).andThen(response => {
+          console.log('Connected!', response)
+
           console.assert(
               // Either we haven't received any versions yet
               !curr_version[path]
               // Or the new version should be 1+ our last version
-              || (parseInt(curr_version[path]) + 1 === parseInt(response.version)),
+                  || (parseInt(curr_version[path]) + 1 === parseInt(response.version)),
               // If not, let's print a warning:
               'Bad versions:' + JSON.stringify(
-                  {curr_version, res_ver:response.version}
+                  {curr_version, response_version:response.version}
               )
           )
 
@@ -87,18 +91,22 @@
               chat = JSON.parse(response.body)
 
           render_root()
-      }
-  )
+      }).catch(e => {setTimeout(connect, 1000)})
+  }
+  connect()
+
+
+
 
   function apply_patches (patches, object) {
       for (var patch of patches)
           // There are only two types of patches we could receive
           if (patch.range === '')
               // The entire chat in one patch
-              return JSON.parse(patch.value)
+              return JSON.parse(patch.content)
           else
               // A single new message, appended to the end
-              object.push(JSON.parse(patch.value))
+              object.push(JSON.parse(patch.content))
       return object
   }
 

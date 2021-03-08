@@ -1,323 +1,436 @@
-var client = Math.random().toString(36).substr(2)
-var abort_controller = new AbortController()
+var peer = Math.random().toString(36).substr(2)
 
-function make_and_promise () {
-    var a = new Promise((r, e) => {
-        setTimeout(_=>r(3),1000)
-    })
-    a.each = x => {
-        console.log('ooo someone wants to each me with', x)
-        a.then(x)
-        setTimeout(_=>x('last call!'), 1500)
+
+// ***************************
+// http
+// ***************************
+
+function braidify_http (http) {
+    http.normal_get = http.get
+    http.get = function braid_req (arg1, arg2, arg3) {
+        var url, options, cb
+
+        // Parse parameters
+        if (typeof arg1 === 'string' || arg1 instanceof URL) {
+            url = arg1
+            if (typeof arg2 === 'function')
+                cb = arg2
+            else {
+                options = arg2
+                cb = arg3
+            }
+        } else {
+            options = arg2
+            cb = arg3
+        }
+
+        // Handle options
+        if (options.subscribe) {
+            if (!options.headers)
+                options.headers = {}
+            options.headers.subscribe = 'keep-alive'
+        }
+
+        // Wrap the callback
+        var on_version,
+            on_error,
+            orig_cb = cb
+        cb = (res) => {
+            res.orig_on = res.on
+            res.on = (key, f) => {
+                if (key === 'version')
+                    on_version = f
+                else if (key === 'error') {
+                    on_error = f
+                    res.orig_on(key, f)
+                } else
+                    res.orig_on(key, f)
+            }
+
+            var state = {input: ''}
+            res.orig_on('data', (chunk) => {
+                // console.log('chunk:', JSON.stringify(chunk.toString()))
+                state.input += chunk.toString()
+                do {
+                    state = parse_version(state)
+                    if (state.result === 'success') {
+                        on_version && on_version({
+                            version: state.version,
+                            parents: state.parents,
+                            body: state.body,
+                            patches: state.patches
+                        })
+                        state = {input: state.input}
+                    }
+                    else if (state.result === 'error') {
+                        on_error && on_error(state.message)
+                        return
+                    }
+                } while (state.result !== 'waiting')
+            })
+            orig_cb && orig_cb(res)
+        }
+            
+        // Put parameters back
+        if (url) {
+            arg1 = url
+            if (options) {
+                arg2 = options
+                arg3 = cb
+            } else {
+                arg2 = cb
+            }
+        } else {
+            arg1 = options
+            arg2 = cb
+        }
+
+        http.normal_get(arg1, arg2, arg3)
     }
-    a.each(x => console.log('We got a result!', x))
+    return http
 }
 
+braid_fetch.braidify = {http: braidify_http}
 
 
-function braid_fetch (url, options = {}, onversion, onclose) {
+// ***************************
+// Fetch
+// ***************************
+
+var normal_fetch,
+    fetch,
+    Headers
+
+if (typeof window === 'undefined') {
+    // Nodejs
+    normal_fetch = require('node-fetch')
+    Headers = normal_fetch.Headers
+    var to_whatwg_stream = require('node-web-streams').toWebReadableStream
+} else {
+    // Web Browser
+    normal_fetch = window.fetch
+    window.fetch = braid_fetch
+}
+
+if (typeof module !== 'undefined' && module.exports)
+    module.exports = {fetch: braid_fetch, http: braidify_http}
+
+
+function braid_fetch (url, params = {}) {
     // Todo: when reconnecting, this needs a way of asking to continue where
     // parents left off.
     //
     //   - should it remember the parents?
-    //   - or should it use a client, or fissure id?
+    //   - or should it use a peer, or fissure id?
 
-    if (!onclose)
-        onclose = () => console.warn(`Goodbye!`)
+    // Initialize the headers object
+    if (!params.headers)
+        params.headers = new Headers()
 
-    // Create the headers object
-    var headers = {"client": client}
-    if (options.version) headers.version = JSON.stringify(options.version)
-    if (options.parents) headers.parents = options.parents.map(JSON.stringify).join(', ')
-    if (options.subscribe)
-        headers.subscribe = (typeof options.subscribe === 'number'
-                             ? 'keep-alive=' + options.subscribe
-                             : 'keep-alive')
+    // Always set the peer
+    params.headers.set('peer', peer)
 
-    // Send the underlying fetch request
-    function go () {
-        console.log(`Fetching ${url}`);
-        fetch(url, {method: 'GET',
-                    mode: 'cors',
-                    headers: new Headers(headers),
-                    signal: abort_controller.signal})
-            .then(function (res) {
-                if (!res.ok) {
-                    console.error("Fetch failed!", res)
-                    setTimeout(go, 5000)
-                    return
-                }
-                //res.text().then(x=>console.log('Hooooooo', x))
-                parse_response(res.body, onversion, onclose,
-                               () => setTimeout(go, 5000))
-            })
-            .catch((err) => {
-                //console.error("GET fetch failed: ", err)
-                onclose()
-                setTimeout(go, 5000)
-            })
+    // We provide some shortcuts for Braid params
+    if (params.version)
+        params.headers.set('version', JSON.stringify(params.version))
+    if (params.parents)
+        params.headers.set('parents', params.parents.map(JSON.stringify).join(', '))
+    if (params.subscribe)
+        params.headers.set('subscribe',
+                            (typeof params.subscribe === 'number'
+                             ? 'keep-alive=' + params.subscribe
+                             : 'keep-alive'))
+
+    // Prepare patches
+    if (params.patches) {
+        console.assert(Array.isArray(params.patches), 'Patches must be array')
+        console.assert(!params.body, 'Cannot send both patches and body')
+
+        params.patches = params.patches || []
+        params.headers.set('patches', params.patches.length)
+        params.body = (params.patches).map(patch => {
+            var length = `content-length: ${patch.content.length}`
+            var range = `content-range: ${patch.unit} ${patch.range}`
+            return `${length}\n${range}\n\n${patch.content}\n`
+        }).join('\n')
     }
-    go()
 
-    if (false) {
-        var p = new Promise((resolve, error) => {
-            
-        })
-        a.each = x => {
-            console.log('ooo someone wants to each me with', x)
-            a.then(x)
-            setTimeout(_=>x('last call!'), 1500)
-        }
-    }
+    var original_signal = params.signal
+    var underlying_aborter = new AbortController()
+    params.signal = underlying_aborter.signal
+    if (original_signal)
+        original_signal.addEventListener('abort', () => underlying_aborter.abort())
+
+    // Now run the actual fetch!
+    var andThen
+    var promise = new Promise((resolve, reject) => {
+        var fetched = normal_fetch(url, params)
+
+        if (params.subscribe) {
+            andThen = cb => {
+                fetched.then(function (res) {
+                    if (!res.ok) reject(new Error('Subscription request failed', res))
+
+                    parse_versions(
+                        res.body,
+                        cb,
+                        (err) => {
+                            // Now abort the underlying fetch
+                            underlying_aborter.abort()
+                            reject(err)
+                        }
+                    )
+                })
+                return promise
+            }
+        } else
+            fetched.then(resolve).catch(reject)
+    })
+
+    promise.andThen = andThen
+
+    return promise
 }
 
 // Parse a stream of versions from the incoming bytes
-function parse_response (stream, on_message, on_finished, on_error) {
+async function parse_versions (stream, cb, on_error) {
+    var aborted
+
+    if (typeof window === 'undefined')
+        stream = to_whatwg_stream(stream)
+
     // Set up a reader
     var reader = stream.getReader(),
         decoder = new TextDecoder('utf-8'),
-        input_buffer = '',
-        parsed_headers = false,
-        parsed_patches = []
+        state = {input: ''}
     
-    
-    // Process one chunk of the stream at a time.
-    reader.read().then(function read ({done, value}) {
+    async function read ({done, value}) {
+        var versions = []
 
         // First check if this connection has been closed!
         if (done) {
-            if (input_buffer.trim().length)
-                console.debug("Connection was closed. Remaining data in buffer:", input_buffer)
-            else
-                console.debug("Connection was closed. Buffer was empty.")
-            on_finished()
+            console.debug("Connection closed.")
+            aborted = true
             return
         }
         
         // Transform this chunk into text that we can work with.
-        var chunk_string = decoder.decode(value)
-        console.debug('Received text', chunk_string)
-
-        // Add this chunk to our input buffer
-        input_buffer = (input_buffer + chunk_string)
+        state.input += decoder.decode(value)
 
         // Now loop through the input_buffer until we hit a dead end
-        while (true) {
+        do {
+            state = parse_version (state)
+            if (state.result === 'success')
+                versions.push({
+                    version: state.version,
+                    parents: state.parents,
+                    body: state.body,
+                    patches: state.patches
+                })
 
-            // Remove newlines at the beginning. (May be unnecessary.)
-            //input_buffer.trimStart()
-
-            // If we don't have headers yet, let's try to parse some
-            if (!parsed_headers) {
-                //console.debug("Trying to parse headers...")
-                var parsedH = parse_headers()
-                // Todo: Handle malformed headers by disconnecting
-                if (parsedH) {
-                    parsed_headers = parsedH.headers
-                    // Take the parsed headers out of the buffer
-                    input_buffer = input_buffer.substring(parsedH.consumeLength)
-                    //console.debug("Header parsing Success:", parsed_headers)
-                } else {
-                    console.debug("Failed to parse headers.")
-                    // This means we need to exit the loop and wait for
-                    // more input.
-                    break
-                }
+            else if (state.result === 'error') {
+                on_error(state.message)
+                return
             }
+        } while (state.result !== 'waiting');
 
-            // We have headers now!
-
-            if (parse_body()) {
-                // Now we have a complete message!
-                console.debug("Patch parse Success:", parsed_patches)
-
-                // First, the parameters for the callback
-                let version = JSON.parse(parsed_headers.version || 'null'),
-                    patches = parsed_patches && parsed_patches.slice(),
-                    parents = parsed_headers.parents
-                if (parsed_headers.parents)
-                    parents = JSON.parse('['+parsed_headers.parents+']')
-                console.debug("Assembled complete message: ",
-                              {version, patches, parents, on_message})
-
-                // Now tell everyone!
-                on_message({version, patches, parents})
-
-                // Reset our parser state, to read the next message
-                parsed_headers = false
-                parsed_patches = []
-
-                // And let's continue reading, in case there is more stuff in
-                // this chunk for us to parse!
-                console.debug("Restarting in current buffer...",
-                              JSON.stringify(input_buffer))
-            } else {
-                // Patch parsing failed.  Let's wait for more data.
-                console.debug("Couldn't parse patches.")
-                // Todo: Handle malformed patches by disconnecting
-                break
-            }
-        }
-
-        // Now let's restart the whole process
-        console.debug("Waiting for next chunk to continue reading")
-        reader.read().then(read).catch(e => {
-            // console.error('This reader failed with', e)
-            on_error(e)
-        })
-    }).catch(e => {
-        console.error('The reader failed with', e)
-        on_error(e)
-    })
-
-    // Parsing helpers
-    function parse_headers() {
-        console.debug('Parsing headers from', input_buffer)
-        // This string could contain a whole response.
-        // So first let's isolate to just the headers.
-        var end_of_headers = input_buffer.indexOf('\n\n')
-        if (end_of_headers === -1) {
-            console.debug('parse_headers: no double-newline')
-            return false
-        }
-        var stuff_to_parse = input_buffer.substring(0, end_of_headers)
-        
-        // Now let's grab everything from these headers
-        var headers = {},
-            regex = /([\w-]+): (.*)/g,
-            tmp,
-            completed = false
-        while (tmp = regex.exec(stuff_to_parse)) {
-            //console.debug('Parse line:', tmp)
-            headers[tmp[1].toLowerCase()] = tmp[2]
-            if (regex.lastIndex === end_of_headers) {
-                completed = true
-                break
-            }
-        }
-        
-        // If we couldn't consume the entire buffer, then we can crash
-        if (!completed) {
-            console.debug('parse_headers: not completed')
-            return false
-        } else
-            return {headers: headers, consumeLength: end_of_headers + 2}
+        return versions
     }
 
-    function parse_body() {
-        var content_length = parseInt(parsed_headers['content-length'])
-        // console.debug("Trying to parse",
-        //               content_length
-        //               ? JSON.stringify(content_length) + ' bytes'
-        //               : JSON.stringify(parsed_headers.patches) + ' patches',
-        //               "from", JSON.stringify(input_buffer))
-
-        if (content_length) {
-            console.debug("Got an absolute body")
-            // This message has "body"
-            if (content_length > input_buffer.length) {
-                console.debug("But we don't have enough data for it yet...")
-                return false
-            }
-
-            parsed_patches = [{
-                range: '',
-                value: input_buffer.substring(0, content_length)
-            }]
-            input_buffer = input_buffer.substring(content_length + 2)
-            console.debug('Now, we parsed',
-                          JSON.stringify(parsed_patches[0].value),
-                          'and input buffer is', JSON.stringify(input_buffer))
-            return true
+    while (!aborted) {
+        try {
+            var versions = await read((await reader.read()))
+        } catch (e) {
+            aborted = true
+            on_error(e)
         }
-        if (parsed_headers.patches) {
-            // Parse patches until we run out of patches to parse or get
-            // all of them
-            while (parsed_patches.length < parsed_headers.patches) {
-                input_buffer = input_buffer.trimStart()
-                var parsePatchHeaders = parse_headers()
-                if (!parsePatchHeaders) {
-                    console.debug("Failed to parse patch headers!")
-                    return false
-                }
-                var patchHeaders = parsePatchHeaders.headers
-                var headerLength = parsePatchHeaders.consumeLength
-                // assume we have content-length...
-                var length = parseInt(patchHeaders['content-length'])
 
-                // Does our current buffer contain enough data that we
-                // have the entire patch?
-                if (input_buffer.length < headerLength + length) {
-                    console.debug("Buffer is too small to contain",
-                                  "the rest of the patch...")
-                    return false
-                }
-
-                // Assume that content-range is of the form 'json=.index'
-                var r = patchHeaders['content-range']
-                var patchRange = r.startsWith("json=") ? r.substring(5) : r
-                var patchValue = input_buffer.substring(headerLength, headerLength + length)
-
-                // We've got our patch!
-                parsed_patches.push({range: patchRange, value: patchValue})
-                input_buffer = input_buffer.substring(headerLength + length + 2)
-                console.debug('Successfully parsed a patch.',
-                              `We now have ${parsed_patches.length}/${parsed_headers.patches}`)
-            }
-
-            if (input_buffer[0] === '\n' && input_buffer[1] === '\n') {
-                console.error(input_buffer)
-                throw 'bad'
-            }
-            console.debug("Parsed all patches.")
-            return true
+        try {
+            if (aborted) return
+            versions.forEach( cb )
+        } catch (e) {
+            aborted = true
+            on_error(e)
         }
     }
 }
 
 
-function braid_put (url, options = {}) {
-    // Make the headers:
-    //
-    //    Version: "g09ur8z74r"
-    //    Parents: "ej4lhb9z78"
-    //    Content-Type: application/json
-    //    Merge-Type: sync9
-    //    Patches: 2
-    //  
-    var headers = {
-        'client': client,
-        'Cache-Control': 'no-cache, no-transform',
-        ...options.headers
+function parse_version (state) {
+    // If we don't have headers yet, let's try to parse some
+    if (!state.headers) {
+        var parsed = parse_headers(state.input)
+
+        // If header-parsing fails, send the error upstream
+        if (parsed.result === 'error')
+            return parsed
+        if (parsed.result === 'waiting') {
+            state.result = 'waiting'
+            return state
+        }
+
+        state.headers = parsed.headers
+        state.version = state.headers.version
+        state.parents = state.headers.parents
+
+        // Take the parsed headers out of the buffer
+        state.input = parsed.input
     }
-    if (options.version) headers.version = JSON.stringify(options.version)
-    if (options.parents && options.parents.length > 0)
-        headers.parents = options.parents.map(JSON.stringify).join(', ')
-    options.patches = options.patches || []
-    headers.patches = options.patches.length
 
-    // Make the body a sequence of patches:
-    //
-    //    Content-Length: 62                                | Patch 1
-    //    Content-Range: json=.messages[1:1]                |
-    //                                                      |
-    //    [{text: "Yo!",                                    |
-    //      author: {type: "link", value: "/user/yobot"}]   |
-    //   
-    //    Content-Length: 40                                | Patch 2
-    //    Content-Range: json=.latest_change                |
-    //                                                      |
-    //    {"type": "date", "value": 1573952202370}          |
+    // We have headers now!  Try parsing more body.
+    return parse_body(state)
+}
 
-    var body = (options.patches || []).map(patch => {
-        var length = `content-length: ${patch.value.length}`
-        var range = `content-range: ${patch.range}`
-        return `${length}\n${range}\n\n${patch.value}\n`
-    }).join('\n')
 
-    // Now send the request
-    return fetch(url, {method: 'PUT',
-                       body: body,
-                       mode: 'cors',
-                       headers: new Headers(headers)})
+// Parsing helpers
+function parse_headers (input) {
+    // Ignore optional newline at start
+    if (input[0] === '\n')
+        input = input.substr(1)
+
+    // Look for the end of the headers
+    var headers_length = input.indexOf('\n\n') + 1
+    if (headers_length === -1)
+        return {result: 'waiting'}
+
+    var stuff_to_parse = input.substring(0, headers_length)
+    
+    // Now grab everything from the header region
+    var headers = {},
+        header_regex = /([\w-_]+):\s?(.*)\n/gy,
+        match,
+        completed = false
+
+    while (match = header_regex.exec(stuff_to_parse)) {
+        // console.log('match', match && [match[1], match[2]])
+        headers[match[1].toLowerCase()] = match[2]
+        if (header_regex.lastIndex === headers_length)
+            completed = true
+    }
+
+    // If there's stuff left over, we have a problem
+    if (!completed) {
+        // If there's a newline in the stuff, then there must be a bad header
+        if (stuff_to_parse.substr(header_regex.lastIndex).indexOf('\n') !== -1) {
+            return {
+                result: 'error',
+                message: 'failed to parse headers from '
+                    + JSON.stringify(stuff_to_parse.substr(header_regex.lastIndex)),
+                headers_so_far: headers,
+                last_index: header_regex.lastIndex, headers_length
+            }
+        }
+        else
+            return {result: 'waiting'}
+    }
+
+    // Success!  Let's parse special headers
+    if ('version' in headers)
+        headers.version = JSON.parse(headers.version)
+    if ('parents' in headers)
+        headers.parents = JSON.parse('['+headers.parents+']')
+    if ('patches' in headers)
+        headers.patches = JSON.parse(headers.patches)
+
+    // And return the parsed result
+    return {result: 'success',
+            headers,
+            input: input.substring(headers_length + 1)}
+}
+
+function parse_body (state) {
+    // Parse Body Snapshot
+
+    var content_length = parseInt(state.headers['content-length'])
+    if (content_length) {
+        if (content_length > state.input.length) {
+            state.result = 'waiting'
+            return state
+        }
+
+        var consumed_length = content_length + 2
+        state.result = 'success',
+        state.body = state.input.substring(0, content_length),
+        state.input = state.input.substring(consumed_length)
+        return state
+    }
+
+    // Parse Patches
+
+    else if (state.headers.patches) {
+        state.patches = state.patches || []
+
+        var last_patch = state.patches[state.patches.length-1]
+
+        // Parse patches until the final patch has its content filled
+        while (!(state.patches.length === state.headers.patches
+                 && 'content' in last_patch)) {
+
+            state.input = state.input.trimStart()
+
+            // Are we starting a new patch?
+            if (!last_patch || 'content' in last_patch) {
+                last_patch = {}
+                state.patches.push(last_patch)
+            }
+
+            // Parse patch headers
+            if (!('headers' in last_patch)) {
+                var parsed = parse_headers(state.input)
+
+                // If header-parsing fails, send the error upstream
+                if (parsed.result === 'error')
+                    return parsed
+                if (parsed.result === 'waiting') {
+                    state.result = 'waiting'
+                    return state
+                }
+
+                // We parsed patch headers!  Update state.
+                last_patch.headers = parsed.headers
+                state.input = parsed.input
+            }
+
+            // Todo: support arbitrary patches, not just range-patch
+
+            // Parse Range Patch format
+            {
+                if (!('content-length' in last_patch.headers))
+                    return {result: 'error', message: 'no content-length in patch',
+                            patch: last_patch, input: state.input}
+
+                if (!('content-range' in last_patch.headers))
+                    return {result: 'error', message: 'no content-range in patch',
+                            patch: last_patch, input: state.input}
+
+                var content_length = parseInt(last_patch.headers['content-length'])
+
+                // Does input have the entire patch contents yet?
+                if (state.input.length < content_length) {
+                    state.result = 'waiting'
+                    return state
+                }
+
+                // Content-range is of the form '<unit> <range>' e.g. 'json .index'
+                
+                var match = last_patch.headers['content-range'].match(/(\S+) (.*)/)
+                if (!match)
+                    return {result: 'error', message: 'cannot parse content-range in patch',
+                            patch: last_patch, input: state.input}
+
+                last_patch.unit = match[1]
+                last_patch.range = match[2]
+                last_patch.content = state.input.substr(0, content_length)
+
+                // Consume the parsed input
+                state.input = state.input.substring(content_length)
+            }
+        }
+
+        state.result = 'success'
+        return state
+    }
+
+    return {result: 'error',
+            message: 'cannot parse body without content-length or patches header'}
 }

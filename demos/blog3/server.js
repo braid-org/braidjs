@@ -1,7 +1,7 @@
 assert = require('assert')
 
 // Blog Data
-var state = {
+var resources = {
     '/blog': [
         {link: '/post/1'},
         {link: '/post/2'},
@@ -13,7 +13,7 @@ I ate a big fish.
 It was really tasty.`},
     '/post/3': {body: "It's nice when things come in threes."}
 }
-var curr_version = () => state['/blog'].length + ''
+var curr_version = () => resources['/blog'].length + ''
 
 
 
@@ -33,7 +33,7 @@ app.use(braidify)
 // HTTP Routes
 function getter (req, res) {
     // Make sure URL is valid
-    if (!(req.url in state)) {
+    if (!(req.url in resources)) {
         res.statusCode = 404
         res.end()
         return
@@ -49,49 +49,49 @@ function getter (req, res) {
     // Send the current version
     res.sendVersion({
         version: curr_version(),
-        body: JSON.stringify(state[req.url])
+        body: JSON.stringify(resources[req.url])
     })
+
+    if (!req.subscribe)
+        res.end()
 }
 app.get('/blog',     getter)
 app.get('/post/:id', getter)
 
 app.put('/blog', async (req, res) => {
-    var patches = await req.patchesJSON()
+    var patches = await req.patches()
 
-    assert(patches.length === 1)
-    assert(patches[0].range === '[-0:-0]')
+    // assert(patches.length === 1)
+    // assert(patches[0].range === '[-0:-0]')
 
-    state['/blog'].push(patches[0].content)
-
-    patches.forEach(patch => {
-        for (var k in subscriptions) {
-            var [client, url] = JSON.parse(k)
-            if (client !== req.headers.client && url === req.url)
-                subscriptions[k].sendVersion({
-                    version: curr_version(),
-                    patches: patches.map(
-                        p => ({...p, content: JSON.stringify(p.content)})
-                    )
-                })
-        }
-    })
-    res.statusCode = 200
-    res.end()
-})
-app.put('/post/:id', async (req, res) => {
-    var patches = await req.patchesJSON()
-
-    assert(patches.length === 1)
-    assert(patches[0].range === '')
-
-    state[req.url] = patches[0].content
+    resources['/blog'].push(JSON.parse(patches[0].content))
 
     for (var k in subscriptions) {
         var [client, url] = JSON.parse(k)
         if (client !== req.headers.client && url === req.url)
             subscriptions[k].sendVersion({
                 version: curr_version(),
-                body: JSON.stringify(patches[0].content)
+                patches
+            })
+    }
+
+    res.statusCode = 200
+    res.end()
+})
+app.put('/post/:id', async (req, res) => {
+    var patches = await req.patches()
+
+    assert(patches.length === 1)
+    assert(patches[0].range === '')
+
+    resources[req.url] = JSON.parse(patches[0].content)
+
+    for (var k in subscriptions) {
+        var [client, url] = JSON.parse(k)
+        if (client !== req.headers.client && url === req.url)
+            subscriptions[k].sendVersion({
+                version: curr_version(),
+                body: patches[0].content
             })
     }
 
