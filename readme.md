@@ -204,6 +204,7 @@ https.get(
           console.log('well we got one', version)
       })
    }
+)
 ```
 
 To get auto-reconnections use:

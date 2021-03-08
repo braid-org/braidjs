@@ -1,6 +1,6 @@
 {
-  "name": "braidjs",
-  "version": "0.1.0",
+  "name": "braidify",
+  "version": "0.1.4",
   "description": "Synchronization for the Web (reference implementation)",
   "scripts": {
     "test": "node test/tests.js",
@@ -9,12 +9,13 @@
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
   "homepage": "https://braid.org",
-
   "comment": "See package.md for notes and comments on this file.",
-
-  "files": [ "protocols/http/**/*" ],
+  "files": [
+    "protocols/http/**/*",
+    "package/*"
+  ],
   "exports": {
-    "require": "./package/commonjs-index.js",
+    "require": "./protocols/http/commonjs-index.js",
     "import": "./package/esm-index.js"
   },
   "dependencies": {
