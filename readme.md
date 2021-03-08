@@ -149,7 +149,7 @@ require('http').createServer(
 
 On nodejs as a client:
 
-```
+```javascript
 // Use this line if necessary for self-signed certs
 // process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
 
@@ -166,7 +166,7 @@ https.get(
 
 To get auto-reconnections use:
 
-```
+```javascript
 function connect () {
     https.get(
         'https://braid.org/chat',
@@ -192,7 +192,7 @@ connect()
 
 In a browser as a client:
 
-```
+```html
 <script src="http-client.js"></script>
 <script>
     fetch(
@@ -213,7 +213,7 @@ In a browser as a client:
 
 And if you want automatic reconnections, you can use:
 
-```
+```javascript
 function connect() {
     fetch(
         'https://braid.org/chat',
