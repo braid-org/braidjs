@@ -139,7 +139,7 @@ function braidify (req, res, next) {
         )
     )
     req.startSubscription = res.startSubscription =
-        function startSubscription (args) {
+        function startSubscription (args = {}) {
             console.log('Starting subscription!!')
             console.log('Timeouts are:',
                         req.socket.server.timeout,
