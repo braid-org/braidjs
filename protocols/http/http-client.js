@@ -98,16 +98,18 @@ braid_fetch.braidify = {http: braidify_http}
 // ***************************
 
 var normal_fetch,
-    fetch,
+    AbortController,
     Headers
 
 if (typeof window === 'undefined') {
     // Nodejs
     normal_fetch = require('node-fetch')
+    AbortController = require('abort-controller')
     Headers = normal_fetch.Headers
     var to_whatwg_stream = require('node-web-streams').toWebReadableStream
 } else {
     // Web Browser
+    AbortController = window.AbortController
     normal_fetch = window.fetch
     window.fetch = braid_fetch
 }
