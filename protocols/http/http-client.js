@@ -250,6 +250,9 @@ async function parse_versions (stream, cb, on_error) {
         try {
             if (aborted) return
             versions.forEach( cb )
+            if (versions.length > 0) {
+                state = {input: ''}
+            }
         } catch (e) {
             aborted = true
             on_error(e)
