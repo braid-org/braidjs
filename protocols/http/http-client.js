@@ -109,8 +109,9 @@ if (typeof window === 'undefined') {
     var to_whatwg_stream = require('node-web-streams').toWebReadableStream
 } else {
     // Web Browser
-    AbortController = window.AbortController
     normal_fetch = window.fetch
+    AbortController = window.AbortController
+    Headers = window.Headers
     window.fetch = braid_fetch
 }
 
