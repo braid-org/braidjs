@@ -14,6 +14,7 @@
     "protocols/http/**/*",
     "package/*"
   ],
+  "main": "./protocols/http/commonjs-index.js",
   "exports": {
     "require": "./protocols/http/commonjs-index.js",
     "import": "./package/esm-index.js"
