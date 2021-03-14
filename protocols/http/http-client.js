@@ -252,15 +252,6 @@ function braid_fetch (url, params = {}) {
 }
 
 
-// Duane found a bug when we do:
-//
-//   1. Subscribe to a resource that has some data
-//   2. First version is received
-//   3. Update the resource with a 2nd version
-//   4. Second version is received in garbled state
-// 
-// This was caused by failing to reset the parser.
-
 // Parse a stream of versions from the incoming bytes
 async function handle_fetch_stream (stream, cb) {
     if (typeof window === 'undefined')
@@ -274,17 +265,17 @@ async function handle_fetch_stream (stream, cb) {
     while (true) {
         var versions = []
 
-        // Read the next chunk of stream!
-        var {done, value} = await reader.read()
-
-        // Check if this connection has been closed!
-        if (done) {
-            console.debug("Connection closed.")
-            cb(null, 'Connection closed')
-            return
-        }
-        
         try {
+            // Read the next chunk of stream!
+            var {done, value} = await reader.read()
+
+            // Check if this connection has been closed!
+            if (done) {
+                console.debug("Connection closed.")
+                cb(null, 'Connection closed')
+                return
+            }
+
             // Transform this chunk into text that we can work with.
             state.input += decoder.decode(value)
 
