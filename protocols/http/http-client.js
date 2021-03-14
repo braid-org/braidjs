@@ -215,7 +215,8 @@ function braid_fetch (url, params = {}) {
         if (params.subscribe) {
             andThen = cb => {
                 fetched.then(function (res) {
-                    if (!res.ok) reject(new Error('Subscription request failed', res))
+                    if (!res.ok)
+                        reject(new Error('Subscription request failed', res))
 
                     // Parse the streamed response
                     handle_fetch_stream(
@@ -270,47 +271,53 @@ async function handle_fetch_stream (stream, cb) {
         decoder = new TextDecoder('utf-8'),
         state = {input: ''}
     
-    async function read ({done, value}) {
+    while (true) {
         var versions = []
 
-        // First check if this connection has been closed!
+        // Read the next chunk of stream!
+        var {done, value} = await reader.read()
+
+        // Check if this connection has been closed!
         if (done) {
             console.debug("Connection closed.")
-            return 'abort'
+            cb(null, 'Connection closed')
+            return
         }
         
-        // Transform this chunk into text that we can work with.
-        state.input += decoder.decode(value)
-
-        // Now loop through the input_buffer until we hit a dead end
-        do {
-            state = parse_version (state)
-            if (state.result === 'success')
-                versions.push({
-                    version: state.version,
-                    parents: state.parents,
-                    body: state.body,
-                    patches: state.patches
-                })
-
-            else if (state.result === 'error') {
-                ch(null, state.message)
-                return
-            }
-        } while (state.result !== 'waiting');
-
-        return versions
-    }
-
-    while (true) {
         try {
-            var versions = await read((await reader.read()))
-            versions.forEach( x => cb(x) )
-            if (versions.length > 0)  // (Why is this the criteria?)
-                // Reset the parser.
-                state = {input: ''}
+            // Transform this chunk into text that we can work with.
+            state.input += decoder.decode(value)
 
-        } catch (e) {
+            // Now loop through the input_buffer until we hit a dead end
+            do {
+
+                // This calls the actual parser
+                state = parse_version (state)
+
+                // Maybe we parsed a version!  That's cool!
+                if (state.result === 'success') {
+                    cb({
+                        version: state.version,
+                        parents: state.parents,
+                        body: state.body,
+                        patches: state.patches
+                    })
+
+                    // Reset the parser for the next version!
+                    state = {input: state.input}
+                }
+
+                // Or maybe there's an error to report upstream
+                else if (state.result === 'error') {
+                    cb(null, state.message)
+                    return
+                }
+
+              // We stop once we've run out of parseable input.
+            } while (state.result !== 'waiting' && state.input.trim() !== '')
+        }
+
+        catch (e) {
             cb(null, e)
             return
         }
@@ -360,45 +367,49 @@ function parse_version (state) {
 
 // Parsing helpers
 function parse_headers (input) {
-    // Ignore optional newline at start
-    if (input[0] === '\n')
+    // First, find the start & end block of the headers.  The headers start
+    // when there are no longer newlines, and end at the first double-newline.
+
+    // Skip the newlines at the start
+    while (input[0] === '\n')
         input = input.substr(1)
 
-    // Look for the end of the headers
+    // Now look for a double-newline that will mark the end of the headers
     var headers_length = input.indexOf('\n\n') + 1
-    if (headers_length === -1)
+
+    // ...if we found none, then we need to wait for more input to complete
+    // the headers..
+    if (headers_length === 0)
         return {result: 'waiting'}
 
-    var stuff_to_parse = input.substring(0, headers_length)
+    // We now know what stuff to parse!
+    var headers_source = input.substring(0, headers_length)
     
-    // Now grab everything from the header region
+    // Let's parse it!  First define some variables:
     var headers = {},
-        header_regex = /([\w-_]+):\s?(.*)\n/gy,
+        header_regex = /([\w-_]+):\s?(.*)\n/gy,  // Parses one line a time
         match,
-        completed = false
+        found_last_match = false
 
-    while (match = header_regex.exec(stuff_to_parse)) {
-        // console.log('match', match && [match[1], match[2]])
+    // And now loop through the block, matching one line at a time
+    while (match = header_regex.exec(headers_source)) {
+        // console.log('Header match:', match && [match[1], match[2]])
         headers[match[1].toLowerCase()] = match[2]
+
+        // This might be the last line of the headers block!
         if (header_regex.lastIndex === headers_length)
-            completed = true
+            found_last_match = true
     }
 
-    // If there's stuff left over, we have a problem
-    if (!completed) {
-        // If there's a newline in the stuff, then there must be a bad header
-        if (stuff_to_parse.substr(header_regex.lastIndex).indexOf('\n') !== -1) {
-            return {
-                result: 'error',
-                message: 'failed to parse headers from '
-                    + JSON.stringify(stuff_to_parse.substr(header_regex.lastIndex)),
-                headers_so_far: headers,
-                last_index: header_regex.lastIndex, headers_length
-            }
+    // If the regex failed before we got to the end of the block, throw error:
+    if (!found_last_match)
+        return {
+            result: 'error',
+            message: 'Parse error in headers: "'
+                     + headers_source.substr(header_regex.lastIndex) + '"',
+            headers_so_far: headers,
+            last_index: header_regex.lastIndex, headers_length
         }
-        else
-            return {result: 'waiting'}
-    }
 
     // Success!  Let's parse special headers
     if ('version' in headers)
@@ -409,9 +420,11 @@ function parse_headers (input) {
         headers.patches = JSON.parse(headers.patches)
 
     // And return the parsed result
-    return {result: 'success',
-            headers,
-            input: input.substring(headers_length + 1)}
+    return {
+        result: 'success',
+        headers,
+        input: input.substring(headers_length + 1)
+    }
 }
 
 function parse_body (state) {
@@ -472,12 +485,18 @@ function parse_body (state) {
             // Parse Range Patch format
             {
                 if (!('content-length' in last_patch.headers))
-                    return {result: 'error', message: 'no content-length in patch',
-                            patch: last_patch, input: state.input}
+                    return {
+                        result: 'error',
+                        message: 'no content-length in patch',
+                        patch: last_patch, input: state.input
+                    }
 
                 if (!('content-range' in last_patch.headers))
-                    return {result: 'error', message: 'no content-range in patch',
-                            patch: last_patch, input: state.input}
+                    return {
+                        result: 'error',
+                        message: 'no content-range in patch',
+                        patch: last_patch, input: state.input
+                    }
 
                 var content_length = parseInt(last_patch.headers['content-length'])
 
@@ -491,8 +510,11 @@ function parse_body (state) {
                 
                 var match = last_patch.headers['content-range'].match(/(\S+) (.*)/)
                 if (!match)
-                    return {result: 'error', message: 'cannot parse content-range in patch',
-                            patch: last_patch, input: state.input}
+                    return {
+                        result: 'error',
+                        message: 'cannot parse content-range in patch',
+                        patch: last_patch, input: state.input
+                    }
 
                 last_patch.unit = match[1]
                 last_patch.range = match[2]
@@ -507,6 +529,8 @@ function parse_body (state) {
         return state
     }
 
-    return {result: 'error',
-            message: 'cannot parse body without content-length or patches header'}
+    return {
+        result: 'error',
+        message: 'cannot parse body without content-length or patches header'
+    }
 }

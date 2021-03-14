@@ -92,7 +92,7 @@
 
           render_root()
       }).catch(e => {
-          console.log('Reconnecting...')
+          console.log('Reconnecting... from error', e)
           setTimeout(connect, 1000)
       })
   }
