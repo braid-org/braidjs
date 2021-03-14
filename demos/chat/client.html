@@ -91,10 +91,12 @@
               chat = JSON.parse(response.body)
 
           render_root()
-      }).catch(e => {setTimeout(connect, 1000)})
+      }).catch(e => {
+          console.log('Reconnecting...')
+          setTimeout(connect, 1000)
+      })
   }
   connect()
-
 
 
 

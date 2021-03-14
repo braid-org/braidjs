@@ -10,7 +10,15 @@ function braidify_http (http) {
     http.get = function braid_req (arg1, arg2, arg3) {
         var url, options, cb
 
-        // Parse parameters
+        // http.get() supports two forms:
+        //
+        //  - http.get(url[, options][, callback])
+        //  - http.get(options[, callback])
+        //
+        // We need to know which arguments are which, so let's detect which
+        // form we are looking at.
+
+        // Detect form #1: http.get(url[, options][, callback])
         if (typeof arg1 === 'string' || arg1 instanceof URL) {
             url = arg1
             if (typeof arg2 === 'function')
@@ -19,19 +27,23 @@ function braidify_http (http) {
                 options = arg2
                 cb = arg3
             }
-        } else {
+        }
+
+        // Otherwise it's form #2: http.get(options[, callback])
+        else {
             options = arg2
             cb = arg3
         }
 
-        // Handle options
+        // Now we know where the `options` are specified.  Let's handle the
+        // braid `subscribe` header.
         if (options.subscribe) {
             if (!options.headers)
                 options.headers = {}
             options.headers.subscribe = 'keep-alive'
         }
 
-        // Wrap the callback
+        // Wrap the callback to provide our new .on('version', ...) feature
         var on_version,
             on_error,
             orig_cb = cb
@@ -47,6 +59,12 @@ function braidify_http (http) {
                     res.orig_on(key, f)
             }
 
+            // XX Bug: I think the following should only happen if:
+            // 
+            //   1. This is called with options.subscribe
+            //   2. And .on('version', ...) has been called
+
+            // When we get data we'll parse it and add new versions
             var state = {input: ''}
             res.orig_on('data', (chunk) => {
                 // console.log('chunk:', JSON.stringify(chunk.toString()))
@@ -71,7 +89,8 @@ function braidify_http (http) {
             orig_cb && orig_cb(res)
         }
             
-        // Put parameters back
+        // Now put the parameters back in their prior order and call the
+        // underlying .get() function
         if (url) {
             arg1 = url
             if (options) {
@@ -158,36 +177,72 @@ function braid_fetch (url, params = {}) {
         }).join('\n')
     }
 
+    // We have to wrap the AbortController with a new one.
+    //
+    // This is because we want to be able to abort the fetch that the user
+    // passes in.  However, the fetch() command uses a silly "AbortController"
+    // abstraction to abort fetches, which has both a `signal` and a
+    // `controller`, and only passes the signal to fetch(), but we need the
+    // `controller` to abort the fetch itself.
+
     var original_signal = params.signal
     var underlying_aborter = new AbortController()
     params.signal = underlying_aborter.signal
     if (original_signal)
-        original_signal.addEventListener('abort', () => underlying_aborter.abort())
+        original_signal.addEventListener(
+            'abort',
+            () => underlying_aborter.abort()
+        )
 
-    // Now run the actual fetch!
+    // We wrap the original fetch's promise with a custom promise.
+    //
+    // This promise includes an additional .andThen(cb) method.  It calls the
+    // cb multiple times, and then if there's any crash, it'll call the
+    // original promise's .catch(cb) clause.
+    //
+    // We couldn't just augment the original promise with the .andThen()
+    // method, because there is no way of calling the .catch() method of the
+    // original promise ourselves.  You cannot get access to a promise's
+    // internal callback method that has been set by some other code.
+
     var andThen
     var promise = new Promise((resolve, reject) => {
+
+        // Run the actual fetch here!
         var fetched = normal_fetch(url, params)
 
+        // If this is a subscribe, then include our little .andThen()  ;)
         if (params.subscribe) {
             andThen = cb => {
                 fetched.then(function (res) {
                     if (!res.ok) reject(new Error('Subscription request failed', res))
 
-                    parse_versions(
+                    // Parse the streamed response
+                    handle_fetch_stream(
                         res.body,
-                        cb,
-                        (err) => {
-                            // Now abort the underlying fetch
-                            underlying_aborter.abort()
-                            reject(err)
+                        (result, err) => {
+                            if (!err)
+                                cb(result)
+                            else {
+                                // Abort the underlying fetch
+                                underlying_aborter.abort()
+                                reject(err)
+                            }
                         }
                     )
                 })
+                // This catch will get called if the fetch request fails to
+                // connect..
+                .catch(reject)
                 return promise
             }
-        } else
-            fetched.then(resolve).catch(reject)
+        }
+
+        // But if this wasn't a `subscribe` request, then we just wrap the
+        // underlying promise with our superpromise directly:
+        else fetched.then(resolve).catch(reject)
+
+        // ... and we're done.
     })
 
     promise.andThen = andThen
@@ -195,10 +250,18 @@ function braid_fetch (url, params = {}) {
     return promise
 }
 
-// Parse a stream of versions from the incoming bytes
-async function parse_versions (stream, cb, on_error) {
-    var aborted
 
+// Duane found a bug when we do:
+//
+//   1. Subscribe to a resource that has some data
+//   2. First version is received
+//   3. Update the resource with a 2nd version
+//   4. Second version is received in garbled state
+// 
+// This was caused by failing to reset the parser.
+
+// Parse a stream of versions from the incoming bytes
+async function handle_fetch_stream (stream, cb) {
     if (typeof window === 'undefined')
         stream = to_whatwg_stream(stream)
 
@@ -213,8 +276,7 @@ async function parse_versions (stream, cb, on_error) {
         // First check if this connection has been closed!
         if (done) {
             console.debug("Connection closed.")
-            aborted = true
-            return
+            return 'abort'
         }
         
         // Transform this chunk into text that we can work with.
@@ -232,7 +294,7 @@ async function parse_versions (stream, cb, on_error) {
                 })
 
             else if (state.result === 'error') {
-                on_error(state.message)
+                ch(null, state.message)
                 return
             }
         } while (state.result !== 'waiting');
@@ -240,26 +302,34 @@ async function parse_versions (stream, cb, on_error) {
         return versions
     }
 
-    while (!aborted) {
+    while (true) {
         try {
             var versions = await read((await reader.read()))
-        } catch (e) {
-            aborted = true
-            on_error(e)
-        }
-
-        try {
-            if (aborted) return
-            versions.forEach( cb )
-            if (versions.length > 0) {
+            versions.forEach( x => cb(x) )
+            if (versions.length > 0)  // (Why is this the criteria?)
+                // Reset the parser.
                 state = {input: ''}
-            }
+
         } catch (e) {
-            aborted = true
-            on_error(e)
+            cb(null, e)
+            return
         }
     }
 }
+
+// ****************************
+// General parsing functions
+// ****************************
+//
+// Each of these functions takes parsing state as input, mutates the state,
+// and returns the new state.
+//
+// Depending on the parse result, each parse function returns:
+//
+//  parse_<thing> (state)
+//  => {result: 'waiting', ...}  If it parsed part of an item, but neeeds more input
+//  => {result: 'success', ...}  If it parses an entire item
+//  => {result: 'error', ...}    If there is a syntax error in the input
 
 
 function parse_version (state) {
