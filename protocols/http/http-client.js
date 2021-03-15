@@ -6,6 +6,7 @@ var peer = Math.random().toString(36).substr(2)
 // ***************************
 
 function braidify_http (http) {
+    // Todo:  Wrap .put to add `peer` header
     http.normal_get = http.get
     http.get = function braid_req (arg1, arg2, arg3) {
         var url, options, cb
@@ -35,13 +36,16 @@ function braidify_http (http) {
             cb = arg3
         }
 
-        // Now we know where the `options` are specified.  Let's handle the
-        // braid `subscribe` header.
-        if (options.subscribe) {
-            if (!options.headers)
-                options.headers = {}
+        // Now we know where the `options` are specified, let's set headers.
+        if (!options.headers)
+            options.headers = {}
+
+        // Add the subscribe header if this is a subscription
+        if (options.subscribe)
             options.headers.subscribe = 'keep-alive'
-        }
+
+        // Always add the `peer` header
+        options.headers.peer = options.headers.peer || peer
 
         // Wrap the callback to provide our new .on('version', ...) feature
         var on_version,
@@ -50,42 +54,36 @@ function braidify_http (http) {
         cb = (res) => {
             res.orig_on = res.on
             res.on = (key, f) => {
-                if (key === 'version')
+
+                // Define .on('version', cb)
+                if (key === 'version') {
+
+                    // If we have an 'version' handler, let's remember it
                     on_version = f
+
+                    // And set up a subscription parser
+                    var parser = Parser((version, error) => {
+                        if (!error)
+                            on_version && on_version(version)
+                        else
+                            on_error && on_error(error)
+                    })
+
+                    // That will run each time we get new data
+                    res.orig_on('data', (chunk) => {
+                        parser.read(chunk.toString())
+                    })
+                }
+
+                // Forward .on('error', cb) and remember the error function
                 else if (key === 'error') {
                     on_error = f
                     res.orig_on(key, f)
-                } else
-                    res.orig_on(key, f)
+                }
+
+                // Forward all other .on(*, cb) calls
+                else res.orig_on(key, f)
             }
-
-            // XX Bug: I think the following should only happen if:
-            // 
-            //   1. This is called with options.subscribe
-            //   2. And .on('version', ...) has been called
-
-            // When we get data we'll parse it and add new versions
-            var state = {input: ''}
-            res.orig_on('data', (chunk) => {
-                // console.log('chunk:', JSON.stringify(chunk.toString()))
-                state.input += chunk.toString()
-                do {
-                    state = parse_version(state)
-                    if (state.result === 'success') {
-                        on_version && on_version({
-                            version: state.version,
-                            parents: state.parents,
-                            body: state.body,
-                            patches: state.patches
-                        })
-                        state = {input: state.input}
-                    }
-                    else if (state.result === 'error') {
-                        on_error && on_error(state.message)
-                        return
-                    }
-                } while (state.result !== 'waiting')
-            })
             orig_cb && orig_cb(res)
         }
             
@@ -104,7 +102,7 @@ function braidify_http (http) {
             arg2 = cb
         }
 
-        http.normal_get(arg1, arg2, arg3)
+        return http.normal_get(arg1, arg2, arg3)
     }
     return http
 }
@@ -122,6 +120,12 @@ var normal_fetch,
 
 if (typeof window === 'undefined') {
     // Nodejs
+
+    // Note that reconnect logic doesn't work in node-fetch, because it
+    // doesn't call the .catch() handler when the stream fails.
+    //
+    // See https://github.com/node-fetch/node-fetch/issues/753
+
     normal_fetch = require('node-fetch')
     AbortController = require('abort-controller')
     Headers = normal_fetch.Headers
@@ -139,12 +143,6 @@ if (typeof module !== 'undefined' && module.exports)
 
 
 function braid_fetch (url, params = {}) {
-    // Todo: when reconnecting, this needs a way of asking to continue where
-    // parents left off.
-    //
-    //   - should it remember the parents?
-    //   - or should it use a peer, or fissure id?
-
     // Initialize the headers object
     if (!params.headers)
         params.headers = new Headers()
@@ -177,7 +175,7 @@ function braid_fetch (url, params = {}) {
         }).join('\n')
     }
 
-    // We have to wrap the AbortController with a new one.
+    // Wrap the AbortController with a new one that we control.
     //
     // This is because we want to be able to abort the fetch that the user
     // passes in.  However, the fetch() command uses a silly "AbortController"
@@ -194,7 +192,7 @@ function braid_fetch (url, params = {}) {
             () => underlying_aborter.abort()
         )
 
-    // We wrap the original fetch's promise with a custom promise.
+    // Wrap the original fetch's promise with a custom promise.
     //
     // This promise includes an additional .andThen(cb) method.  It calls the
     // cb multiple times, and then if there's any crash, it'll call the
@@ -205,38 +203,85 @@ function braid_fetch (url, params = {}) {
     // original promise ourselves.  You cannot get access to a promise's
     // internal callback method that has been set by some other code.
 
-    var andThen
+    var andThen, iterator
     var promise = new Promise((resolve, reject) => {
 
         // Run the actual fetch here!
         var fetched = normal_fetch(url, params)
 
-        // If this is a subscribe, then include our little .andThen()  ;)
-        if (params.subscribe) {
-            andThen = cb => {
-                fetched.then(function (res) {
-                    if (!res.ok)
-                        reject(new Error('Subscription request failed', res))
+        function start_subscription (cb, error) {
+            fetched.then(function (res) {
+                if (!res.ok)
+                    error(new Error('Subscription request failed', res))
 
-                    // Parse the streamed response
-                    handle_fetch_stream(
-                        res.body,
-                        (result, err) => {
-                            if (!err)
-                                cb(result)
-                            else {
-                                // Abort the underlying fetch
-                                underlying_aborter.abort()
-                                reject(err)
-                            }
+                // Parse the streamed response
+                handle_fetch_stream(
+                    res.body,
+                    (result, err) => {
+                        if (!err)
+                            cb(result)
+                        else {
+                            // Abort the underlying fetch
+                            underlying_aborter.abort()
+                            error(err)
                         }
-                    )
-                })
-                // This catch will get called if the fetch request fails to
-                // connect..
-                .catch(reject)
+                    }
+                )
+            })
+            // This catch will get called if the fetch request fails to
+            // connect..
+            .catch(error)
+        }
+
+        // If this is a subscribe, then:
+        //  - include the .andThen() method
+        //  - add an iterator to support "for await (var x of fetch(..))"
+        if (params.subscribe) {
+
+            // The andThen function just calls cb with each new version
+            andThen = cb => {
+                start_subscription(cb, reject)
                 return promise
             }
+
+            // The iterator
+            iterator = () => ({
+                initialized: false,
+
+                // Each time next() is called, it creates a promise and stores
+                // the resolve and reject functions here.
+                resolve: null,
+                reject:  null,
+
+                async next() {
+                    // Start the subscription
+                    if (!this.initialized) {
+                        this.initialized = true
+
+                        // The subscription will call whichever resolve and
+                        // reject functions the current promise is waiting for
+                        start_subscription(x => this.resolve(x),
+                                           x => this.reject(x) )
+                    }
+
+                    // Now create a new promise, and wait for the subscription
+                    // (above) to resolve or reject it.
+                    var result = await new Promise((resolve, reject) => {
+                        this.resolve = resolve
+                        this.reject  = reject
+                    })
+
+                    // Sanity check: I want to make sure that the subscription
+                    // doesn't try to give us a new version before we've gone
+                    // through another loop of the iterator and created the
+                    // new promise.
+                    var tellme = 'Error! Please tell Mike Toomim of braidjs that this happened.'
+                    this.resolve = () => {throw tellme}
+                    this.reject  = () => {throw tellme}
+
+                    return { done: false, value: result }
+                }
+            })
         }
 
         // But if this wasn't a `subscribe` request, then we just wrap the
@@ -246,11 +291,11 @@ function braid_fetch (url, params = {}) {
         // ... and we're done.
     })
 
-    promise.andThen = andThen
+    promise.andThen               = andThen
+    promise[Symbol.asyncIterator] = iterator
 
     return promise
 }
-
 
 // Parse a stream of versions from the incoming bytes
 async function handle_fetch_stream (stream, cb) {
@@ -260,7 +305,7 @@ async function handle_fetch_stream (stream, cb) {
     // Set up a reader
     var reader = stream.getReader(),
         decoder = new TextDecoder('utf-8'),
-        state = {input: ''}
+        parser = Parser(cb)
     
     while (true) {
         var versions = []
@@ -276,36 +321,8 @@ async function handle_fetch_stream (stream, cb) {
                 return
             }
 
-            // Transform this chunk into text that we can work with.
-            state.input += decoder.decode(value)
-
-            // Now loop through the input_buffer until we hit a dead end
-            do {
-
-                // This calls the actual parser
-                state = parse_version (state)
-
-                // Maybe we parsed a version!  That's cool!
-                if (state.result === 'success') {
-                    cb({
-                        version: state.version,
-                        parents: state.parents,
-                        body: state.body,
-                        patches: state.patches
-                    })
-
-                    // Reset the parser for the next version!
-                    state = {input: state.input}
-                }
-
-                // Or maybe there's an error to report upstream
-                else if (state.result === 'error') {
-                    cb(null, state.message)
-                    return
-                }
-
-              // We stop once we've run out of parseable input.
-            } while (state.result !== 'waiting' && state.input.trim() !== '')
+            // Tell the parser to process some more stream
+            parser.read(decoder.decode(value))
         }
 
         catch (e) {
@@ -314,6 +331,50 @@ async function handle_fetch_stream (stream, cb) {
         }
     }
 }
+
+
+var Parser = (cb) => ({
+    // A parser keeps some parse state
+    state: {input: ''},
+
+    // And reports back new versions as soon as they are ready
+    cb: cb,
+
+    // You give it new input information as soon as you get it, and it will
+    // report back with new versions as soon as it finds them.
+    read (input) {
+
+        // Store the new input!
+        this.state.input += input
+
+        // Now loop through the input and parse until we hit a dead end
+        do {
+            this.state = parse_version (this.state)
+
+            // Maybe we parsed a version!  That's cool!
+            if (this.state.result === 'success') {
+                this.cb({
+                    version: this.state.version,
+                    parents: this.state.parents,
+                    body:    this.state.body,
+                    patches: this.state.patches
+                })
+
+                // Reset the parser for the next version!
+                this.state = {input: this.state.input}
+            }
+
+            // Or maybe there's an error to report upstream
+            else if (this.state.result === 'error') {
+                this.cb(null, this.state.message)
+                return
+            }
+
+            // We stop once we've run out of parseable input.
+        } while (this.state.result !== 'waiting' && this.state.input.trim() !== '')
+    }
+})
+
 
 // ****************************
 // General parsing functions
