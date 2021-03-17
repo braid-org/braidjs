@@ -22,7 +22,6 @@ if (!is_browser && process.argv.length >= 4 && process.argv[2] === 'solo') {
 // show_debug = true
 // print_network = true
 
-
 var sim = {
     n_peers,
     n_steps_per_trial,
@@ -36,7 +35,9 @@ var sim = {
     peers: []
 }
 sim.vis = is_browser
-    ? require('../demos/visualization.js')(sim)
+    ? require('../demos/visualization/visualization.js')(
+        {rand: Math.create_rand(''), ...sim}
+    )
     : {add_frame() {}}
 
 var vis = sim.vis

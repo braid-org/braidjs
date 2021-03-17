@@ -519,6 +519,9 @@ function check_ack_count(node, key, resource, version) {
 function prune (node, resource) {
     var unremovable = {}
 
+    if (!resource.fissures)
+        console.error('Bad resource', resource)
+
     // First, let's prune old fissures
 
     // Calculate which fissures we have to keep due to parenting
