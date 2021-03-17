@@ -217,19 +217,31 @@ function braid_fetch (url, params = {}) {
                 // Parse the streamed response
                 handle_fetch_stream(
                     res.body,
+
+                    // Each time something happens, we'll either get a new
+                    // version back, or an error.
                     (result, err) => {
                         if (!err)
+                            // Yay!  We got a new version!  Tell the callback!
                             cb(result)
                         else {
-                            // Abort the underlying fetch
+                            // This error handling code runs if the connection
+                            // closes, or if there is unparseable stuff in the
+                            // streamed response.
+
+                            // In any case, we want to be sure to abort the
+                            // underlying fetch.
                             underlying_aborter.abort()
+
+                            // Then send the error upstream.
                             error(err)
                         }
                     }
                 )
             })
-            // This catch will get called if the fetch request fails to
-            // connect..
+            // This catch will run if the initial fetch request fails to
+            // connect.  The error handling code above, on the other hand,
+            // runs if the response while the connection is held open.
             .catch(error)
         }
 
@@ -275,7 +287,7 @@ function braid_fetch (url, params = {}) {
                     // doesn't try to give us a new version before we've gone
                     // through another loop of the iterator and created the
                     // new promise.
-                    var tellme = 'Error! Please tell Mike Toomim of braidjs that this happened.'
+                    var tellme = 'Error! Please tell toomim@gmail.com that this happened.'
                     this.resolve = () => {throw tellme}
                     this.reject  = () => {throw tellme}
 
