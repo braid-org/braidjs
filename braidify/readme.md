@@ -86,15 +86,8 @@ async function connect () {
         setTimeout(connect, 4000)
     }
 }
-q```
+```
 
-Feedback
- - `andThen` -> `subscribe` or `onVersion`
- - Could be good to do `fetch().then().andThen()` to know when the initial response is ready
- - Could add a middle-lever helper to handler the fetch().then() stream, rather than the high-level .andThen thing
-    - This is like a getVersions() or getUpdates() function
- - Want a script tag that doesn't modify fetch()
- - Promises allow multiple listeners to attach `.then()`s. Does andThen allow this?
 
 ## Nodejs client with `fetch()`
 
@@ -158,9 +151,7 @@ function connect () {
 }
 connect()
 ```
-Feedback
- - `.http` isn't consistent with `'https'`. Maybe try a different name.
- - Unease about extending existing APIs but rather separate APIs that can be helpers
+
 
 ## Nodejs server using `require('express')`
 
