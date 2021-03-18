@@ -19,6 +19,11 @@
     "require": "./protocols/http/commonjs-index.js",
     "import": "./package/esm-index.js"
   },
+  "browser": {
+    "node-web-streams": false,
+    "node-fetch": false,
+    "abort-controller": false
+  },
   "dependencies": {
     "abort-controller": "^3.0.0",
     "better-sqlite3": "^5.4.3",

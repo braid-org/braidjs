@@ -40,3 +40,17 @@ if (typeof module !== 'undefined' && module.exports) {
 
 For a complete list of reasons for the madness, and to learn more about the method
 we've used to build this package, see https://redfin.engineering/node-modules-at-war-why-commonjs-and-es-modules-cant-get-along-9617135eeca1
+
+Because we `require` certain libraries that are meant to be used in a nodejs environment only, we also need to provide a hint to bundlers that are targeting a browser environment NOT to load those libraries. This is what the `browser` field in `package.json` is for:
+
+```
+  "browser": {
+    "node-web-streams": false,
+    "node-fetch": false,
+    "abort-controller": false
+  }
+```
+
+If we don't hint that these libraries should not be loaded in the browser, bundled code that depends on braidjs libraries will fail in the browser.
+
+See also https://github.com/defunctzombie/package-browser-field-spec.
