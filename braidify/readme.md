@@ -6,14 +6,18 @@ Easily adds Braid to existing Javascript libraries.
 - Source is in [braidjs](https://github.com/braid-org/braidjs) repo
 - Reference implementation. Meets [Braid-HTTP 03](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-03.txt) specification.
 
-Today it has wrappers for the following HTTP libraries:
+Just as Braid is composed of a few simple extensions to HTTP that add
+synchronization, the `braidify` library provides a few simple extensions to
+existing http libraries to provide them with synchronization.
+
+Today, braidify provides wrappers for the following HTTP libraries:
 
 ```javascript
 require('braidify').fetch     // Browser fetch() API and require('node-fetch')
 require('braidify').http      // Nodejs require('http') and require('https')
 ```
 
-And we'd love to add Braid support to any other http API you like.
+We would love to support your favorite library, too.
 
 Let's look at some examples:
 
