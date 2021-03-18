@@ -14,7 +14,7 @@ npm install
 You can run the chat server with:
 
 ```
-cd demos/chat
+cd demos/sync9-chat
 node chat-server.js
 ```
 

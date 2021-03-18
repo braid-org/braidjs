@@ -1,6 +1,6 @@
 u = require('../util/utilities.js')
 
-module.exports = require.braid = function create_node(node_data = {}) {
+module.exports = require.node = function create_node(node_data = {}) {
     var node = {}
     node.init = (node_data) => {
         node.pid = node_data.pid || u.random_id()
@@ -683,7 +683,7 @@ module.exports = require.braid = function create_node(node_data = {}) {
 
     node.parse_patch = u.parse_patch
 
-    node.websocket_client = (args) => require('../protocols/websocket/websocket-client.js')({
+    node.websocket_client = (args) => require('./websocket-client.js')({
         ...args,
         node: node,
         create_websocket: () => new (require('ws'))(args.url)

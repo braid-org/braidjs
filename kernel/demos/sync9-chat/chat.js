@@ -2,12 +2,12 @@
 var browser_id = localStorage.browser_id || localStorage.browserId || 'B-' + Math.random().toString(36).slice(2)
 var escaped_id = JSON.stringify(browser_id)
 var use_leadertab = false
-var use_invisible_server = true
+var use_invisible_server = false
 localStorage.browser_id = browser_id
 
 var node
 if (!use_leadertab)
-    node = require('braid.js')({
+    node = require('node.js')({
         pid: (localStorage.username &&
               localStorage.username + '-' + Math.random().toString(36).slice(2,6))
     })

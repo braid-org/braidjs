@@ -6,7 +6,7 @@
 const assert = require('assert');
 //const pipe = require('../pipe.js');
 const parseHeaders = require('parse-headers');
-var u = require('../../util/utilities.js');
+var u = require('../util/utilities.js');
 
 module.exports = function add_http_server(node) {
     // Write an array of patches into the pseudoheader format.

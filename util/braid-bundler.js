@@ -2,17 +2,17 @@
 var files = [
     'util/require.js',
     'util/utilities.js',
-    'kernel/algorithms/mergeables/sync9.js',
-    'kernel/algorithms/antimatter.js',
+    'sync9/sync9.js',
+    'kernel/antimatter.js',
     'kernel/errors.js',
-    'kernel/braid.js',
+    'kernel/node.js',
     'kernel/pipe.js',
     'util/diff.js',
-    'util/store.js',
-    'protocols/websocket/websocket-client.js',
-    'protocols/http/http-client.js',
-    'protocols/http/http-client-old.js',
-    'util/leadertab-shell.js',
+    'kernel/store.js',
+    'kernel/websocket-client.js',
+    'kernel/http-client.js',
+    'braidify/braidify-client.js',
+    'kernel/leadertab-shell.js',
 ]
 
 var fs = require('fs')
