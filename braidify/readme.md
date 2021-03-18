@@ -8,7 +8,7 @@ Easily adds Braid to existing Javascript libraries.
 
 Today it has wrappers for the following HTTP libraries:
 
-```
+```javascript
 require('braidify').fetch       # Browser fetch() API and require('node-fetch')
 require('braidify').http        # Nodejs require('http') and require('https')
 ```
@@ -64,22 +64,17 @@ You can also use `for await`:
 ```javascript
 async function connect () {
     try {
-        for await (var v of fetch(new URL(path, window.location.href), {subscribe: {keep_alive: true}})) {
-
-            console.log('Connected!', v)
-
-            curr_version[path] = v.version
-
-            // When we receive updates, they might come in the form of patches:
+        for await (var v of fetch('/chat', {subscribe: {keep_alive: true}})) {
+            // Updates might come in the form of patches:
             if (v.patches)
                 chat = apply_patches(v.patches, chat)
 
-            // Or a complete version:
+            // Or complete versions:
             else
                 // Beware the server doesn't send these yet.
                 chat = JSON.parse(v.body)
 
-            render()
+            render_stuff()
         }
     } catch (e) {
         console.log('Reconnecting...')
