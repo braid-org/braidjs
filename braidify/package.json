@@ -1,0 +1,35 @@
+{
+  "name": "braidify",
+  "version": "0.1.7",
+  "description": "Synchronization for the Web (reference implementation)",
+  "scripts": {
+    "test": "node test/tests.js",
+    "prepublish": "node util/braid-bundler.js"
+  },
+  "author": "Braid Working Group",
+  "repository": "braid-org/braidjs",
+  "homepage": "https://braid.org",
+  "comment": "See package.md for notes and comments on this file.",
+  "files": [
+      "braidify-client.js",
+      "braidify-server.js",
+      "index.js",
+      "index.mjs"
+  ],
+  "main": "./index.js",
+  "exports": {
+    "require": "./index.js",
+    "import": "./index.mjs"
+  },
+  "browser": {
+    "node-web-streams": false,
+    "node-fetch": false,
+    "abort-controller": false
+  },
+  "dependencies": {
+    "abort-controller": "^3.0.0",
+    "node-fetch": "^2.6.1",
+    "node-web-streams": "^0.2.2",
+    "parse-headers": "^2.0.3"
+  }
+}

@@ -1,0 +1,29 @@
+<script src="../../../builds/braid-bundle.js"></script>
+<body>
+  <div id="out"></div>
+  <textarea id="in"></textarea>
+  <h2>How to use</h2>
+  <p>Run <code>nodemon simple-server network</code> on command-line
+  <p>And type in the box above
+  <p>You can watch the network messages scroll by in your terminal
+</body>
+
+<script>; // Semicolon helps Mike's editor indent properly
+
+// Create a node
+var id = 'C-' + Math.random().toString(36).substr(10)
+node = require('../../node.js')({pid: id})
+require('../../websocket-client.js')({node})
+
+// Configure the node
+node.get('/foo', (x) => {
+    document.getElementById('out').innerText = x
+    if (document.getElementById('in').value !== x)
+        document.getElementById('in').value = x
+})
+document.getElementById('in').addEventListener('input',
+                                               (e) => node.set('/foo', e.target.value))
+
+print_network = true
+// show_debug = true
+</script>

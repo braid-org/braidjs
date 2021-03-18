@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta charset="utf-8">
+</head>
+<body style="margin:0px"></body>
+<script src="../../util/require.js"></script>
+<script src="../../util/diff.js"></script>
+<script src="../../util/utilities.js"></script>
+<script src="../errors.js"></script>
+<script src="../antimatter.js"></script>
+<script src="../node.js"></script>
+<script src="../pipe.js"></script>
+<script src="../store.js"></script>
+<script src="../websocket-client.js"></script>
+<script src="../websocket-server.js"></script>
+<script src="../../sync9/sync9.js"></script>
+<script>
+
+var tau = Math.PI * 2
+
+g_log_stuff = false
+g_log_stuff_max_length = 20000 // 150
+
+g_real_clearTimeout = clearTimeout
+g_real_setTimeout = setTimeout
+
+g_got_local_ack = false
+g_got_global_ack = false
+
+async function main() {
+    var d = make_html(`<div style="display:grid;grid-template-columns:200px 1fr;width:100%;height:100%"></div>`)
+    document.body.append(d)
+
+    var side_panel = make_html(`<div style="background:orange">HELLO</div>`)
+    d.append(side_panel)
+
+    var spark_panel = make_html(`<div style="width:100%;position:relative"></div>`)
+    d.append(spark_panel)
+
+    var stats = {
+        clock: 1,
+        time: 1,
+        full_acks: 1,
+        server_versions: 1,
+        server_fissures: 1,
+        num_active_servers: 10,
+        num_clients: 10
+    }
+    var stat_overlays = {
+        server_fissures: ['server_broken_fissures'],
+        num_clients: ['num_active_clients', 'num_really_active_clients']
+    }
+    var after_bottom_sl_y = 0
+    Object.entries(stats).forEach(([k, v]) => {
+        var sl = create_sparkline(k, spark_panel.offsetWidth, 60, v)
+        spark_panel.append(sl)
+        sl.style.marginBottom = '19px'
+        stats[k] = sl
+        after_bottom_sl_y = sl.offsetTop + sl.offsetHeight
+    })
+
+    var message_d = make_html(`<div style="background:yellow;height:48px;width:${spark_panel.offsetWidth}px;overflow:scroll">messages will appear here..</div>`)
+    spark_panel.append(message_d)
+
+    var time_dag_c = make_html(`<canvas></canvas>`)
+    var time_dag_g = time_dag_c.getContext('2d')
+
+    spark_panel.append(time_dag_c)
+
+    var params = {
+        rand_seed: 'hi_world',
+
+        server_off_time: [0, 2000],
+        server_on_time: [0, 10 * 1000],
+
+        max_clients: 5,
+        create_client_period: [200, 700],
+        client_on_time: [0, 3000],
+        client_off_time: [0, 2000],
+        client_death_delay: [1 * 1000, 10 * 1000],
+        client_send_forget_chance: 0.5,
+        client_send_deletes_chance: 0.5,
+        client_active_period: [100, 500],
+        client_idle_period: [100, 500],
+        client_edit_period: [100, 500],
+        max_edit_size: 5,
+
+        socket_up_delay: [25, 150],
+        socket_down_delay: [25, 150],
+        socket_close_delay: [0, 1000],
+
+        pump_delay: 30
+    }
+    Object.assign(params, JSON.parse(localStorage.wiki_perf_li7fl3drudc || '{}'))
+    localStorage.wiki_perf_li7fl3drudc = JSON.stringify(params)
+
+    Object.entries(params).forEach(([k, v]) => {
+        var label = make_html(`<div></div>`)
+        label.textContent = k
+        side_panel.append(label)
+
+        var input = make_html(`<input style="width:100%"></input>`)
+        input.value = v
+        side_panel.append(input)
+        input.oninput = () => {
+            if (Array.isArray(v)) {
+                params[k] = input.value.split(/,/).map(x => 1*x.trim())
+            } else if (typeof(v) == 'number') {
+                params[k] = 1*input.value.trim()
+            } else {
+                params[k] = input.value.trim()
+            }
+            localStorage.wiki_perf_li7fl3drudc = JSON.stringify(params)
+        }
+        input.onchange = () => input.value = params[k]
+    })
+
+    var pump = null
+    var pumper = null
+    var pump_timer = null
+
+    var history = []
+    var show_time = -1
+
+    function draw_dags() {
+        var resource = show_time >= 0 ? history[show_time] : history[history.length - 1]
+        if (show_time <= 0) time_line_d.style.left = (history.length - 1) + 'px'
+
+        var c = time_dag_c
+        var g = time_dag_g
+
+        if (!resource) {
+            g.fillStyle = 'rgba(245, 235, 255, 0.8)'
+            g.fillRect(0, 0, c.width, c.height)
+            return
+        }
+
+        message_d.textContent = `i=${show_time}, ` + resource.message + ' -- ' + JSON.stringify(resource.acked_boundary)
+
+        var size = calc_time_dag_size(resource.time_dag, 18)
+
+        c.width = spark_panel.offsetWidth * devicePixelRatio
+        c.height = Math.max(size.h + 50, c.height)
+        c.style.width = (c.width / devicePixelRatio) + 'px'
+        c.style.height = (c.height / devicePixelRatio) + 'px'
+
+        g.fillStyle = 'rgba(245, 235, 255, 0.8)'
+        g.fillRect(0, 0, c.width, c.height)
+
+        draw_time_dag(c, g, resource.time_dag, resource.acked_boundary, resource.acks_in_process, resource.fissures, 0, 0, c.width/2, c.height, 18)
+
+        try {
+            var S = resource.space_dag.S.elems[0].S.text.S.elems[0]
+            draw_space_dag(c, g, S, c.width/2, 0)
+        } catch (e) {}
+    }
+
+    function on_restart() {
+        if (pump_timer) g_real_clearTimeout(pump_timer)
+        pump = create_experiment(params)
+        pumper = () => {
+            var results = pump()
+
+            var dx = 0
+            Object.entries(stats).forEach(([k, sl]) => {
+                var args = [results[k]]
+                if (stat_overlays[k]) stat_overlays[k].forEach(k => args.push(results[k]))
+                dx = sl.update(...args)
+            })
+
+            if (results.server_res) results.server_res.message = results.message
+            history.push(results.server_res || null)
+            if (dx < 0) for (var i = 0; i > dx; i--) history.shift()
+            if (dx < 0 && show_time >= 0) update_time(show_time + dx)
+            draw_dags()
+
+            pump_timer = g_real_setTimeout(pumper, params.pump_delay)
+        }
+        pumper()
+    }
+
+    function on_resume() {
+        if (!pump) on_restart()
+        else if (!pump_timer) pump_timer = g_real_setTimeout(pumper, params.pump_delay)
+    }
+
+    function on_pause() {
+        if (pump_timer) g_real_clearTimeout(pump_timer)
+        pump_timer = null
+    }
+
+    var go_button = make_html(`<button style="width:100%;height:60px;margin-top:18px">GO</button>`)
+    side_panel.append(go_button)
+    go_button.onclick = () => {
+        if (pump_timer) {
+            on_pause()
+            go_button.textContent = 'RESUME'
+        } else {
+            on_resume()
+            go_button.textContent = 'PAUSE'
+        }
+    }
+
+    var restart_button = make_html(`<button style="width:100%;height:60px;margin-top:18px">RESTART</button>`)
+    side_panel.append(restart_button)
+    restart_button.onclick = () => {
+        on_restart()
+        go_button.textContent = 'PAUSE'
+    }
+
+    var time_line_d = make_html(`<div style="width:${1}px;height:${after_bottom_sl_y}px;background:red;position:absolute;left:0px;top:0px"></div>`)
+    spark_panel.append(time_line_d)
+    spark_panel.onmousemove = spark_panel.onmousedown = e => {
+        var r = spark_panel.getBoundingClientRect()
+        var x = e.clientX - r.left
+        if (e.buttons) update_time(x)
+    }
+
+    function update_time(t) {
+        time_line_d.style.left = t + 'px'
+        show_time = t
+        draw_dags()
+    }
+
+    var follow_button = make_html(`<button style="width:100%;height:60px;margin-top:18px">FOLLOW ALONG</button>`)
+    side_panel.append(follow_button)
+    follow_button.onclick = () => {
+        console.log('got here??')
+        show_time = -1
+        draw_dags()
+    }
+}
+
+require('../util/utilities.js')
+var ds = require('../util/diff.js')
+
+var page_key = '/foo'
+
+var next_msg_id = 0
+
+debug_WSS = function () {
+    return debug_WSS.the_one = {
+        on_conns: [],
+        on(event_type, func) {
+            if (event_type == 'connection') this.on_conns.push(func)
+            else throw 'bad'
+        },
+        ws_array: [],
+        close() {
+            this.ws_array.slice(0).forEach(ws => ws.terminate())
+            debug_WSS.the_one = null
+        }
+    }
+}
+
+debug_WS = function (id, socket_up_delay, socket_down_delay, socket_close_delay) {
+    var prev_up = 0
+    var prev_down = 0
+
+    var self = {
+        id,
+        on_messages: [],
+        on_closes: [],
+        is_open: true,
+        send(msg) {
+            var t = Date.now()
+            var d = rand_range(socket_up_delay)
+            if (t + d < prev_up) d = prev_up + 0.1 - t
+
+            var msg_id = 'MSSSSG::' + next_msg_id++ // Math.random().toString(36).slice(2)
+            g_log_stuff && console.log(`client send C-${id} (t=${t}:t2=${t + d}:d=${d}:id=${msg_id}): ` + msg.slice(0, g_log_stuff_max_length))
+
+
+            setTimeout(() => {
+                if (!self.is_open) { return }
+
+                g_log_stuff && console.log(`server recv C-${id} (t=${Date.now()}:id=${msg_id}): ` + msg.slice(0, g_log_stuff_max_length))
+
+                this.on_messages.forEach(f => f(msg))
+            }, d, 'server receive: ' + msg)
+
+            prev_up = t + d
+        },
+        terminate() {
+            if (!self.is_open) { return }
+            self.is_open = false
+
+            var msg_id = 'MSSSSG::' + next_msg_id++
+            g_log_stuff && console.log(`socket terminated part 1 for C-${id} (id=${msg_id})`)
+
+            setTimeout(() => {
+
+                g_log_stuff && console.log(`socket terminated part 2 for C-${id} (id=${msg_id})`)
+    
+                this.onclose && this.onclose()
+                this.on_closes.forEach(f => f())
+                this.on_closes = []
+                this.on_messages = []
+                if (debug_WSS.the_one) {
+                    let i = debug_WSS.the_one.ws_array.indexOf(self)
+                    if (i >= 0) debug_WSS.the_one.ws_array.splice(i, 1)
+                }    
+            }, rand_range(socket_close_delay), 'websocket terminate')
+        }
+    }
+    self.close = self.terminate
+
+    setTimeout(() => {
+        if (debug_WSS.the_one) {
+            debug_WSS.the_one.ws_array.push(self)
+            debug_WSS.the_one.on_conns.forEach(f => {
+                f({
+                    on(event_type, func) {
+                        if (event_type == 'message') self.on_messages.push(func)
+                        else if (event_type == 'close') self.on_closes.push(func)
+                        else throw 'unknown event_type: ' + event_type
+                    },
+                    send(msg) {
+                        var t = Date.now()
+                        var d = rand_range(socket_down_delay)
+                        if (t + d < prev_down) d = prev_down + 0.1 - t
+
+                        var msg_id = 'MSSSSG::' + next_msg_id++ // Math.random().toString(36).slice(2)
+
+                        g_log_stuff && console.log(`server send C-${id} (t=${t}:t2=${t + d}:d=${d}:id=${msg_id}): ` + msg.slice(0, g_log_stuff_max_length))
+
+                        setTimeout(() => {
+                            if (!self.is_open) { return }
+
+                            g_log_stuff && console.log(`client recv C-${id} (t=${Date.now()}:id=${msg_id}): ` + msg.slice(0, g_log_stuff_max_length))
+
+                            self.onmessage({data: msg})
+                        }, d, 'client receive: ' + msg)
+
+                        prev_down = t + d
+                    },
+                    terminate() { self.terminate() }
+                }, {socket: {remoteAddress: 'tester.fake.ip.address'}})
+            })
+            self.onopen && self.onopen()
+        } else {
+            self.terminate()
+        }
+    }, 0, 'new websocket')
+
+    return self
+}
+
+g_profile = {
+    keys: {},
+    begin(key) {
+        if (!this.keys[key]) this.keys[key] = {count: 0, time: 0}
+        if (this.keys[key].begin != null) throw 'unbalanced begin! key: ' + key
+        this.keys[key].begin = performance.now()
+    },
+    end(key) {
+        if (!this.keys[key]) throw 'unbalanced end! key: ' + key
+        this.keys[key].time += performance.now() - this.keys[key].begin
+        delete this.keys[key].begin
+        this.keys[key].count++
+    },
+    mark(key) {
+        if (!this.keys[key] || this.keys[key].begin == null) this.begin(key)
+        else this.end(key)
+    },
+    print() {
+        Object.entries(this.keys).forEach(([k, v]) => {
+            console.log(`${k}\t${v.time / v.count}\t${v.time}\t${v.count}`)
+        })
+    }
+}
+
+function create_experiment(params) {
+    Math.randomSeed(params.rand_seed)
+
+    debug_WSS.the_one = null
+
+    var db = create_db()
+    var server = create_server(db)
+    var clients = []
+
+    var t = 0
+    Date.now = () => t
+
+    var events = []
+    var next_timer_id = 1
+    setTimeout = (f, tt, msg) => {
+        var id = next_timer_id++
+        events.push([t + tt, f, id, msg])
+        return id
+    }
+
+    clearTimeout = (id) => {
+        events = events.filter(x => x[2] != id)
+    }
+
+    create_client_cron()
+    function create_client_cron() {
+        setTimeout(() => {
+            if (clients.length < params.max_clients) {
+                var c = create_client(params)
+                clients.push(c)
+
+                g_log_stuff && console.log(`created client (t=${Date.now()}): C-` + c.id)
+
+                set_on_timeout()
+                function set_on_timeout() {
+                    setTimeout(() => {
+                        if (clients.indexOf(c) >= 0) {
+                            if (!c.is_open) throw 'bad'
+
+                            g_log_stuff && console.log(`closing client (t=${Date.now()}): C-` + c.id)
+
+                            c.close(false, false)
+                            setTimeout(() => {
+                                if (clients.indexOf(c) >= 0) {
+                                    if (c.is_open) throw 'bad'
+
+                                    g_log_stuff && console.log(`openning client (t=${Date.now()}): C-` + c.id)
+
+                                    c.open()
+                                    set_on_timeout()
+                                }
+                            }, rand_range(params.client_off_time), 'open client')
+                        }
+                    }, rand_range(params.client_on_time), 'close client')
+                }
+
+                setTimeout(() => {
+
+                    g_log_stuff && console.log(`killing client: (t=${Date.now()}) C-` + c.id)
+
+                    var ci = clients.indexOf(c)
+                    if (ci < 0) throw 'bad'
+                    if (c.is_open) {
+                        var send_forget = Math.random() < params.client_send_forget_chance
+                        var send_deletes = send_forget || Math.random() < params.client_send_deletes_chance
+                        c.close(send_deletes, send_forget)
+                    }
+                    clients.splice(ci, 1)
+                }, rand_range(params.client_death_delay), 'kill client')
+
+                c.active = Math.random() < 0.5
+                set_active_timeout()
+                function set_active_timeout() {
+                    if (c.active) {
+                        setTimeout(() => {
+                            c.active = false
+                            set_active_timeout()
+                        }, rand_range(params.client_active_period), 'client idle')
+                    } else {
+                        setTimeout(() => {
+                            c.active = true
+                            set_active_timeout()
+                        }, rand_range(params.client_idle_period), 'client active')
+                    }
+                }
+
+                set_edit_timeout()
+                function set_edit_timeout() {
+                    setTimeout(() => {
+                        if (clients.indexOf(c) >= 0) {
+                            if (c.active) {
+                                g_log_stuff && console.log(`editing: (t=${Date.now()}) C-` + c.id)
+
+                                let text = c.get()
+                                let start = Math.floor(Math.random() * (text.length + 1))
+
+                                let max_len = text.length - start + 1
+                                if (max_len > params.max_edit_size) max_len = params.max_edit_size
+                                let len = Math.floor(Math.random() * max_len)
+
+                                let ins_size = Math.floor(Math.random() * params.max_edit_size)
+                                if (ins_size == 0 && len == 0) ins_size = 1
+                                let ins = String.fromCharCode(65 + Math.floor(Math.random() * 26)).repeat(ins_size)
+
+                                c.set(start, len, ins)
+                            }
+                            set_edit_timeout()
+                        }
+                    }, rand_range(params.client_edit_period), 'client edit')
+                }                    
+            }
+            create_client_cron()
+        }, rand_range(params.create_client_period), 'create client')
+    }
+
+    toggle_server_cron()
+    function toggle_server_cron() {
+        if (server) {
+            setTimeout(() => {
+
+                g_log_stuff && console.log(`closing server (t=${Date.now()})`)
+
+                server.close()
+                server = null
+                toggle_server_cron()
+            }, rand_range(params.server_on_time), 'close server')
+        } else {
+            setTimeout(() => {
+
+                g_log_stuff && console.log(`opening server (t=${Date.now()})`)
+
+                server = create_server(db)
+                toggle_server_cron()
+            }, rand_range(params.server_off_time), 'open server')
+        }
+    }
+
+    var prev_server_versions = 0
+    var prev_server_fissed_versions = 0
+    var prev_server_fissures = 0
+    var prev_server_broken_fissures = 0
+
+    return () => {
+        var e = events.sort((a, b) => a[0] - b[0]).shift()
+        t = e[0]
+
+        var st = performance.now()
+        e[1]()
+        var et = performance.now()
+
+        if (server) {
+            prev_server_versions = Object.keys(server.node.resource_at(page_key).time_dag).length
+
+            let versions = Object.fromEntries(Object.keys(server.node.resource_at(page_key).time_dag).map(x => [x, true]))
+            let fissed_versions = {}
+            Object.values(server.node.resource_at(page_key).fissures).forEach(f => {
+                Object.keys(f.versions).forEach(v => {
+                    if (versions[v]) fissed_versions[v] = true
+                })
+            })
+            prev_server_fissed_versions = Object.keys(fissed_versions).length
+
+            let fissures = server.node.resource_at(page_key).fissures
+
+            prev_server_fissures = Object.keys(fissures).length
+
+            prev_server_broken_fissures = Object.values(fissures).filter(f => !fissures[f.b + ':' + f.a + ':' + f.conn]).length
+        }
+
+        var full_acks = g_got_global_ack ? 1 : g_got_local_ack ? 0.5 : 0
+        g_got_local_ack = false
+        g_got_global_ack = false
+
+        return {
+            message: e[3],
+            clock: (t % 1000)/1000,
+            time: et - st,
+            full_acks,
+            server_versions: prev_server_versions,
+            server_fissed_versions: prev_server_fissed_versions,
+            server_fissures: prev_server_fissures,
+            server_broken_fissures: prev_server_broken_fissures,
+            num_active_servers: server ? 1 : 0,
+            num_clients: clients.length,
+            num_active_clients: clients.filter(x => x.is_open).length,
+            num_really_active_clients: clients.filter(x => x.active).length,
+
+            server,
+            clients,
+            server_res: server && JSON.parse(JSON.stringify(server.node.resource_at(page_key)))
+        }
+    }
+}
+
+function create_db() {
+    return g_db = {
+        data: {},
+        get(key) {
+            return this.data[key]
+        },
+        set(key, val) {
+            this.data[key] = val
+        },
+        del(key) {
+            delete this.data[key]
+        },
+        list_keys() {
+            return Object.keys(this.data)
+        }
+    }
+}
+
+function create_server(db) {
+    var node = require('../braid.js')()
+    node.fissure_lifetime = 1000 * 1000
+    // node.max_fissures = 10
+    require('../util/store.js')(node, db)
+
+    node.on_errors.push((key, origin) => {
+        node.unbind(key, origin)
+    })
+
+    node.ons.push((type, args) => {
+        if (type == 'ack') {
+            if (args.seen == 'local') g_got_local_ack = true
+            else g_got_global_ack = true
+        }
+    })
+
+    var wss = require('../protocol-websocket/websocket-server.js')(node, {wss: new debug_WSS()})
+
+    return {
+        node,
+        get() {
+            var o = node.resource_at(page_key).mergeable.read()
+            return o && o.text
+        },
+        close() {
+            wss.dead = true
+            wss.close()
+        }
+    }
+}
+
+function create_client(params) {
+    var node = require('../braid.js')()
+    node.default(page_key, {cursors: {[node.pid]: {start: 0, end: 0, time: Date.now()}}, text: ''})
+    var ws_client = require('../protocol-websocket/websocket-client.js')({node, create_websocket: () => {
+        return debug_WS(node.pid, params.socket_up_delay, params.socket_down_delay, params.socket_close_delay)
+    }})
+
+    var cursor_lifetime = 10000
+
+    var ready = false
+    var text = ''
+    var selectionStart = 0
+    var selectionEnd = 0
+
+    function send_diff(from, to) {
+        var v = node.set(page_key, null, ds.diff_convert_to_my_format(ds.diff_main(from, to)).map(x =>
+            `.text[${x[0]}:${x[0] + x[1]}] = ${JSON.stringify(x[2])}`
+        ))
+    }
+
+    function send_cursor_update(start, end) {
+        node.set(page_key, null, [`.cursors[${JSON.stringify(node.pid)}] = ${JSON.stringify({start: {type: 'location', path: `.text[${start}]`}, end: {type: 'location', path: `.text[${end}]`}, time: Date.now()})}`])
+    }
+
+    var cb = x => {
+        ready = true
+        text = x.text
+        if (x.cursors[node.pid]) {
+            selectionStart = x.cursors[node.pid].start
+            selectionEnd = x.cursors[node.pid].end
+        }
+    }
+    node.get(page_key, cb)
+
+    node.ons.push((method, arg) => {
+        if (method != 'welcome' && method != 'fissure') return
+        if (arg.key != page_key) return
+
+        var fs = {}
+        if (method == 'welcome') {
+            for (let f of arg.fissures)
+                fs[`${f.a}:${f.b}:${f.conn}`] = f
+        } else {
+            let f = arg.fissure
+            fs[`${f.a}:${f.b}:${f.conn}`] = f
+        }
+
+        var rest = () => {
+            var o = node.resource_at(page_key).mergeable.read()
+            if (!o || !o.cursors) return
+
+            Object.assign(fs, node.resource_at(page_key).fissures)
+    
+            var delete_us = {}
+            Object.values(fs).forEach(f => {
+                if (!fs[`${f.b}:${f.a}:${f.conn}`]) {
+                    if (o.cursors[f.b]) delete_us[f.b] = true
+                }
+            })
+
+            var now = Date.now()
+            Object.entries(o.cursors).forEach(([k, v]) => {
+                if (k != node.pid && v.time <= now - cursor_lifetime) delete_us[k] = true
+            })
+
+            var patches = Object.keys(delete_us).map(k => `delete .cursors[${JSON.stringify(k)}]`)
+            if (patches.length) node.set(page_key, null, patches)
+        }
+        setTimeout(rest, 0, 'node ' + method + ':' + JSON.stringify(arg))
+    })
+
+    node.on_errors.push((key, origin) => {
+        // console.log('CLIENT ON ERROR')
+
+        text = ''
+        selectionStart = 0
+        selectionEnd = 0
+
+        ready = false
+
+        delete node.resources[key]
+        node.unbind(key, origin)
+
+        var subscribe = ws_client.pipe.subscribed_keys[key].we_requested
+        delete ws_client.pipe.subscribed_keys[key].we_requested
+
+        ws_client.pipe.send({
+            key,
+            subscribe,
+            method: 'get'
+        })
+    })
+
+    var self
+    return self = {
+        id: node.pid,
+        node,
+        is_open: true,
+        get: () => {
+            return text
+        },
+        set: (x, del, ins) => {
+            if (!ready) return
+            var new_text = text.slice(0, x) + ins + text.slice(x + del)
+            send_diff(text, new_text)
+            if (x + ins.length <= new_text.length)
+                send_cursor_update(x + ins.length, x + ins.length)
+            else
+                send_cursor_update(new_text.length, new_text.length)
+        },
+        close: (send_deletes, send_forget) => {
+            if (ready && send_deletes) node.set(page_key, null, [`delete .cursors[${JSON.stringify(node.pid)}]`])
+            if (send_forget) node.forget(page_key, cb)
+            ws_client.disable()
+            self.is_open = false
+        },
+        open: () => {
+            ws_client.enable()
+            self.is_open = true
+        }
+    }    
+}
+
+function create_sparkline(text, w, h, max_y) {
+    var d = make_html(`<div></div>`)
+
+    var label = make_html(`<div></div>`)
+    d.append(label)
+    function update_label() { label.textContent = text + ', max_y = ' + max_y }
+    update_label()
+
+    var dd = make_html(`<div style="position:relative;width:${w}px;height:${h}px"></div>`)
+    d.append(dd)
+    
+    if (true) {
+        let back = make_html(`<canvas style="width:${w}px;height:${h}px;position:absolute;left:0px;top:0px"></canvas>`)
+        back.width = w * devicePixelRatio
+        back.height = h * devicePixelRatio
+        dd.append(back)
+        
+        let g = back.getContext('2d')
+        let N = 10
+        for (var i = 0; i <= N; i++) {
+            g.fillStyle = 'rgba(0, 0, 0, 0.25)'
+            g.fillRect(0, back.height - 1 - Math.round(back.height / N * i) + (i == N ? 1 : 0), back.width, 1)
+        }
+    }
+    
+    var front = make_html(`<canvas style="width:${w}px;height:${h}px;position:absolute;left:0px;top:0px"></canvas>`)
+    front.width = w
+    front.height = h * devicePixelRatio
+    dd.append(front)
+    
+    var front_copy = make_html(`<canvas></canvas>`)
+    front_copy.width = front.width
+    front_copy.height = front.height
+    
+    var x = 0
+    
+    d.update = (...args) => {
+        var g = front.getContext('2d')
+
+        args.forEach((y, i) => {
+            while (y > max_y) {
+                let gg = front_copy.getContext('2d')
+                gg.clearRect(0, 0, front.width, front.height)
+                gg.drawImage(front, 0, 0)
+                g.clearRect(0, 0, front.width, front.height)
+                g.drawImage(front_copy, 0, front.height / 2, front.width, front.height / 2)
+                
+                max_y *= 2
+                update_label()
+            }
+            
+            g.fillStyle = ['rgba(255, 128, 0, 0.5)', 'rgba(255, 0, 255, 0.5)', 'rgba(0, 0, 255, 0.5)'][i % 3]
+            
+            var h = lerp(0, 0, max_y, front.height, y)
+            g.fillRect(x, front.height - h, 1, h)
+        })
+
+        x++
+
+        if (x >= front.width) {
+            let gg = front_copy.getContext('2d')
+            gg.clearRect(0, 0, front.width, front.height)
+            gg.drawImage(front, 0, 0)
+            g.clearRect(0, 0, front.width, front.height)
+            g.drawImage(front_copy, -1, 0, front.width, front.height)
+            x--
+            return -1
+        }
+        return 0
+    }
+    
+    return d
+}
+
+function make_html(html) {
+    var d = document.createElement('div')
+    d.innerHTML = html
+    return d.firstChild
+}
+
+function rand_range(a) {
+    return lerp(0, a[0], 1, a[1], Math.random())
+}
+
+function lerp(t0, v0, t1, v1, t) { return (t - t0) * (v1 - v0) / (t1 - t0) + v0 }
+
+function calc_time_dag_size(T, r) {
+    var vs = {}
+    function get_layer(v) {
+        if (!vs[v]) vs[v] = {vid: v}
+        if (vs[v].layer) return vs[v].layer
+        return vs[v].layer = Object.keys(T[v]).reduce((x, p) => {
+            return Math.max(x, get_layer(p) + 1)
+        }, 0)
+    }
+    Object.keys(T).forEach(get_layer)
+    
+    var layer_members = {}
+    var num_layers = 0
+    Object.values(vs).forEach(v => {
+        layer_members[v.layer] = layer_members[v.layer] || []
+        layer_members[v.layer].push(v.vid)
+        
+        if (v.layer >= num_layers) num_layers = v.layer + 1
+    })
+    
+    Object.values(layer_members).forEach(layer => {
+        layer.sort().forEach((v, i) => {
+            vs[v].layer_i = i
+        })
+    })
+
+    var max_x = 0
+    var max_y = 0
+    Object.values(vs).forEach(v => {
+        max_x = Math.max(max_x, v.layer_i + 1)
+        max_y = Math.max(max_y, r + (v.layer * r*3))
+    })
+    return {w: max_x, h: max_y}
+}
+
+function draw_time_dag(c, g, T, ack_leaves, acks_in_process, fissures, x, y, w, h, r) {
+    g.lineWidth = 3
+    
+    var vs = {}
+    function get_layer(v) {
+        if (!vs[v]) vs[v] = {vid: v}
+        if (vs[v].layer) return vs[v].layer
+        return vs[v].layer = Object.keys(T[v]).reduce((x, p) => {
+            return Math.max(x, get_layer(p) + 1)
+        }, 0)
+    }
+    Object.keys(T).forEach(get_layer)
+    
+    var layer_members = {}
+    var num_layers = 0
+    Object.values(vs).forEach(v => {
+        layer_members[v.layer] = layer_members[v.layer] || []
+        layer_members[v.layer].push(v.vid)
+        
+        if (v.layer >= num_layers) num_layers = v.layer + 1
+    })
+    
+    Object.values(layer_members).forEach(layer => {
+        layer.sort().forEach((v, i) => {
+            vs[v].layer_i = i
+        })
+    })
+
+    function get_node_pos(v) {
+        var layer_count = layer_members[v.layer].length
+        return [
+            lerp(0, x + r, layer_count + 1, x + w - r, v.layer_i + 1),
+            y + r + (v.layer * r*3)
+        ]
+    }
+
+    Object.entries(vs).forEach(e => {
+        var a_pos = get_node_pos(e[1])
+        g.beginPath()
+        Object.keys(T[e[0]]).forEach(p => {
+            g.moveTo(a_pos[0], a_pos[1])
+            
+            var b_pos = get_node_pos(vs[p])
+            g.lineTo(b_pos[0], b_pos[1])
+        })
+        g.strokeStyle = 'lightblue'
+        g.stroke()
+    })
+    
+    var fully_acked = {}
+    function mark_fully_acked_rec(v) {
+        if (!fully_acked[v]) {
+            fully_acked[v] = true
+            Object.keys(T[v]).forEach(mark_fully_acked_rec)
+        }
+    }
+    Object.keys(ack_leaves).forEach(mark_fully_acked_rec)
+    
+    Object.entries(vs).forEach(e => {
+        var node_pos = get_node_pos(e[1])
+        
+        g.beginPath()
+        g.arc(node_pos[0], node_pos[1], r, 0, tau)
+        g.fillStyle = 'white'
+        g.fill()
+
+
+
+
+        
+        // if (acks_in_process[e[0]]) {
+        //     var current_count = Math.max(0, acks_in_process[e[0]].count)
+        //     var max_count = 0
+        //     var search_i = fi
+        //     try {
+        //         let x = null
+        //         while (x = frames[search_i].peers[pi].keys.my_key.phase_one[e[0]]) {
+        //             max_count = x.count
+        //             search_i--
+        //         }
+        //     } catch (e) {}
+            
+        //     var percent_done = (max_count - current_count) / max_count
+        //     if (percent_done > 0) {
+        //         g.beginPath()
+        //         g.arc(node_pos[0], node_pos[1], r, 0, tau/2, true)
+        //         if (percent_done == 1) {
+        //             g.arc(node_pos[0], node_pos[1], r, tau/2, 0, true)
+        //         } else if (percent_done < 0.5) {
+        //             var x = lerp(0, r, 0.5, 0, percent_done)
+        //             var C = (r*r - x*x) / (2*x)
+        //             var angle = Math.atan2(r, C)
+        //             g.arc(node_pos[0], node_pos[1] + C, C + x, tau*3/4 - angle, tau*3/4 + angle)
+        //         } else if (percent_done > 0.5) {
+        //             var x = lerp(0.5, 0, 1, r, percent_done)
+        //             var C = (r*r - x*x) / (2*x)
+        //             var angle = Math.atan2(r, C)
+        //             g.arc(node_pos[0], node_pos[1] - C, C + x, tau/4 - angle, tau/4 + angle)
+        //         } else {
+        //             g.arc(node_pos[0], node_pos[1] + C, C + x, 0, tau)
+        //         }
+        //         g.fillStyle = 'lightblue'
+        //         g.fill()
+        //     }
+        // }
+
+
+
+
+        
+        g.beginPath()
+        g.arc(node_pos[0], node_pos[1], r, 0, tau)
+        if (fully_acked[e[0]]) {
+            g.fillStyle = 'blue'
+            g.fill()
+        } else {
+            g.strokeStyle = 'blue'
+            g.stroke()
+        }
+        
+        draw_text(c, g, e[0].slice(0, 3), node_pos[0] + r, node_pos[1] + r, 'grey', 'left', 'top')
+    })
+    
+    Object.values(fissures).forEach(f => {
+        Object.keys(f.versions).forEach(v => {
+            if (!T[v]) return
+            g.beginPath()
+            
+            var rand = Math.create_rand(f.conn)
+            g.strokeStyle = '#' + rand().toString(16).slice(2, 8)
+            
+            var node_pos = get_node_pos(vs[v])
+            //var rr = r * 1.45
+            var rr = r * (1.2 + rand())
+            
+            g.lineWidth = 5
+            if (f.a < f.b) {
+                g.arc(node_pos[0], node_pos[1], rr, tau/4, tau*3/4)
+            } else {
+                g.arc(node_pos[0], node_pos[1], rr, tau/4, tau*3/4, true)
+            }
+            g.stroke()
+        })
+    })
+    
+}
+
+function draw_space_dag(c, g, S, x, y) {
+    function helper(node, y, px, py) {
+        g.beginPath()
+        g.moveTo(x, y)
+        g.lineTo(px, py)
+        g.lineWidth = 1
+        g.strokeStyle = 'lightblue'
+        g.stroke()
+
+        var begin_x
+        var end_x
+        
+        draw_text(c, g, node.version ? node.version.slice(0, 3) : '', x, y + 25, 'grey', 'left', 'middle')
+        
+        var my_text = node.elems + (node.end_cap ? '*' : '')
+
+        draw_text(c, g, my_text, x, y, Object.keys(node.deleted_by).length > 0 ? 'red' : 'blue', 'left', 'middle', '20px Arial')
+        
+        var width = g.measureText(my_text).width
+        x += width
+
+        var px = x
+        x += 10
+        for (var n of node.nexts) helper(n, y + 40, px, y)
+        if (node.next) helper(node.next, y, px, y)
+    }
+    if (!S) return
+    else if (typeof(S) == 'string') helper({
+        version : 'N/A',
+        elems : S,
+        deleted_by : {},
+        nexts : []
+    })
+    else if (S.t == 'lit') helper({
+        version : 'N/A',
+        elems : S.S,
+        deleted_by : {},
+        nexts : []
+    })
+    else helper(S.S, y, x, y)
+}
+
+function draw_text(c, g, text, x, y, color, x_align, y_align, font) {
+    g.font = font || '15px Arial'
+    if (color) g.fillStyle = color
+    g.textAlign = x_align || 'left'
+    g.textBaseline = y_align || 'middle'
+    g.fillText(text, x, y)
+}
+
+main()
+
+</script>
+</html>
