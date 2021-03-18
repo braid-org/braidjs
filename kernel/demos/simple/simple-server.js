@@ -49,6 +49,6 @@ bHieUzx8qriZ8KrD3PbjKqap
 -----END PRIVATE KEY-----
 `
 
-node = require('../../braid')()
+node = require('../../node')()
 node.pid = 'hub'
-require('../../protocol-websocket/websocket-server.js')(node, certificate, private_key)
+require('../../websocket-server.js')(node, certificate, private_key)
