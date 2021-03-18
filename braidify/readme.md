@@ -9,8 +9,8 @@ Adds Braid support to existing Javascript HTTP libraries.
 ### Purpose
 
 Just as Braid is "a few simple extensions to HTTP" that add synchronization,
-the `braidify` library is "a few simple extensions to http libraries" to
-provide them with synchronization.
+the `braidify` library is "a few simple extensions to HTTP libraries" that
+add synchronization to your HTTP code.
 
 Today, braidify supports wrappers for the following HTTP libraries:
 
@@ -21,7 +21,7 @@ require('braidify').http      // Nodejs require('http') and require('https')
 
 We would love to support your favorite library, too.
 
-Let's look at some examples:
+Let's look at some examples of using it:
 
 ### Browser `fetch()`
 
@@ -99,18 +99,18 @@ import {fetch} from 'braidify'
 
 // process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
 
-function connect () {
-    fetch('https://localhost:3009/chat',
-          {subscribe: {keep_alive: true}}).andThen(
-              x => console.log('Got ', x)
-              //x => {throw new Error('hi')}
-          ).catch(e => {
-              console.error('Reconnecting!', e);
-              setTimeout(connect, 1000)
-          })
-}
-connect()
+fetch('https://localhost:3009/chat',
+      {subscribe: {keep_alive: true}}).andThen(
+          x => console.log('Got ', x)
+      )
 ```
+
+Note: the current version of `node-fetch` doesn't properly throw errors when a
+response connection dies, and thus you cannot attach a `.catch()` handler to
+automatically reconnect.  (See
+[issue #980](https://github.com/node-fetch/node-fetch/issues/980) and
+[#753](https://github.com/node-fetch/node-fetch/issues/753).)  We recommend
+using the `http` library (below) for requests on nodejs instead.
 
 ## Nodejs client with `require('http')`
 
