@@ -1,6 +1,6 @@
 {
   "name": "braidify",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Synchronization for the Web (reference implementation)",
   "scripts": {
     "test": "node test/tests.js",
@@ -11,7 +11,10 @@
   "homepage": "https://braid.org",
   "comment": "See package.md for notes and comments on this file.",
   "files": [
-    "*"
+      "braidify-client.js",
+      "braidify-server.js",
+      "index.js",
+      "index.mjs"
   ],
   "main": "./index.js",
   "exports": {
