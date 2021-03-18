@@ -9,7 +9,7 @@ file:
 - `require`: When this package is in a commonjs environment (e.g. default nodejs) 
   the ./index.js file will be the thing that is 'require'd.
 - `import`: When this package is in an es6 environment (e.g. bundler, modern nodejs,
-  modern browser) the './esm/wrapper.js will be the thing 'import'ed.
+  modern browser) the ./index.mjs will be the thing 'import'ed.
 
 ## dependencies
 

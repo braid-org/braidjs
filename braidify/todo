@@ -21,15 +21,15 @@ Todos:
      x Make onClose work from the catch()
  x Add 'for await' support for fetch
  x Publish to NPM
- - Redesign directory structure
+ x Redesign directory structure
  - Writeup readme
+ - Move the headers into a .headers field in API?
  - Websocket fallback for localhost development
  - Support arbitrary custom patch types
  - Error handling, debugging info and reporting
    - Like the on_error callback
    - And the handler passed to parse_response in client
    - Better debug info logging
- - Move the headers into a .headers field in API?
  - Add to spec "should not limit client connections" if some header is present
  - Move the parse state variables into function parameters and return values
  - Handle binary response in client
