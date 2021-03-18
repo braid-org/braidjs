@@ -1,0 +1,24 @@
+{
+  "name": "braid-bus",
+  "version": "0.0.1",
+  "description": "",
+  "scripts": {
+    "test": "node test/tests.js",
+    "prepublish": "node util/braid-bundler.js"
+  },
+  "author": "Braid Working Group",
+  "repository": "braid-org/braidjs",
+  "homepage": "https://braid.org",
+  "files": [
+    "*"
+  ],
+  "main": "bus.js",
+  "exports": {
+    "require": "./bus.js",
+    "import": "./bus.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^5.4.3",
+    "ws": "^7.3.1"
+  }
+}
