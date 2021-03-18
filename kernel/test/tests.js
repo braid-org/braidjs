@@ -146,6 +146,9 @@ function setup_test () {
     sim.peers = []
     sim.peers_dict = {}
 
+    if (is_browser)
+        sim.rand = rand = Math.create_rand('')
+
     network.setup()
 
     // Start sending get() messages over the pipes!
