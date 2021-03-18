@@ -12,3 +12,4 @@ var fetch = braidify_client.fetch,
     http_server = braidify_server
 
 export { fetch, http, http_server }
+export default { fetch, http, http_server }
