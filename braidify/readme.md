@@ -114,8 +114,8 @@ connect()
 
 var https = require('braidify').http(require('https'))
 // or:
-// import {http} from 'braidify'
-// https = http(require('https'))
+// import braidify from 'braidify'
+// https = braidify.http(require('https'))
 
 https.get(
    'https://braid.org/chat',
@@ -161,6 +161,8 @@ On the server using express:
 
 ```javascript
 var braidify = require('braidify').http_server
+// or:
+import {http_server as braidify} from 'braidify'
 
 // Braidify will give you these fields and methods:
 // - req.subscribe
@@ -204,6 +206,8 @@ On the server using regular `require('http')`:
 
 ```javascript
 var braidify = require('braidify').http_server
+// or:
+import {http_server as braidify} from 'braidify'
 
 require('http').createServer(
     (req, res) => {
