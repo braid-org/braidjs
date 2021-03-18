@@ -1,6 +1,4 @@
-var client = require('./http-client'),
-    server = require('./http-server')
+var fetch = require('./http-client'),
+    http_server = require('./http-server')
 
-module.exports = { fetch: client.fetch,
-                   http: client.http,
-                   http_server: server }
+module.exports = { fetch, http_server }

@@ -116,7 +116,7 @@ if (typeof window === 'undefined') {
 }
 
 if (typeof module !== 'undefined' && module.exports)
-    module.exports = {fetch: braid_fetch, http: braidify_http}
+    module.exports = braid_fetch
 
 
 function braid_fetch (url, params = {}) {
