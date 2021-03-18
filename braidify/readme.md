@@ -109,7 +109,7 @@ connect()
 // Use this line if necessary for self-signed certs
 // process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
 
-var https = require('braidjs').http(require('https'))
+var https = require('braidify').http(require('https'))
 https.get(
    'https://braid.org/chat',
    {subscribe: true},
@@ -153,7 +153,7 @@ connect()
 On the server using express:
 
 ```javascript
-var braidify = require('braidjs').http
+var braidify = require('braidify').http
 
 // Braidify will give you these fields and methods:
 // - req.subscribe
@@ -196,7 +196,7 @@ require('http').createServer(app).listen(8583)
 On the server using regular `require('http')`:
 
 ```javascript
-var braidify = require('braidjs').http
+var braidify = require('braidify').http
 
 require('http').createServer(
     (req, res) => {
