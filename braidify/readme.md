@@ -9,8 +9,8 @@ Easily adds Braid to existing Javascript libraries.
 Today it has wrappers for the following HTTP libraries:
 
 ```javascript
-require('braidify').fetch       # Browser fetch() API and require('node-fetch')
-require('braidify').http        # Nodejs require('http') and require('https')
+require('braidify').fetch     // Browser fetch() API and require('node-fetch')
+require('braidify').http      // Nodejs require('http') and require('https')
 ```
 
 And we'd love to add Braid support to any other http API you like.
