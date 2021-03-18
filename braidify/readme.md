@@ -88,6 +88,9 @@ async function connect () {
 
 ```javascript
 var fetch = require('braidify').fetch
+// or:
+import {fetch} from 'braidify'
+
 // process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
 
 function connect () {
@@ -110,6 +113,10 @@ connect()
 // process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
 
 var https = require('braidify').http(require('https'))
+// or:
+// import {http} from 'braidify'
+// https = http(require('https'))
+
 https.get(
    'https://braid.org/chat',
    {subscribe: true},
@@ -153,7 +160,7 @@ connect()
 On the server using express:
 
 ```javascript
-var braidify = require('braidify').http
+var braidify = require('braidify').http_server
 
 // Braidify will give you these fields and methods:
 // - req.subscribe
@@ -196,7 +203,7 @@ require('http').createServer(app).listen(8583)
 On the server using regular `require('http')`:
 
 ```javascript
-var braidify = require('braidify').http
+var braidify = require('braidify').http_server
 
 require('http').createServer(
     (req, res) => {

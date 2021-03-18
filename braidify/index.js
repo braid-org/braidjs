@@ -3,7 +3,10 @@
 // It combines the client and server files into one file.
 
 var client = require('./braidify-client'),
-    server = require('./braidify-server'),
-    http = (http) => client.http(server(http))
+    server = require('./braidify-server')
 
-module.exports = { fetch: client.fetch, http }
+module.exports = {
+    fetch: client.fetch,
+    http: client.http,
+    http_server: server
+}
