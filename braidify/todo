@@ -21,6 +21,7 @@ Todos:
      x Make onClose work from the catch()
  x Add 'for await' support for fetch
  x Publish to NPM
+ x Move the parse state variables into function parameters and return values
  x Redesign directory structure
  - Writeup readme
  - Move the headers into a .headers field in API?
@@ -31,6 +32,5 @@ Todos:
    - And the handler passed to parse_response in client
    - Better debug info logging
  - Add to spec "should not limit client connections" if some header is present
- - Move the parse state variables into function parameters and return values
  - Handle binary response in client
 
