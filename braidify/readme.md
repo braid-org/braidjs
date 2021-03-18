@@ -4,7 +4,7 @@ Easily adds Braid to existing Javascript libraries.
 
 - [npm package](https://www.npmjs.com/package/braidify) now available for testing
 - Source is in [braidjs](https://github.com/braid-org/braidjs) repo
-- Reference implementation. Meets Braid-HTTP 03.
+- Reference implementation. Meets [Braid-HTTP 03](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-03.txt) specification.
 
 Today it has wrappers for the following HTTP libraries:
 
