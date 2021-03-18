@@ -86,7 +86,7 @@ async function connect () {
 
 ## Nodejs client with `fetch()`
 
-```
+```javascript
 var fetch = require('braidify').fetch
 // process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
 
