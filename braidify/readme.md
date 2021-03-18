@@ -59,13 +59,34 @@ function connect() {
 connect()
 ```
 
-Todo:
+You can also use `for await`:
 
-```
-for await (var new_version of fetch('/chat',...)) {
-   ...
+```javascript
+async function connect () {
+    try {
+        for await (var v of fetch(new URL(path, window.location.href), {subscribe: {keep_alive: true}})) {
+
+            console.log('Connected!', v)
+
+            curr_version[path] = v.version
+
+            // When we receive updates, they might come in the form of patches:
+            if (v.patches)
+                chat = apply_patches(v.patches, chat)
+
+            // Or a complete version:
+            else
+                // Beware the server doesn't send these yet.
+                chat = JSON.parse(v.body)
+
+            render()
+        }
+    } catch (e) {
+        console.log('Reconnecting...')
+        setTimeout(connect, 4000)
+    }
 }
-```
+q```
 
 Feedback
  - `andThen` -> `subscribe` or `onVersion`
