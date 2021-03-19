@@ -1,6 +1,6 @@
 {
   "name": "braidify",
-  "version": "0.1.10",
+  "version": "0.1.12",
   "description": "Synchronization for the Web (reference implementation)",
   "scripts": {
     "test": "node test/tests.js",
