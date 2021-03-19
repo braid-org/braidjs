@@ -13,7 +13,7 @@ to it, and run `npm publish`.
 
 ### Projects
 
-Add yours to the list!
+Add yours today!
 
  - `braidify`: [A reference implementation of the Braid Protocol](/braid-org/braidjs/tree/master/braidify)
  - `kernel`: [A prototype Braid Kernel](/braid-org/braidjs/tree/master/kernel)
