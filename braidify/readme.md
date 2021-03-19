@@ -1,6 +1,6 @@
 # Braidify Library
 
-Adds Braid support to existing Javascript HTTP libraries.
+Easily adds Braid to existing Javascript code.
 
 - [npm package](https://www.npmjs.com/package/braidify) now available for testing
 - Source is in [braidjs](https://github.com/braid-org/braidjs) repo
@@ -12,7 +12,7 @@ Just as Braid is "a few simple extensions to HTTP" that add synchronization,
 the `braidify` library is "a few simple extensions to HTTP libraries" that
 add synchronization to your HTTP code.
 
-Today, braidify supports wrappers for the following HTTP libraries:
+Supports the following HTTP libraries:
 
 ```javascript
 require('braidify').fetch     // Browser fetch() API and require('node-fetch')
