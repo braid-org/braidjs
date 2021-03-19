@@ -11,7 +11,7 @@ Npm still works fine.  Just put a `package.json` to your project folder, `cd`
 to it, and run `npm publish`.
 
 
-### Projects
+### Interoperating Projects
 
 Add yours today!
 
