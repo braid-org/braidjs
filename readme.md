@@ -15,10 +15,10 @@ to it, and run `npm publish`.
 
 Add yours today!
 
- - `braidify`: [A reference implementation of the Braid Protocol](/braid-org/braidjs/tree/master/braidify)
- - `kernel`: [A prototype Braid Kernel](/braid-org/braidjs/tree/master/kernel)
- - `sync9`: [A CRDT that supports pruning history](/braid-org/braidjs/tree/master/sync9)
- - `util`: [A set of common utilities](braid-org/braidjs/tree/master/util)
+ - `braidify`: [A reference implementation of the Braid Protocol](https://github.com/braid-org/braidjs/tree/master/braidify)
+ - `kernel`: [A prototype Braid Kernel](https://github.com/braid-org/braidjs/tree/master/kernel)
+ - `sync9`: [A CRDT that supports pruning history](https://github.com/braid-org/braidjs/tree/master/sync9)
+ - `util`: [A set of common utilities](https://github.com/braid-org/braidjs/tree/master/util)
 
 Read more about braid at https://braid.org!
 
