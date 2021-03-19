@@ -1,10 +1,10 @@
 # The Braidjs Monorepo
 
-Makes it easy to interoperate.
+Makes it easy to interoperate!
 
   - Each project has a top-level folder.
-  - If you make a breaking change (like a protocol change), then you can
-    upgrade the relevant code in other people's projects directly.
+  - If you make a breaking change (like a protocol change), then upgrade the
+    relevant code in other people's projects directly.
 
 Npm still works fine.  Just put a `package.json` to your project folder, `cd`
 to it, and run `npm publish`.
