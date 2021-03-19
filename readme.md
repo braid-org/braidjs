@@ -22,5 +22,5 @@ Read more about braid at https://braid.org!
 
 Q. Can I still publish my project as a NPM package?
 
-  - A. Yeah.  Just create a `package.json` in your project's root folder, run
-    `npm publish`.
+  - A. Yeah.  Just create a `package.json` in your project's root folder, and
+    run `npm publish`.
