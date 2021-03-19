@@ -10,7 +10,7 @@ Easily add the [Braid Protocol](https://braid.org) to existing Javascript.
 
 Whereas [Braid](https://braid.org) is *"a few simple extensions to HTTP that
 add synchronization"*; the `braidify` library is *"a few simple extensions to
-HTTP libraries that add synchronization"*.
+HTTP libraries that add Braid synchronization"*.
 
 Braidify currently supports Braid in the following libraries:
 
