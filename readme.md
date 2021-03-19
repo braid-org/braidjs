@@ -7,10 +7,6 @@ Makes it easy to interoperate!
     relevant code in other people's projects directly.  Everything in this
     repo is versioned together!
 
-Npm still works fine.  Just put a `package.json` to your project folder, `cd`
-to it, and run `npm publish`.
-
-
 ### Interoperating Projects
 
 Add yours today!
@@ -22,3 +18,9 @@ Add yours today!
 
 Read more about braid at https://braid.org!
 
+### Faq
+
+Q. Can I still publish my project as a NPM package?
+
+  - A. Yeah.  Just create a `package.json` in your project's root folder, run
+    `npm publish`.
