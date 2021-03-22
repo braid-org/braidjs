@@ -1,13 +1,14 @@
 # The Braidjs Monorepo
 
-Makes it easy to interoperate!
+By versioning our code together, it will become easier to interoperate.
 
-  - Each project has a top-level folder.
-  - If you make a breaking change (like a protocol change), then upgrade the
-    relevant code in other people's projects directly.  Everything in this
-    repo is versioned together!
+  - Each top-level folder is a project.  Add yours!
+  - Now you can make breaking changes (like a protocol change), by upgrading
+    other people's projects directly.
 
-### Interoperating Projects
+This is not my code.  This is *our* code.
+
+### Projects
 
 Add yours today!
 
@@ -20,7 +21,7 @@ Read more about braid at https://braid.org!
 
 ### Faq
 
-Q. Can I still publish my project as a NPM package?
+Q. Wait... can a single repo support multiple NPM packages?
 
-  - A. Yeah.  Just create a `package.json` in your project's root folder, and
-    run `npm publish`.
+  - A. Yep!  Just create a `package.json` in your project's root folder, and
+    then run `npm publish` from it.

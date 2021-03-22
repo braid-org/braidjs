@@ -35,6 +35,11 @@ Todos:
  - Handle binary response in client
 
 
+Test on seph's code:
+
+  (do a checkout of joesphg/braid-protocol, then run yarn in the root
+  directory of that repository then `node server.js` from examples/1)
+
 
 Feedback on fetch:
  - `andThen` -> `subscribe` or `onVersion` or `updates`
