@@ -438,11 +438,11 @@ function parse_headers (input) {
     // when there are no longer newlines, and end at the first double-newline.
 
     // Skip the newlines at the start
-    while (input[0] === '\n')
+    while (input[0] === '\n' || input[0] === '\r')
         input = input.substr(1)
 
     // Now look for a double-newline that will mark the end of the headers
-    var headers_length = input.indexOf('\n\n') + 1
+    var headers_length = input.search(/(\r\n\r\n)|(\n\n)/) + 1
 
     // ...if we found none, then we need to wait for more input to complete
     // the headers..
@@ -454,7 +454,7 @@ function parse_headers (input) {
     
     // Let's parse it!  First define some variables:
     var headers = {},
-        header_regex = /([\w-_]+):\s?(.*)\n/gy,  // Parses one line a time
+        header_regex = /([\w-_]+):\s?(.*)(\n|(\r\n))/gy,  // Parses one line a time
         match,
         found_last_match = false
 
