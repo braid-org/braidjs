@@ -4,7 +4,8 @@ By versioning our code together, it is easier to interoperate.
 
   - Each top-level folder is a project.  Add yours!
   - Now you can make breaking changes (like a protocol change), without
-    breaking anyone -- you can upgrade other people's code directly.
+    actually *breaking* anything—upgrade all the relevant code, across
+    multiple projects, at once!
 
 This is not my code.  This is *our* code.
 
