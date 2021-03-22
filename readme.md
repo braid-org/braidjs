@@ -1,10 +1,10 @@
 # The Braidjs Monorepo
 
-By versioning our code together, it will become easier to interoperate.
+By versioning our code together, it is easier to interoperate.
 
   - Each top-level folder is a project.  Add yours!
-  - Now you can make breaking changes (like a protocol change), by upgrading
-    other people's projects directly.
+  - Now you can make breaking changes (like a protocol change), without
+    breaking anyone -- you can upgrade other people's code directly.
 
 This is not my code.  This is *our* code.
 
