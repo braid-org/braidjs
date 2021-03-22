@@ -2,7 +2,10 @@
 
 An abstraction for distributed state.
 
+## Status
 
+We've built some cool algorithms in here, but it isn't cleaned up for release
+yet.  Mike is working on it!
 
 ## Running the code
 If you have nodejs installed, then set it up with:
