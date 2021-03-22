@@ -26,7 +26,7 @@ Let's see how to use it:
 ### Browser `fetch()`
 
 ```html
-<script src="http-client.js"></script>
+<script src="braidify-client.js"></script>
 <script>
     fetch(
         'https://braid.org/chat',

@@ -37,7 +37,7 @@ Todos:
 
 
 Feedback on fetch:
- - `andThen` -> `subscribe` or `onVersion`
+ - `andThen` -> `subscribe` or `onVersion` or `updates`
  - Could be good to do `fetch().then().andThen()` to know when the initial response is ready
  - Could add a middle-lever helper to handler the fetch().then() stream, rather than the high-level .andThen thing
     - This is like a getVersions() or getUpdates() function

@@ -1,5 +1,3 @@
-//var {subscription_parser} = require('../protocol/braid-http.js')
-
 var peer = Math.random().toString(36).substr(2)
 
 
