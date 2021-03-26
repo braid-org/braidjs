@@ -168,8 +168,8 @@ function braid_fetch (url, params = {}) {
         params.body = (params.patches).map(patch => {
             var length = `content-length: ${patch.content.length}`
             var range = `content-range: ${patch.unit} ${patch.range}`
-            return `${length}\n${range}\n\n${patch.content}\n`
-        }).join('\n')
+            return `${length}\r\n${range}\r\n\r\n${patch.content}\r\n`
+        }).join('\r\n')
     }
 
     // Wrap the AbortController with a new one that we control.
@@ -431,30 +431,33 @@ function parse_version (state) {
     return parse_body(state)
 }
 
+function swallow_blank_lines (input) {
+    var blank_lines = /(\r\n|\n)*/.exec(input)[0]
+    return input.substr(blank_lines.length)
+}
 
 // Parsing helpers
 function parse_headers (input) {
+    input = swallow_blank_lines(input)
+
     // First, find the start & end block of the headers.  The headers start
     // when there are no longer newlines, and end at the first double-newline.
 
-    // Skip the newlines at the start
-    while (input[0] === '\n' || input[0] === '\r')
-        input = input.substr(1)
-
-    // Now look for a double-newline that will mark the end of the headers
-    var headers_length = input.search(/(\r\n\r\n)|(\n\n)/) + 1
+    // Look for the double-newline at the end of the headers
+    var headers_end = input.match(/(\r?\n)\r?\n/)
 
     // ...if we found none, then we need to wait for more input to complete
     // the headers..
-    if (headers_length === 0)
+    if (!headers_end)
         return {result: 'waiting'}
 
-    // We now know what stuff to parse!
-    var headers_source = input.substring(0, headers_length)
+    // We now know where the headers are to parse!
+    var headers_length = headers_end.index + headers_end[1].length
+        headers_source = input.substring(0, headers_length)
     
-    // Let's parse it!  First define some variables:
+    // Let's parse them!  First define some variables:
     var headers = {},
-        header_regex = /([\w-_]+):\s?(.*)(\n|(\r\n))/gy,  // Parses one line a time
+        header_regex = /([\w-_]+):\s?(.*)\r?\n/gy,  // Parses one line a time
         match,
         found_last_match = false
 
@@ -473,7 +476,7 @@ function parse_headers (input) {
         return {
             result: 'error',
             message: 'Parse error in headers: "'
-                     + headers_source.substr(header_regex.lastIndex) + '"',
+                + JSON.stringify(headers_source.substr(header_regex.lastIndex)) + '"',
             headers_so_far: headers,
             last_index: header_regex.lastIndex, headers_length
         }
@@ -486,12 +489,19 @@ function parse_headers (input) {
     if ('patches' in headers)
         headers.patches = JSON.parse(headers.patches)
 
+    // Update the input
+    input = input.substring(headers_length)
+
+    // Swallow the final blank line ending the headers
+    if (input.substr(0, 2) === '\r\n')
+        // Swallow \r\n
+        input = input.substr(2)
+    else
+        // Swallow \n
+        input = input.substr(1)
+
     // And return the parsed result
-    return {
-        result: 'success',
-        headers,
-        input: input.substring(headers_length + 1)
-    }
+    return { result: 'success', headers, input }
 }
 
 function parse_body (state) {

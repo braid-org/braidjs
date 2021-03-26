@@ -12,7 +12,7 @@ function generate_patches(res, patches) {
     //
     // content-length: x
     // ...
-    var result = `Patches: ${patches.length}\n`
+    var result = `Patches: ${patches.length}\r\n`
     for (let patch of patches)
         result += `
 content-length: ${patch.content.length}
@@ -48,10 +48,10 @@ function parse_patches (req, cb) {
         while (patches.length < num_patches) {
             // First parse the patch headers.  It ends with a double-newline.
             // Let's see where that is.
-            var p_headers_length = buffer.indexOf("\n\n")
+            var p_headers_length = buffer.search(/\r?\n\r?\n/)
 
             // Give up if we don't have a set of headers yet.
-            if (buffer.indexOf("\n\n") === -1)
+            if (p_headers_length === -1)
                 return
 
             // Now let's parse those headers.
@@ -180,13 +180,13 @@ function send_version(res, data) {
 
     function set_header (key, val) {
         if (res.isSubscription)
-            res.write(`${key}: ${val}\n`)
+            res.write(`${key}: ${val}\r\n`)
         else
             res.setHeader(key, val)
     }
     function write_body (body) {
         if (res.isSubscription)
-            res.write('\n' + body + '\n')
+            res.write('\r\n' + body + '\r\n')
         else
             res.write(body)
     }
@@ -229,7 +229,7 @@ function send_version(res, data) {
     // Add a newline to prepare for the next version
     // See also https://github.com/braid-org/braid-spec/issues/73
     if (res.isSubscription)
-        res.write("\n")
+        res.write("\r\n")
 }
 
 
