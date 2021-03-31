@@ -452,7 +452,7 @@ function parse_headers (input) {
         return {result: 'waiting'}
 
     // We now know where the headers are to parse!
-    var headers_length = headers_end.index + headers_end[1].length
+    var headers_length = headers_end.index + headers_end[1].length,
         headers_source = input.substring(0, headers_length)
     
     // Let's parse them!  First define some variables:
