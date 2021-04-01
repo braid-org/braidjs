@@ -48,36 +48,47 @@ function parse_patches (req, cb) {
         while (patches.length < num_patches) {
             // First parse the patch headers.  It ends with a double-newline.
             // Let's see where that is.
-            var p_headers_length = buffer.search(/\r?\n\r?\n/)
+            var headers_end = buffer.match(/(\r?\n)(\r?\n)/)
 
             // Give up if we don't have a set of headers yet.
-            if (p_headers_length === -1)
+            if (!headers_end)
                 return
+
+            // Now we know where things end
+            var first_newline = headers_end[1],
+                headers_length = headers_end.index + first_newline.length,
+                blank_line = headers_end[2]
 
             // Now let's parse those headers.
-            var p_headers = require('parse-headers')(
-                buffer.substring(0, p_headers_length)
+            var headers = require('parse-headers')(
+                buffer.substring(0, headers_length)
             )
 
-            // Content-length tells us how long the body of the patch will be.
-            // TODO: Support Transfer-Encoding: Chunked in addition to content-length?
-            assert(p_headers['content-length'])
-            var body_length = parseInt(p_headers['content-length'])
+            // We require `content-length` to declare the length of the patch.
+            if (!('content-length' in headers)) {
+                // Print a nice error if it's missing
+                console.error('No content-length in', JSON.stringify(headers))
+                process.exit(1)
+            }
+
+            var body_length = parseInt(headers['content-length'])
 
             // Give up if we don't have the full patch yet.
-            if (buffer.length < p_headers_length + 2 + body_length)
+            if (buffer.length < headers_length + blank_line.length + body_length)
                 return
 
+            // XX Todo: support custom patch types beyond content-range.
+
             // Content-range is of the form '<unit> <range>' e.g. 'json .index'
-            var [unit, range] = p_headers['content-range'].match(/(\S+) (.*)/).slice(1)
+            var [unit, range] = headers['content-range'].match(/(\S+) (.*)/).slice(1)
             var patch_content =
-                buffer.substring(p_headers_length + 2,
-                                 p_headers_length + 2 + body_length)
+                buffer.substring(headers_length + blank_line.length,
+                                 headers_length + blank_line.length + body_length)
 
             // We've got our patch!
             patches.push({unit, range, content: patch_content})
 
-            buffer = buffer.substring(p_headers_length + 2 + body_length)
+            buffer = buffer.substring(headers_length + blank_line.length + body_length)
         }
 
         // We got all the patches!  Pause the stream and tell the callback!
