@@ -137,7 +137,7 @@ function braidify (req, res, next) {
     req.subscribe = subscribe
 
     // Add the braidly request/response helper methods
-    res.sendVersion = (stuff) => send_version(res, stuff)
+    res.sendVersion = (stuff) => send_version(res, stuff, req.url, peer)
     req.patches = () => new Promise(
         (done, err) => parse_patches(req, (patches) => done(patches))
     )
@@ -186,7 +186,7 @@ function braidify (req, res, next) {
     next && next()
 }
 
-function send_version(res, data) {
+function send_version(res, data, url, peer) {
     var {version, parents, patches, body} = data
 
     function set_header (key, val) {
@@ -202,7 +202,7 @@ function send_version(res, data) {
             res.write(body)
     }
 
-    console.log('sending version', {version, parents, patches, body,
+    console.log('sending version', {url, peer, version, parents, patches, body,
                                     subscription: res.isSubscription})
 
     // Validate that the body and patches are strings
