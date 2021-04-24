@@ -1,0 +1,21 @@
+
+<script src="https://bloop.monster/yarnball.js"></script>
+<body></body>
+<script>
+
+var yb = create_yarnball_client('wss://test.bloop.monster:60003/')
+
+var first_time = true
+var cb = x => {
+
+    console.log('bloop = ' + JSON.stringify(x))
+
+    if (first_time) {
+        first_time = false
+        yb.set('bloop', '[0:0] = "A"')
+        yb.forget('bloop', cb)
+    }
+}
+yb.get('bloop', cb)
+
+</script>
