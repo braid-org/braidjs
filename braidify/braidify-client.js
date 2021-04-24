@@ -1,6 +1,5 @@
 var peer = Math.random().toString(36).substr(2)
 
-
 // ***************************
 // http
 // ***************************
@@ -36,13 +35,15 @@ function braidify_http (http) {
             cb = arg3
         }
 
+        options = options || {}
+
         // Now we know where the `options` are specified, let's set headers.
         if (!options.headers)
             options.headers = {}
 
         // Add the subscribe header if this is a subscription
         if (options.subscribe)
-            options.headers.subscribe = 'keep-alive'
+            options.headers.subscribe = 'true'
 
         // Always add the `peer` header
         options.headers.peer = options.headers.peer || peer
@@ -153,10 +154,7 @@ function braid_fetch (url, params = {}) {
     if (params.parents)
         params.headers.set('parents', params.parents.map(JSON.stringify).join(', '))
     if (params.subscribe)
-        params.headers.set('subscribe',
-                            (typeof params.subscribe === 'number'
-                             ? 'keep-alive=' + params.subscribe
-                             : 'keep-alive'))
+        params.headers.set('subscribe', 'true')
 
     // Prepare patches
     if (params.patches) {
@@ -626,4 +624,3 @@ if (typeof module !== 'undefined' && module.exports)
         parse_headers,
         parse_body
     }
-

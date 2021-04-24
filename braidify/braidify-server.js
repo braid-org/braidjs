@@ -2,6 +2,12 @@ var assert = require('assert')
 
 // Write an array of patches into the pseudoheader format.
 function generate_patches(res, patches) {
+    for (let patch of patches) {
+        assert(typeof patch.unit    === 'string')
+        assert(typeof patch.range   === 'string')
+        assert(typeof patch.content === 'string')
+    }
+
     // This will return something like:
     // Patches: n
     // 
@@ -14,11 +20,11 @@ function generate_patches(res, patches) {
     // ...
     var result = `Patches: ${patches.length}\r\n`
     for (let patch of patches)
-        result += `
-content-length: ${patch.content.length}
-content-range: ${patch.unit} ${patch.range}
-
-${patch.content}
+        result += `\r
+content-length: ${patch.content.length}\r
+content-range: ${patch.unit} ${patch.range}\r
+\r
+${patch.content}\r
 `
     return result
 }
@@ -118,18 +124,10 @@ function braidify (req, res, next) {
         peer = req.headers['peer'],
         url = req.url.substr(1)
 
-    // Parse the subscribe header as one of these forms:
-    //
-    //   keep-alive
-    //   keep-alive=number
-    //
+    // Parse the subscribe header
     var subscribe = req.headers.subscribe
-    if (subscribe) {
-        let match = req.headers.subscribe.match(/keep-alive(=(\w+))?/)
-        if (match)
-            subscribe =
-                match[2] ? {keep_alive: parseInt(match[2])} : {keep_alive: true}
-    }
+    if (subscribe === 'true')
+        subscribe = true
 
     // Define convenience variables
     req.version   = version

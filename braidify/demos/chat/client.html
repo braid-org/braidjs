@@ -64,7 +64,7 @@
   function connect () {
       fetch(
           new URL(path, window.location.href),
-          {subscribe: {keep_alive: true}},
+          {subscribe: true},
       ).andThen(response => {
           console.log('Connected!', response)
 
@@ -91,7 +91,7 @@
   async function connect2 () {
       try {
           for await (var response of fetch(new URL(path, window.location.href),
-                                           {subscribe: {keep_alive: true}})) {
+                                           {subscribe: true})) {
 
               console.log('Connected!', response)
 
