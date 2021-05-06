@@ -1,0 +1,11 @@
+{
+  "name": "@braid.org/json-patch",
+  "version": "1.0.0",
+  "description": "Patch JSON",
+  "main": "apply_patch.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "author": "",
+  "license": "ISC"
+}
