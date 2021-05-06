@@ -11,3 +11,6 @@ patch(json, '.b[3]', 99)
 console.log(json)
 // {a: "foo", b: [1, 99, 3]}
 ```
+
+This library mutates your JSON objects in-place.  If you want a copy, then
+clone your object first.
