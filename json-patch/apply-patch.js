@@ -26,17 +26,21 @@ function apply_patch (obj, range, content) {
             slice_start = match[5],
             slice_end = match[6]
 
+        // The field could be expressed as [nnn] instead of .nnn
+        if (subpath === '[' + match[6] + ']')
+            field = match[6]
+
         slice_start = slice_start && de_neg(slice_start)
         slice_end = slice_end && de_neg(slice_end)
 
         // console.log('Descending', {curr_obj, path, subpath, field, slice_start, slice_end, last_obj})
 
         // If it's the final item, set it
-        if (path.length == subpath.length) {
+        if (path.length === subpath.length) {
             if (field)                               // Object
                 curr_obj[field] = new_stuff
-            else if (typeof curr_obj == 'string') {  // String
-                console.assert(typeof new_stuff == 'string')
+            else if (typeof curr_obj === 'string') {  // String
+                console.assert(typeof new_stuff === 'string')
                 if (!slice_start) {slice_start = slice_end; slice_end = slice_end+1}
                 if (last_obj) {
                     var s = last_obj[last_field]
