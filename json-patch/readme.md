@@ -3,7 +3,7 @@
 This library patches JSON objects using the Braid range-patch format.
 
 Using it:
-```
+```javascript
 var patch = require('@braid.org/json-patch')
 var json = {a: "foo", b: [1,2,3]}
 
