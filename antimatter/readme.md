@@ -1,12 +1,12 @@
 # antimatter: prune history on a CRDT
 
-`var {antimatter, json_crdt, sequence_crdt} = require('@braid.org/antimatter')`
+`var {antimatter, json, sequence} = require('@braid.org/antimatter')`
 
-antimatter is a peer-to-peer network algorithm that keeps track of what can be pruned in a crdt, in order for peers to still be able to reconnect with each other and merge their changes. The `antimatter` object is a subclass of the `json_crdt` object, adding some additional methods to a JSON CRDT.
+antimatter is a peer-to-peer network algorithm that keeps track of what can be pruned in a crdt, in order for peers to still be able to reconnect with each other and merge their changes. The `antimatter` object is a subclass of the `json` object, adding some additional methods to a JSON CRDT.
 
-`json_crdt` is a pruneable JSON CRDT -- JSON meaning it represents an arbitrary JSON datstructure, CRDT meaning this structure can be merged with other ones, and pruneable meaning that the meta-data necessary for this merging can also be removed when it is no longer needed (whereas CRDT's often keep track of this meta-data forever).
+`json` is a pruneable JSON CRDT -- JSON meaning it represents an arbitrary JSON datstructure, CRDT meaning this structure can be merged with other ones, and pruneable meaning that the meta-data necessary for this merging can also be removed when it is no longer needed (whereas CRDT's often keep track of this meta-data forever).
 
-`sequence_crdt` is a pruneable sequence CRDT -- sequence meaning it represents a javascript string or array, CRDT and pruneable having the same meaning as for `json_crdt` above. `json_crdt` makes recursive use of `sequence_crdt` structures to represent arbitrary JSON (for instance, a map is represented with a `sequence_crdt` structure for each value, where the first element in the sequence is the value).
+`sequence` is a pruneable sequence CRDT -- sequence meaning it represents a javascript string or array, CRDT and pruneable having the same meaning as for `json` above. `json` makes recursive use of `sequence` structures to represent arbitrary JSON (for instance, a map is represented with a `sequence` structure for each value, where the first element in the sequence is the value).
 
 [click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
 
@@ -148,74 +148,74 @@ antimatter_instance.set({range: '.life.meaning', content: 42})
 
 ---
 
-# json_crdt.create([init])
-create a new json_crdt object (or start with `init`, and add stuff to that).
+# json.create([init])
+create a new json object (or start with `init`, and add stuff to that).
 
 ``` js
-var json_crdt_instance = json_crdt.create()
+var json_instance = json.create()
 ```
 
-# json_crdt_instance.read()
-returns an instance of the json object represented by this json_crdt data-structure
+# json_instance.read()
+returns an instance of the json object represented by this json data-structure
 
 ``` js
-console.log(json_crdt_instance.read())
+console.log(json_instance.read())
 ```
 
-# json_crdt_instance.generate_braid(versions)
-returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to an antimatter's `receive` method, we'll reconstruct the data in this json_crdt datastructure, assuming the recipient already has the given `versions` (which is represented as an object where each key is a version, and each value is `true`).
+# json_instance.generate_braid(versions)
+returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to an antimatter's `receive` method, we'll reconstruct the data in this json datastructure, assuming the recipient already has the given `versions` (which is represented as an object where each key is a version, and each value is `true`).
 
 ``` js
-json_crdt_instance.generate_braid({alice2: true, bob3: true})
+json_instance.generate_braid({alice2: true, bob3: true})
 ```
 
-# json_crdt_instance.apply_bubbles(to_bubble)
+# json_instance.apply_bubbles(to_bubble)
 this method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions -- these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble; "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to it's parents. a bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. this method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to.
 
 ``` js
-json_crdt_instance.apply_bubbles({alice4: ['bob5', 'alice4'], bob5: ['bob5', 'alice4']})
+json_instance.apply_bubbles({alice4: ['bob5', 'alice4'], bob5: ['bob5', 'alice4']})
 ```
 
-# json_crdt_instance.add_version(version, parents, patches[, sort_keys])
-the main method for modifying a json_crdt data structure.
+# json_instance.add_version(version, parents, patches[, sort_keys])
+the main method for modifying a json data structure.
 * `version`: unique string associated with this edit.
 * `parents`: a set of versions that this version is aware of, represented as a map with versions as keys, and values of `true`.
 * `patches`: an array of patches, where each patch is an object like this `{range: '.life.meaning', content: 42}`
 * `sort_keys`: (optional) an object where each key is an index, and the value is a sort_key to use with the patch at the given index in the `patches` array -- a sort_key overrides the version for a patch for the purposes of sorting.. this can be useful after doing some pruning.
 
 ``` js
-json_crdt_instance.add_version('alice6',
+json_instance.add_version('alice6',
     {alice5: true, bob7: true},
     [{range: '.a.b', content: 'c'}])
 ```
 
-# json_crdt_instance.ancestors(versions, ignore_nonexistent=false)
+# json_instance.ancestors(versions, ignore_nonexistent=false)
 gather `versions` and all their ancestors into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true -- we'll basically return a larger set. if `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our datastructure.
 
 ``` js
-json_crdt_instance.ancestors({alice12: true, bob10: true})
+json_instance.ancestors({alice12: true, bob10: true})
 ```
 
-# json_crdt_instance.get_leaves(versions)
+# json_instance.get_leaves(versions)
 returns a set of versions from `versions` which don't also have a child in `versions`. `versions` is itself a set of versions, represented as an object with version keys and `true` values, and the return value is represented the same way.
 
-# json_crdt_instance.parse_patch(patch)
+# json_instance.parse_patch(patch)
 takes a patch in the form `{range, content}`, and returns an object of the form `{path: [...], [slice: [...]], [delete: true], content}`; basically calling `parse_json_path` on `patch.range`, and adding `patch.content` along for the ride.
 
-# json_crdt_instance.parse_json_path(json_path)
+# json_instance.parse_json_path(json_path)
 parses the string `json_path` into an object like: `{path: [...], [slice: [...]], [delete: true]}`.
 * `a.b[3]` --> `{path: ['a', 'b', 3]}`
 * `a.b[3:5]` --> `{path: ['a', 'b'], slice: [3, 5]}`
 * `delete a.b` --> `{path: ['a', 'b'], delete: true}`
 
 ``` js
-console.log(json_crdt_instance.parse_json_path('a.b.c'))
+console.log(json_instance.parse_json_path('a.b.c'))
 ```
 
 ---
 
-# sequence_crdt.create_node(version, elems, [end_cap, sort_key])
-creates a node for a sequence_crdt sequence CRDT with the given properties. the resulting node will look like this:
+# sequence.create_node(version, elems, [end_cap, sort_key])
+creates a node for a sequence sequence CRDT with the given properties. the resulting node will look like this:
 
 ``` js
 {
@@ -228,68 +228,68 @@ creates a node for a sequence_crdt sequence CRDT with the given properties. the 
     next : null // final node following this one (after all the nexts)
 }
 
-var sequence_crdt_node = sequence_crdt.create_node('alice1', 'hello')
+var sequence_node = sequence.create_node('alice1', 'hello')
 ```
 
-# sequence_crdt.generate_braid(root_node, version, is_anc)
-reconstructs an array of splice-information which can be passed to `sequence_crdt.add_version` in order to add `version` to another sequence_crdt instance -- the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
+# sequence.generate_braid(root_node, version, is_anc)
+reconstructs an array of splice-information which can be passed to `sequence.add_version` in order to add `version` to another sequence instance -- the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
 
 ``` js
-var root_node = sequence_crdt.create_node('alice1', 'hello')
-console.log(sequence_crdt.generate_braid(root_node, 'alice1', x => false)) // outputs [0, 0, "hello"]
+var root_node = sequence.create_node('alice1', 'hello')
+console.log(sequence.generate_braid(root_node, 'alice1', x => false)) // outputs [0, 0, "hello"]
 ```
 
-# sequence_crdt.apply_bubbles(root_node, to_bubble)
+# sequence.apply_bubbles(root_node, to_bubble)
 this method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions -- these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble. we will rename the given version to the "bottom" of the bubble. "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to it's parents. a bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. this method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to.
 
 ``` js
-sequence_crdt.apply_bubbles(root_node, {alice4: ['bob5', 'alice4'], bob5: ['bob5', 'alice4']})
+sequence.apply_bubbles(root_node, {alice4: ['bob5', 'alice4'], bob5: ['bob5', 'alice4']})
 ```
 
-# sequence_crdt.get(root_node, i, is_anc)
+# sequence.get(root_node, i, is_anc)
 returns the element at the `i`th position (0-based) in the sequence rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
 
 ``` js
-var x = sequence_crdt.get(root_node, 2, {alice1: true})
+var x = sequence.get(root_node, 2, {alice1: true})
 ```
 
-# sequence_crdt.set(root_node, i, v, is_anc)
+# sequence.set(root_node, i, v, is_anc)
 sets the element at the `i`th position (0-based) in the sequence rooted at `root_node` to the value `v`, when only considering versions which result in `true` when passed to `is_anc`.
 
 ``` js
-sequence_crdt.set(root_node, 2, 'x', {alice1: true})
+sequence.set(root_node, 2, 'x', {alice1: true})
 ```
 
-# sequence_crdt.length(root_node, is_anc)
+# sequence.length(root_node, is_anc)
 returns the length of the sequence rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
 
 ``` js
-console.log(sequence_crdt.length(root_node, {alice1: true}))
+console.log(sequence.length(root_node, {alice1: true}))
 ```
 
-# sequence_crdt.break_node(node, break_position, end_cap, new_next)
-this methods breaks apart a sequence_crdt node into two nodes, each representing a subsequence of the sequence represented by the original node; the `node` parameter is modified into the first node, and the second node is returned. the first node represents the elements of the sequence before `break_position`, and the second node represents the rest of the elements. if `end_cap` is truthy, then the first node will have `end_cap` set -- this is generally done if the elements in the second node are being replaced. this method will add `new_next` to the first node's `nexts` array.
+# sequence.break_node(node, break_position, end_cap, new_next)
+this methods breaks apart a sequence node into two nodes, each representing a subsequence of the sequence represented by the original node; the `node` parameter is modified into the first node, and the second node is returned. the first node represents the elements of the sequence before `break_position`, and the second node represents the rest of the elements. if `end_cap` is truthy, then the first node will have `end_cap` set -- this is generally done if the elements in the second node are being replaced. this method will add `new_next` to the first node's `nexts` array.
 
 ``` js
-var node = sequence_crdt.create_node('alice1', 'hello')
+var node = sequence.create_node('alice1', 'hello')
 // node node.elems == 'hello'
 
-var second = sequence_crdt.break_node(node, 2)
+var second = sequence.break_node(node, 2)
 // now node.elems   == 'he',
 // and second.elems == 'llo'
 ```
 
-# sequence_crdt.add_version(root_node, version, splices, [is_anc])
-this is the main method of sequence_crdt, used to modify the sequence. the modification must be given a unique `version` string, and the modification itself is represented as an array of `splices`, where each splice looks like this: `[position, num_elements_to_delete, elements_to_insert, optional_sort_key]`. note that all positions are relative to the original sequence, before any splices have been applied. positions are counted by only considering nodes with versions which result in `true` when passed to `is_anc` (and are not `deleted_by` any versions which return `true` when passed to `is_anc`).
+# sequence.add_version(root_node, version, splices, [is_anc])
+this is the main method of sequence, used to modify the sequence. the modification must be given a unique `version` string, and the modification itself is represented as an array of `splices`, where each splice looks like this: `[position, num_elements_to_delete, elements_to_insert, optional_sort_key]`. note that all positions are relative to the original sequence, before any splices have been applied. positions are counted by only considering nodes with versions which result in `true` when passed to `is_anc` (and are not `deleted_by` any versions which return `true` when passed to `is_anc`).
 
 ``` js
-var node = sequence_crdt.create_node('alice1', 'hello')
-sequence_crdt.add_version(node, 'alice2', [[5, 0, ' world']], null, v => v == 'alice1')
+var node = sequence.create_node('alice1', 'hello')
+sequence.add_version(node, 'alice2', [[5, 0, ' world']], null, v => v == 'alice1')
 ```
 
-# sequence_crdt.traverse(root_node, is_anc, callback, [view_deleted, tail_callback])
+# sequence.traverse(root_node, is_anc, callback, [view_deleted, tail_callback])
 traverses the subset of nodes in the tree rooted at `root_node` whos versions return true when passed to `is_anc`. for each node, `callback` is called with these parameters: `node, offset, has_nexts, prev, version, deleted`, where `node` is the current node being traversed; `offset` says how many elements we have passed so far getting here; `has_nexts` is true if some of this node's `nexts` will be traversed according to `is_anc`; `prev` is a pointer to the node whos `next` points to this one, or `null` if this is the root node; `version` is the version of this node, or this node's `prev` if our version is `null`, or that node's `prev` if it is also `null`, etc; `deleted` is true if this node is deleted according to `is_anc` (usually we skip deleted nodes when traversing, but we'll include them if `view_deleted` is `true`). `tail_callback` is an optional callback that will get called with a single parameter `node` after all of that node's children `nexts` and `next` have been traversed.
 
 ``` js
-sequence_crdt.traverse(node, () => true, node => process.stdout.write(node.elems))
+sequence.traverse(node, () => true, node => process.stdout.write(node.elems))
 ```
