@@ -1,6 +1,6 @@
 # antimatter: a pruning JSON CRDT.
 
-`var {antimatter, sync9, sync8} = require('@glittle/antimatter')`
+`var {antimatter, sync9, sync8} = require('@braid.org/antimatter')`
 
 antimatter is a peer-to-peer network algorithm that keeps track of what can be pruned in a sync9 data structure, in order for peers to still be able to reconnect with each other and merge their changes. antimatter is implemented as a subclass of sync9, so an antimatter object is a sync9 object with additional methods.
 
@@ -8,7 +8,7 @@ sync9 is a pruneable JSON CRDT -- JSON meaning it represents an arbitrary JSON d
 
 sync8 is a pruneable sequence CRDT -- sequence meaning it represents a javascript string or array, CRDT and pruneable having the same meaning as for sync9 above. sync9 makes recursive use of sync8 structures to represent arbitrary JSON (for instance, a map is represented with a sync8 structure for each value, where the first element in the sequence is the value).
 
-[click here to see this README side-by-side with the source code.](https://dglittle.github.io/antimatter/doc.html)
+[click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
 
 # API
 
