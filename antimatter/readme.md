@@ -149,21 +149,21 @@ antimatter_instance.set({range: '.life.meaning', content: 42})
 ---
 
 # json.create([init])
-create a new json object (or start with `init`, and add stuff to that).
+create a new `json` crdt object (or start with `init`, and add stuff to that).
 
 ``` js
 var json_instance = json.create()
 ```
 
 # json_instance.read()
-returns an instance of the json object represented by this json data-structure
+returns an instance of the `json` object represented by this json data-structure
 
 ``` js
 console.log(json_instance.read())
 ```
 
 # json_instance.generate_braid(versions)
-returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to an antimatter's `receive` method, we'll reconstruct the data in this json datastructure, assuming the recipient already has the given `versions` (which is represented as an object where each key is a version, and each value is `true`).
+returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to `antimatter.receive()`, we'll reconstruct the data in this `json` datastructure, assuming the recipient already has the given `versions` (which is represented as an object where each key is a version, and each value is `true`).
 
 ``` js
 json_instance.generate_braid({alice2: true, bob3: true})
@@ -177,7 +177,7 @@ json_instance.apply_bubbles({alice4: ['bob5', 'alice4'], bob5: ['bob5', 'alice4'
 ```
 
 # json_instance.add_version(version, parents, patches[, sort_keys])
-the main method for modifying a json data structure.
+the main method for modifying a `json` data structure.
 * `version`: unique string associated with this edit.
 * `parents`: a set of versions that this version is aware of, represented as a map with versions as keys, and values of `true`.
 * `patches`: an array of patches, where each patch is an object like this `{range: '.life.meaning', content: 42}`
@@ -215,7 +215,7 @@ console.log(json_instance.parse_json_path('a.b.c'))
 ---
 
 # sequence.create_node(version, elems, [end_cap, sort_key])
-creates a node for a sequence sequence CRDT with the given properties. the resulting node will look like this:
+creates a node for a `sequence` sequence CRDT with the given properties. the resulting node will look like this:
 
 ``` js
 {
@@ -232,7 +232,7 @@ var sequence_node = sequence.create_node('alice1', 'hello')
 ```
 
 # sequence.generate_braid(root_node, version, is_anc)
-reconstructs an array of splice-information which can be passed to `sequence.add_version` in order to add `version` to another sequence instance -- the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
+reconstructs an array of splice-information which can be passed to `sequence.add_version` in order to add `version` to another `sequence` instance -- the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
 
 ``` js
 var root_node = sequence.create_node('alice1', 'hello')
@@ -247,28 +247,28 @@ sequence.apply_bubbles(root_node, {alice4: ['bob5', 'alice4'], bob5: ['bob5', 'a
 ```
 
 # sequence.get(root_node, i, is_anc)
-returns the element at the `i`th position (0-based) in the sequence rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
+returns the element at the `i`th position (0-based) in the `sequence` rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
 
 ``` js
 var x = sequence.get(root_node, 2, {alice1: true})
 ```
 
 # sequence.set(root_node, i, v, is_anc)
-sets the element at the `i`th position (0-based) in the sequence rooted at `root_node` to the value `v`, when only considering versions which result in `true` when passed to `is_anc`.
+sets the element at the `i`th position (0-based) in the `sequence` rooted at `root_node` to the value `v`, when only considering versions which result in `true` when passed to `is_anc`.
 
 ``` js
 sequence.set(root_node, 2, 'x', {alice1: true})
 ```
 
 # sequence.length(root_node, is_anc)
-returns the length of the sequence rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
+returns the length of the `sequence` rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
 
 ``` js
 console.log(sequence.length(root_node, {alice1: true}))
 ```
 
 # sequence.break_node(node, break_position, end_cap, new_next)
-this methods breaks apart a sequence node into two nodes, each representing a subsequence of the sequence represented by the original node; the `node` parameter is modified into the first node, and the second node is returned. the first node represents the elements of the sequence before `break_position`, and the second node represents the rest of the elements. if `end_cap` is truthy, then the first node will have `end_cap` set -- this is generally done if the elements in the second node are being replaced. this method will add `new_next` to the first node's `nexts` array.
+this methods breaks apart a `sequence` node into two nodes, each representing a subsequence of the sequence represented by the original node; the `node` parameter is modified into the first node, and the second node is returned. the first node represents the elements of the sequence before `break_position`, and the second node represents the rest of the elements. if `end_cap` is truthy, then the first node will have `end_cap` set -- this is generally done if the elements in the second node are being replaced. this method will add `new_next` to the first node's `nexts` array.
 
 ``` js
 var node = sequence.create_node('alice1', 'hello')
@@ -280,7 +280,7 @@ var second = sequence.break_node(node, 2)
 ```
 
 # sequence.add_version(root_node, version, splices, [is_anc])
-this is the main method of sequence, used to modify the sequence. the modification must be given a unique `version` string, and the modification itself is represented as an array of `splices`, where each splice looks like this: `[position, num_elements_to_delete, elements_to_insert, optional_sort_key]`. note that all positions are relative to the original sequence, before any splices have been applied. positions are counted by only considering nodes with versions which result in `true` when passed to `is_anc` (and are not `deleted_by` any versions which return `true` when passed to `is_anc`).
+this is the main method of `sequence`, used to modify the sequence. the modification must be given a unique `version` string, and the modification itself is represented as an array of `splices`, where each splice looks like this: `[position, num_elements_to_delete, elements_to_insert, optional_sort_key]`. note that all positions are relative to the original sequence, before any splices have been applied. positions are counted by only considering nodes with versions which result in `true` when passed to `is_anc` (and are not `deleted_by` any versions which return `true` when passed to `is_anc`).
 
 ``` js
 var node = sequence.create_node('alice1', 'hello')
