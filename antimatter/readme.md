@@ -2,7 +2,7 @@
 
 [Antimatter](https://braid.org/antimatter) is a peer-to-peer network algorithm that computes the historical data that can be pruned in a OT or CRDT, even while peers disconnect and reconnect and need to merge their old changes.  This package demonstrates the world's first peer-to-peer synchronization algorithm that prunes its history.
 
-The API provides three objects:
+This package implements three objects:
 ```
 var {antimatter, json_crdt, sequence_crdt} = require('@braid.org/antimatter')
 ```
