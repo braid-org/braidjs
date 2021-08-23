@@ -1,4 +1,4 @@
-# antimatter: an algorithm to prune history on a CRDT
+# antimatter: an algorithm that prunes CRDT/OT history
 
 `var {antimatter, json_crdt, sequence_crdt} = require('@braid.org/antimatter')`
 
