@@ -4,9 +4,9 @@
 
 `Antimatter` is a peer-to-peer network algorithm that computes what can be pruned in a OT or CRDT, in order for peers to still be able to reconnect with each other and merge their changes. The `antimatter` object is a subclass of the `json_crdt` object, adding some additional methods to a JSON CRDT.
 
-`json_crdt` is a pruneable JSON CRDT -- JSON meaning it represents an arbitrary JSON datstructure, CRDT meaning this structure can be merged with other ones, and pruneable meaning that the meta-data necessary for this merging can also be removed when it is no longer needed (whereas CRDT's often keep track of this meta-data forever).
+`json_crdt` is a pruneable JSON CRDT — JSON meaning it represents an arbitrary JSON datstructure, CRDT meaning this structure can be merged with other ones, and pruneable meaning that the meta-data necessary for this merging can also be removed when it is no longer needed (whereas CRDT's often keep track of this meta-data forever).
 
-`sequence_crdt` is a pruneable sequence CRDT -- sequence meaning it represents a javascript string or array, CRDT and pruneable having the same meaning as for `json` above. `json` makes recursive use of `sequence` structures to represent arbitrary JSON (for instance, a map is represented with a `sequence` structure for each value, where the first element in the sequence is the value).
+`sequence_crdt` is a pruneable sequence CRDT — sequence meaning it represents a javascript string or array, CRDT and pruneable having the same meaning as for `json` above. `json` makes recursive use of `sequence` structures to represent arbitrary JSON (for instance, a map is represented with a `sequence` structure for each value, where the first element in the sequence is the value).
 
 [click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
 
@@ -119,21 +119,21 @@ sent in response to a `get`, basically contains the initial state of the documen
 ```
 
 # antimatter_instance.get(peer) or connect(peer)
-connect to the given peer -- triggers this antimatter object to send a `get` message to the given peer
+connect to the given peer — triggers this antimatter object to send a `get` message to the given peer
 
 ``` js
 alice_antimatter_instance.get('bob')
 ```
 
 # antimatter_instance.forget(peer)
-disconnect from the given peer without creating a fissure -- we don't need to reconnect with them.. it seems.. if we do, then we need to call disconnect instead, which will create a fissure allowing us to reconnect.
+disconnect from the given peer without creating a fissure — we don't need to reconnect with them.. it seems.. if we do, then we need to call disconnect instead, which will create a fissure allowing us to reconnect.
 
 ``` js
 alice_antimatter_instance.forget('bob')
 ```
 
 # antimatter_instance.disconnect(peer)
-if we detect that a peer has disconnected, let the antimatter object know by calling this method with the given peer -- this will create a fissure so we can reconnect with this peer if they come back
+if we detect that a peer has disconnected, let the antimatter object know by calling this method with the given peer — this will create a fissure so we can reconnect with this peer if they come back
 
 ``` js
 alice_antimatter_instance.disconnect('bob')
@@ -170,7 +170,7 @@ json_instance.generate_braid({alice2: true, bob3: true})
 ```
 
 # json_instance.apply_bubbles(to_bubble)
-this method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions -- these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble; "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to it's parents. a bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. this method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to.
+this method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions — these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble; "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to it's parents. a bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. this method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to.
 
 ``` js
 json_instance.apply_bubbles({alice4: ['bob5', 'alice4'], bob5: ['bob5', 'alice4']})
@@ -181,7 +181,7 @@ the main method for modifying a `json` data structure.
 * `version`: unique string associated with this edit.
 * `parents`: a set of versions that this version is aware of, represented as a map with versions as keys, and values of `true`.
 * `patches`: an array of patches, where each patch is an object like this `{range: '.life.meaning', content: 42}`
-* `sort_keys`: (optional) an object where each key is an index, and the value is a sort_key to use with the patch at the given index in the `patches` array -- a sort_key overrides the version for a patch for the purposes of sorting.. this can be useful after doing some pruning.
+* `sort_keys`: (optional) an object where each key is an index, and the value is a sort_key to use with the patch at the given index in the `patches` array — a sort_key overrides the version for a patch for the purposes of sorting.. this can be useful after doing some pruning.
 
 ``` js
 json_instance.add_version('alice6',
@@ -190,7 +190,7 @@ json_instance.add_version('alice6',
 ```
 
 # json_instance.ancestors(versions, ignore_nonexistent=false)
-gather `versions` and all their ancestors into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true -- we'll basically return a larger set. if `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our datastructure.
+gather `versions` and all their ancestors into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true — we'll basically return a larger set. if `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our datastructure.
 
 ``` js
 json_instance.ancestors({alice12: true, bob10: true})
@@ -232,7 +232,7 @@ var sequence_node = sequence.create_node('alice1', 'hello')
 ```
 
 # sequence.generate_braid(root_node, version, is_anc)
-reconstructs an array of splice-information which can be passed to `sequence.add_version` in order to add `version` to another `sequence` instance -- the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
+reconstructs an array of splice-information which can be passed to `sequence.add_version` in order to add `version` to another `sequence` instance — the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
 
 ``` js
 var root_node = sequence.create_node('alice1', 'hello')
@@ -240,7 +240,7 @@ console.log(sequence.generate_braid(root_node, 'alice1', x => false)) // outputs
 ```
 
 # sequence.apply_bubbles(root_node, to_bubble)
-this method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions -- these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble. we will rename the given version to the "bottom" of the bubble. "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to it's parents. a bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. this method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to.
+this method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions — these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble. we will rename the given version to the "bottom" of the bubble. "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to it's parents. a bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. this method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to.
 
 ``` js
 sequence.apply_bubbles(root_node, {alice4: ['bob5', 'alice4'], bob5: ['bob5', 'alice4']})
@@ -268,7 +268,7 @@ console.log(sequence.length(root_node, {alice1: true}))
 ```
 
 # sequence.break_node(node, break_position, end_cap, new_next)
-this methods breaks apart a `sequence` node into two nodes, each representing a subsequence of the sequence represented by the original node; the `node` parameter is modified into the first node, and the second node is returned. the first node represents the elements of the sequence before `break_position`, and the second node represents the rest of the elements. if `end_cap` is truthy, then the first node will have `end_cap` set -- this is generally done if the elements in the second node are being replaced. this method will add `new_next` to the first node's `nexts` array.
+this methods breaks apart a `sequence` node into two nodes, each representing a subsequence of the sequence represented by the original node; the `node` parameter is modified into the first node, and the second node is returned. the first node represents the elements of the sequence before `break_position`, and the second node represents the rest of the elements. if `end_cap` is truthy, then the first node will have `end_cap` set — this is generally done if the elements in the second node are being replaced. this method will add `new_next` to the first node's `nexts` array.
 
 ``` js
 var node = sequence.create_node('alice1', 'hello')
