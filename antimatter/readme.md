@@ -1,6 +1,6 @@
 # antimatter: an algorithm that prunes CRDT/OT history
 
-[Antimatter](https://braid.org/antimatter) is the world's first peer-to-peer synchronization algorithm that can prune its history, while peers disconnect and reconnect and need to merge their old changes.  In steady state it prunes down to zero overhead.
+[Antimatter](https://braid.org/antimatter) is the world's first peer-to-peer synchronization algorithm that can prune its history, while peers disconnect and reconnect and need to merge their old changes.  Antimatter supports arbitrary simultaneous edits from arbitrary peers, under arbitrary network delays and partitions, and guarantees full CRDT/OT consistency after the edits, while pruning unnecessary history within each partitioned subnet, and across subnets once they reconnect.
 
 This package implements a working system composed of three objects:
 ```
