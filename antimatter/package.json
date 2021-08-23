@@ -1,0 +1,11 @@
+{
+  "name": "@braidjs/antimatter",
+  "version": "0.0.8",
+  "description": "antimatter: a pruning algorithm for CRDTs and other mergeables",
+  "main": "antimatter.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/braid-org/braidjs.git"
+  },
+  "homepage": "https://braid.org/antimatter"
+}

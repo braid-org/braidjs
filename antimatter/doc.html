@@ -1,0 +1,75 @@
+<head>
+<link rel="stylesheet" href="https://unpkg.com/@highlightjs/cdn-assets@11.1.0/styles/default.min.css">
+</head>
+
+<script src="https://unpkg.com/marked"></script>
+
+<script src="https://unpkg.com/@highlightjs/cdn-assets@11.1.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.1.0/languages/javascript.min.js"></script>
+
+<body></body>
+<script>
+
+;(async () => {
+    let x = await fetch(`https://dglittle.github.io/antimatter/index.js`)
+    x = await x.text()
+    let code = x
+
+    x = await fetch(`https://dglittle.github.io/antimatter/README.md`)
+    x = await x.text()
+    let md = x
+
+    let code_blocks = []
+    if (true) {
+        let agg = code_blocks = []
+        let prev_o = 0
+        code.replace(/^[\t ]*(?:antimatter|self|sync9|sync8)\.(?:.*?) = (?:.*?)=> \(?\{\n|^[\t ]*(?:\} else )?if \(cmd == (?:.*?)\) \{\n/gm, (_0, o) => {
+            agg.push(code.slice(prev_o, o))
+            prev_o = o
+        })
+        agg.push(code.slice(prev_o))
+    }
+    code_blocks = code_blocks.filter(x => x)
+
+    let md_blocks = []
+    if (true) {
+        let agg = md_blocks = []
+        let prev_o = 0
+        md.replace(/^(?:# antimatter|# sync9|# sync8|## message)/gm, (_0, o) => {
+            agg.push(md.slice(prev_o, o))
+            prev_o = o
+        })
+        agg.push(md.slice(prev_o))
+    }
+    md_blocks = md_blocks.filter(x => x)
+
+    function make_md(s) {
+        let d = make_html(`<div style="background:hsl(${Math.random() * 360}, 100%, 100%);width:50%"></div>`)
+        d.innerHTML = marked(s)
+        return d
+    }
+
+    function make_code(s) {
+        let vv = hljs.highlight(s, {language: 'javascript'}).value
+        let d = make_html(`<pre style="margin:0px;background:hsl(${Math.random() * 360}, 100%, 100%);width:50%">${vv}</pre>`)
+        return d
+    }
+
+    while (md_blocks.length) {
+        let left = md_blocks.shift()
+        let right = code_blocks.shift()
+
+        let d = make_html(`<div style="border-top:1px solid black;display:flex;align-items: start;"></div>`)
+        d.append(make_md(left))
+        d.append(make_code(right))
+        document.body.append(d)
+    }
+})()
+
+function make_html(s) {
+    let d = document.createElement('div')
+    d.innerHTML = s
+    return d.firstChild
+}
+
+</script>
