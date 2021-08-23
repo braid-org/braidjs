@@ -3,7 +3,7 @@ var antimatter = {}    // The antimatter algorithm
 var json = {}          // A json crdt
 var sequence = {}      // A sequence crdt
 
-if (typeof module != 'undefined') module.exports = {antimatter, json_crdt: json, sequence_crdt: sequence}
+if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 
 ;(() => {
     antimatter.create = (send, self) => {
