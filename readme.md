@@ -13,6 +13,7 @@ This is not my code.  This is *our* code.
 
 Add yours today!
 
+ - `antimatter`: [An implementation of the Antimatter Algorithm](https://github.com/braid-org/braidjs/tree/master/antimatter)
  - `braidify`: [A reference implementation of the Braid Protocol](https://github.com/braid-org/braidjs/tree/master/braidify)
  - `kernel`: [A prototype Braid Kernel](https://github.com/braid-org/braidjs/tree/master/kernel)
  - `sync9`: [A CRDT that supports pruning history](https://github.com/braid-org/braidjs/tree/master/sync9)
