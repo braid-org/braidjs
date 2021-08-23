@@ -2,7 +2,7 @@
 
 `var {antimatter, json_crdt, sequence_crdt} = require('@braid.org/antimatter')`
 
-*Antimatter* is a peer-to-peer network algorithm that computes the historical data that can be pruned in a OT or CRDT, even while peers disconnect and reconnect and need to merge their old changes.
+[Antimatter](https://braid.org/antimatter) is a peer-to-peer network algorithm that computes the historical data that can be pruned in a OT or CRDT, even while peers disconnect and reconnect and need to merge their old changes.
 
 This package exposes 3 objects:
 - `antimatter` is a subclass of the `json_crdt` object, adding the antimatter algorithm methods to a json crdt.
