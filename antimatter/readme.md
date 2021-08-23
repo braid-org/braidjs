@@ -1,14 +1,14 @@
 # antimatter: an algorithm that prunes CRDT/OT history
 
-[Antimatter](https://braid.org/antimatter) is a peer-to-peer network algorithm that computes the historical data that can be pruned in a OT or CRDT, even while peers disconnect and reconnect and need to merge their old changes.  This package demonstrates the world's first peer-to-peer synchronization algorithm that prunes its history.
+[Antimatter](https://braid.org/antimatter) is the world's first peer-to-peer network algorithm that can prune unnecessary history data in a OT, CRDT, or DVCS while peers disconnect and reconnect and need to merge their old changes.  In steady-state it prunes down to zero overhead.
 
-This package implements three objects:
+This package implements three objects to demonstrate a working system:
 ```
 var {antimatter, json, sequence} = require('@braid.org/antimatter')
 ```
-- `antimatter` is a subclass of the `json` CRDT object, adding the antimatter algorithm methods to a JSON CRDT.
-- `json` is a pruneable JSON CRDT — JSON meaning it represents an arbitrary JSON datstructure, CRDT meaning this structure can be merged with other ones, and pruneable meaning that it supports an operation to remove meta-data when it is no longer needed (whereas CRDT's often keep track of this meta-data forever).
-- `sequence` is a pruneable sequence CRDT — sequence meaning it represents a javascript string or array, CRDT and pruneable having the same meaning as for `json` above. `json` makes recursive use of `sequence` structures to represent arbitrary JSON (for instance, a map is represented with a `sequence` structure for each value, where the first element in the sequence is the value).
+- `sequence` is a pruneable sequence CRDT — sequence meaning it represents a javascript string or array, CRDT meaning this structure can be merged with other ones, and pruneable meaning that it supports an operation to remove meta-data when it is no longer needed (whereas CRDT's often keep track of this meta-data forever).
+- `json` is a pruneable JSON CRDT — JSON meaning it represents an arbitrary JSON datstructure, and CRDT and pruneable having the same meaning as for `sequence` above.  `json` makes recursive use of `sequence` structures to represent arbitrary JSON (for instance, a map is represented with a `sequence` structure for each value, where the first element in the sequence is the value).
+- `antimatter` subclasses the `json` CRDT object, and adds antimatter algorithm methods to it so that it can communicate with other peers to learn which history can be pruned, and tells the `json` object to prune it.
 
 [click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
 
