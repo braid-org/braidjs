@@ -1,13 +1,13 @@
 
-var antimatter = {}
-var sync9 = {}
-var sync8 = {}
+var antimatter = {}    // The antimatter algorithm
+var json = {}          // A json crdt
+var sequence = {}      // A sequence crdt
 
-if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
+if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 
 ;(() => {
     antimatter.create = (send, self) => {
-        self = sync9.create(self)
+        self = json.create(self)
 
         self.id = self.id ?? Math.random().toString(36).slice(2)
         self.next_seq = self.next_seq ?? 0
@@ -324,7 +324,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         return self
     }
 
-    sync9.create = self => {
+    json.create = self => {
         self = self ?? {}     
         self.S = self.S ?? null
         self.T = self.T ?? {}
@@ -342,7 +342,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
             function rec_read(x) {
                 if (x && typeof(x) == 'object') {
                     if (x.t == 'lit') return JSON.parse(JSON.stringify(x.S))
-                    if (x.t == 'val') return rec_read(sync8.get(x.S, 0, is_anc))
+                    if (x.t == 'val') return rec_read(sequence.get(x.S, 0, is_anc))
                     if (x.t == 'obj') {
                         var o = {}
                         Object.entries(x.S).forEach(([k, v]) => {
@@ -353,14 +353,14 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                     }
                     if (x.t == 'arr') {
                         var a = []
-                        sync8.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
+                        sequence.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
                             if (!deleted) node.elems.forEach((e) => a.push(rec_read(e)))
                         }, true)
                         return a
                     }
                     if (x.t == 'str') {
                         var s = []
-                        sync8.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
+                        sequence.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
                             if (!deleted) s.push(node.elems)
                         }, true)
                         return s.join('')
@@ -402,22 +402,22 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                 function recurse(x) {
                     if (is_lit(x)) {
                     } else if (x.t === 'val') {
-                        sync8.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
                             if (s[2].length) {
                                 patches.push(`${path.join('')} = ${JSON.stringify(s[2][0])}`)
                                 if (s[3]) sort_keys[patches.length - 1] = s[3]
                             }
                         })
-                        sync8.traverse(x.S, is_anc, node => {
+                        sequence.traverse(x.S, is_anc, node => {
                             node.elems.forEach(recurse)
                         })
                     } else if (x.t === 'arr') {
-                        sync8.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
                             patches.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
                             if (s[3]) sort_keys[patches.length - 1] = s[3]
                         })
                         var i = 0
-                        sync8.traverse(x.S, is_anc, node => {
+                        sequence.traverse(x.S, is_anc, node => {
                             node.elems.forEach(e => {
                                 path.push(`[${i++}]`)
                                 recurse(e)
@@ -431,7 +431,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                             path.pop()
                         })
                     } else if (x.t === 'str') {
-                        sync8.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
                             patches.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
                             if (s[3]) sort_keys[patches.length - 1] = s[3]
                         })
@@ -451,16 +451,16 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
             function recurse(x) {
                 if (is_lit(x)) return x
                 if (x.t == 'val') {
-                    sync8.apply_bubbles(x.S, to_bubble)
-                    sync8.traverse(x.S, () => true, node => {
+                    sequence.apply_bubbles(x.S, to_bubble)
+                    sequence.traverse(x.S, () => true, node => {
                         node.elems = node.elems.slice(0, 1).map(recurse)
                     }, true)
                     if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.length == 1 && is_lit(x.S.elems[0])) return x.S.elems[0]
                     return x
                 }
                 if (x.t == 'arr') {
-                    sync8.apply_bubbles(x.S, to_bubble)
-                    sync8.traverse(x.S, () => true, node => {
+                    sequence.apply_bubbles(x.S, to_bubble)
+                    sequence.traverse(x.S, () => true, node => {
                         node.elems = node.elems.map(recurse)
                     }, true)
                     if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.every(is_lit) && !Object.keys(x.S.deleted_by).length) return {t: 'lit', S: x.S.elems.map(get_lit)}
@@ -479,7 +479,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                     return x
                 }
                 if (x.t == 'str') {
-                    sync8.apply_bubbles(x.S, to_bubble)
+                    sequence.apply_bubbles(x.S, to_bubble)
                     if (x.S.nexts.length == 0 && !x.S.next && !Object.keys(x.S.deleted_by).length) return x.S.elems
                     return x
                 }
@@ -543,8 +543,8 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                 var cur = resolve_path(parse)
                 if (!parse.slice) {
                     if (cur.t != 'val') throw 'bad'
-                    var len = sync8.length(cur.S, is_anc)
-                    sync8.add_version(cur.S, version, [[0, len, [parse.delete ? null : make_lit(parse.value)], sort_key]], is_anc)
+                    var len = sequence.length(cur.S, is_anc)
+                    sequence.add_version(cur.S, version, [[0, len, [parse.delete ? null : make_lit(parse.value)], sort_key]], is_anc)
                     rebased_patches.push(patch)
                 } else {
                     if (typeof parse.value === 'string' && cur.t !== 'str')
@@ -557,12 +557,12 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                     var r0 = parse.slice[0]
                     var r1 = parse.slice[1]
                     if (r0 < 0 || Object.is(r0, -0) || r1 < 0 || Object.is(r1, -0)) {
-                        let len = sync8.length(cur.S, is_anc)
+                        let len = sequence.length(cur.S, is_anc)
                         if (r0 < 0 || Object.is(r0, -0)) r0 = len + r0
                         if (r1 < 0 || Object.is(r1, -0)) r1 = len + r1
                     }
 
-                    var rebased_splices = sync8.add_version(cur.S, version, [[r0, r1 - r0, parse.value, sort_key]], is_anc)
+                    var rebased_splices = sequence.add_version(cur.S, version, [[r0, r1 - r0, parse.value, sort_key]], is_anc)
                     for (let rebased_splice of rebased_splices) rebased_patches.push(`${parse.path.map(x => `[${JSON.stringify(x)}]`).join('')}[${rebased_splice[0]}:${rebased_splice[0] + rebased_splice[1]}] = ${JSON.stringify(rebased_splice[2])}`)
                 }
             })
@@ -570,17 +570,17 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
             function resolve_path(parse) {
                 var cur = self.S
                 if (!cur || typeof(cur) != 'object' || cur.t == 'lit')
-                    cur = self.S = {t: 'val', S: sync8.create_node(null, [cur])}
+                    cur = self.S = {t: 'val', S: sequence.create_node(null, [cur])}
                 var prev_S = null
                 var prev_i = 0
                 for (var i=0; i<parse.path.length; i++) {
                     var key = parse.path[i]
-                    if (cur.t == 'val') cur = sync8.get(prev_S = cur.S, prev_i = 0, is_anc)
+                    if (cur.t == 'val') cur = sequence.get(prev_S = cur.S, prev_i = 0, is_anc)
                     if (cur.t == 'lit') {
                         var new_cur = {}
                         if (cur.S instanceof Array) {
                             new_cur.t = 'arr'
-                            new_cur.S = sync8.create_node(null, cur.S.map(x => make_lit(x)))
+                            new_cur.S = sequence.create_node(null, cur.S.map(x => make_lit(x)))
                         } else {
                             if (typeof(cur.S) != 'object') throw 'bad'
                             new_cur.t = 'obj'
@@ -588,29 +588,29 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                             Object.entries(cur.S).forEach(e => new_cur.S[e[0]] = make_lit(e[1]))
                         }
                         cur = new_cur
-                        sync8.set(prev_S, prev_i, cur, is_anc)
+                        sequence.set(prev_S, prev_i, cur, is_anc)
                     }
                     if (cur.t == 'obj') {
                         let x = cur.S[key]
                         if (!x || typeof(x) != 'object' || x.t == 'lit')
-                            x = cur.S[key] = {t: 'val', S: sync8.create_node(null, [x == null ? null : x])}
+                            x = cur.S[key] = {t: 'val', S: sequence.create_node(null, [x == null ? null : x])}
                         cur = x
                     } else if (i == parse.path.length - 1 && !parse.slice) {
                         parse.slice = [key, key + 1]
                         parse.value = (cur.t == 'str') ? parse.value : [parse.value]
                     } else if (cur.t == 'arr') {
-                        cur = sync8.get(prev_S = cur.S, prev_i = key, is_anc)
+                        cur = sequence.get(prev_S = cur.S, prev_i = key, is_anc)
                     } else throw 'bad'
                 }
                 if (parse.slice) {
-                    if (cur.t == 'val') cur = sync8.get(prev_S = cur.S, prev_i = 0, is_anc)
+                    if (cur.t == 'val') cur = sequence.get(prev_S = cur.S, prev_i = 0, is_anc)
                     if (typeof(cur) == 'string') {
-                        cur = {t: 'str', S: sync8.create_node(null, cur)}
-                        sync8.set(prev_S, prev_i, cur, is_anc)
+                        cur = {t: 'str', S: sequence.create_node(null, cur)}
+                        sequence.set(prev_S, prev_i, cur, is_anc)
                     } else if (cur.t == 'lit') {
                         if (!(cur.S instanceof Array)) throw 'bad'
-                        cur = {t: 'arr', S: sync8.create_node(null, cur.S.map(x => make_lit(x)))}
-                        sync8.set(prev_S, prev_i, cur, is_anc)
+                        cur = {t: 'arr', S: sequence.create_node(null, cur.S.map(x => make_lit(x)))}
+                        sequence.set(prev_S, prev_i, cur, is_anc)
                     }
                 }
                 return cur
@@ -664,7 +664,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         return self
     }
 
-    sync8.create_node = (version, elems, end_cap, sort_key) => ({
+    sequence.create_node = (version, elems, end_cap, sort_key) => ({
         version,
         sort_key,
         elems,
@@ -674,7 +674,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         next : null
     })
 
-    sync8.generate_braid = (S, version, is_anc) => {
+    sequence.generate_braid = (S, version, is_anc) => {
         var splices = []
 
         function add_ins(offset, ins, sort_key, end_cap) {
@@ -727,9 +727,9 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         return splices
     }
 
-    sync8.apply_bubbles = (S, to_bubble) => {
+    sequence.apply_bubbles = (S, to_bubble) => {
 
-        sync8.traverse(S, () => true, node => {
+        sequence.traverse(S, () => true, node => {
             if (to_bubble[node.version] && to_bubble[node.version][0] != node.version) {
                 if (!node.sort_key) node.sort_key = node.version
                 node.version = to_bubble[node.version][0]
@@ -787,10 +787,10 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         }
     }
 
-    sync8.get = (S, i, is_anc) => {
+    sequence.get = (S, i, is_anc) => {
         var ret = null
         var offset = 0
-        sync8.traverse(S, is_anc ? is_anc : () => true, (node) => {
+        sequence.traverse(S, is_anc ? is_anc : () => true, (node) => {
             if (i - offset < node.elems.length) {
                 ret = node.elems[i - offset]
                 return false
@@ -800,9 +800,9 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         return ret
     }
 
-    sync8.set = (S, i, v, is_anc) => {
+    sequence.set = (S, i, v, is_anc) => {
         var offset = 0
-        sync8.traverse(S, is_anc ? is_anc : () => true, (node) => {
+        sequence.traverse(S, is_anc ? is_anc : () => true, (node) => {
             if (i - offset < node.elems.length) {
                 if (typeof node.elems == 'string') node.elems = node.elems.slice(0, i - offset) + v + node.elems.slice(i - offset + 1)
                 else node.elems[i - offset] = v
@@ -812,16 +812,16 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         })
     }
 
-    sync8.length = (S, is_anc) => {
+    sequence.length = (S, is_anc) => {
         var count = 0
-        sync8.traverse(S, is_anc ? is_anc : () => true, node => {
+        sequence.traverse(S, is_anc ? is_anc : () => true, node => {
             count += node.elems.length
         })
         return count
     }
 
-    sync8.break_node = (node, x, end_cap, new_next) => {
-        var tail = sync8.create_node(null, node.elems.slice(x), node.end_cap)
+    sequence.break_node = (node, x, end_cap, new_next) => {
+        var tail = sequence.create_node(null, node.elems.slice(x), node.end_cap)
         Object.assign(tail.deleted_by, node.deleted_by)
         tail.nexts = node.nexts
         tail.next = node.next
@@ -834,7 +834,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         return tail
     }
 
-    sync8.add_version = (S, version, splices, is_anc) => {
+    sequence.add_version = (S, version, splices, is_anc) => {
 
         var rebased_splices = []
         
@@ -858,14 +858,14 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
             if (deleted) {
                 if (s[1] == 0 && s[0] == offset) {
                     if (node.elems.length == 0 && !node.end_cap && has_nexts) return
-                    var new_node = sync8.create_node(version, s[2], null, sort_key)
+                    var new_node = sequence.create_node(version, s[2], null, sort_key)
 
                     rebased_splices.push([rebase_offset, 0, s[2]])
 
                     if (node.elems.length == 0 && !node.end_cap)
                         add_to_nexts(node.nexts, new_node)
                     else
-                        sync8.break_node(node, 0, undefined, new_node)
+                        sequence.break_node(node, 0, undefined, new_node)
                     si++
                 }
                 return            
@@ -875,14 +875,14 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                 var d = s[0] - (offset + node.elems.length)
                 if (d > 0) return
                 if (d == 0 && !node.end_cap && has_nexts) return
-                var new_node = sync8.create_node(version, s[2], null, sort_key)
+                var new_node = sequence.create_node(version, s[2], null, sort_key)
 
                 rebased_splices.push([rebase_offset + s[0] - offset, 0, s[2]])
 
                 if (d == 0 && !node.end_cap) {
                     add_to_nexts(node.nexts, new_node)
                 } else {
-                    sync8.break_node(node, s[0] - offset, undefined, new_node)
+                    sequence.break_node(node, s[0] - offset, undefined, new_node)
                 }
                 si++
                 return
@@ -894,20 +894,20 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
                 delete_up_to = s[0] + s[1]
                 
                 if (s[2]) {
-                    var new_node = sync8.create_node(version, s[2], null, sort_key)
+                    var new_node = sequence.create_node(version, s[2], null, sort_key)
 
                     rebased_splices.push([rebase_offset + s[0] - offset, 0, s[2]])
 
                     if (s[0] == offset && prev && prev.end_cap) {
                         add_to_nexts(prev.nexts, new_node)
                     } else {
-                        sync8.break_node(node, s[0] - offset, true, new_node)
+                        sequence.break_node(node, s[0] - offset, true, new_node)
                         return
                     }
                 } else {
                     if (s[0] == offset) {
                     } else {
-                        sync8.break_node(node, s[0] - offset)
+                        sequence.break_node(node, s[0] - offset)
                         return
                     }
                 }
@@ -916,7 +916,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
             if (delete_up_to > offset) {
                 if (delete_up_to <= offset + node.elems.length) {
                     if (delete_up_to < offset + node.elems.length) {
-                        sync8.break_node(node, delete_up_to - offset)
+                        sequence.break_node(node, delete_up_to - offset)
                     }
                     si++
                 }
@@ -954,7 +954,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, sync9, sync8}
         return rebased_splices
     }
 
-    sync8.traverse = (S, f, cb, view_deleted, tail_cb) => {
+    sequence.traverse = (S, f, cb, view_deleted, tail_cb) => {
         var exit_early = {}
         var offset = 0
         function helper(node, prev, version) {

@@ -23,7 +23,7 @@
     if (true) {
         let agg = code_blocks = []
         let prev_o = 0
-        code.replace(/^[\t ]*(?:antimatter|self|sync9|sync8)\.(?:.*?) = (?:.*?)=> \(?\{\n|^[\t ]*(?:\} else )?if \(cmd == (?:.*?)\) \{\n/gm, (_0, o) => {
+        code.replace(/^[\t ]*(?:antimatter|self|json_crdt|sequence_crdt)\.(?:.*?) = (?:.*?)=> \(?\{\n|^[\t ]*(?:\} else )?if \(cmd == (?:.*?)\) \{\n/gm, (_0, o) => {
             agg.push(code.slice(prev_o, o))
             prev_o = o
         })
@@ -35,7 +35,7 @@
     if (true) {
         let agg = md_blocks = []
         let prev_o = 0
-        md.replace(/^(?:# antimatter|# sync9|# sync8|## message)/gm, (_0, o) => {
+        md.replace(/^(?:# antimatter|# json_crdt|# sequence_crdt|## message)/gm, (_0, o) => {
             agg.push(md.slice(prev_o, o))
             prev_o = o
         })

@@ -1,5 +1,5 @@
 
-var {antimatter} = require('./index.js')
+var {antimatter} = require('./antimatter.js')
 
 var A = antimatter.create((peer, x) => {
     B.receive(x)

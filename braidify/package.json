@@ -9,7 +9,6 @@
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
   "homepage": "https://braid.org",
-  "comment": "See package.md for notes and comments on this file.",
   "files": [
     "braidify-client.js",
     "braidify-server.js",
