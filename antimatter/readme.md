@@ -7,7 +7,7 @@ This package implements three objects:
 var {antimatter, json, sequence} = require('@braid.org/antimatter')
 ```
 - `antimatter` is a subclass of the `json` CRDT object, adding the antimatter algorithm methods to a JSON CRDT.
-- `json` is a pruneable JSON CRDT — JSON meaning it represents an arbitrary JSON datstructure, CRDT meaning this structure can be merged with other ones, and pruneable meaning that the meta-data necessary for this merging can also be removed when it is no longer needed (whereas CRDT's often keep track of this meta-data forever).
+- `json` is a pruneable JSON CRDT — JSON meaning it represents an arbitrary JSON datstructure, CRDT meaning this structure can be merged with other ones, and pruneable meaning that it supports an operation to remove meta-data when it is no longer needed (whereas CRDT's often keep track of this meta-data forever).
 - `sequence` is a pruneable sequence CRDT — sequence meaning it represents a javascript string or array, CRDT and pruneable having the same meaning as for `json` above. `json` makes recursive use of `sequence` structures to represent arbitrary JSON (for instance, a map is represented with a `sequence` structure for each value, where the first element in the sequence is the value).
 
 [click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
