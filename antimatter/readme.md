@@ -11,10 +11,10 @@ var {sequence, json, antimatter} = require('@braidjs/antimatter')
 - `json` is a pruneable JSON CRDT — JSON meaning it represents an arbitrary JSON datstructure, and CRDT and pruneable having the same meaning as for `sequence` above.  `json` makes recursive use of `sequence` structures to represent arbitrary JSON (for instance, a map is represented with a `sequence` structure for each value, where the first element in the sequence is the value).
 - `antimatter` subclasses the `json` CRDT object, and adds antimatter algorithm methods to it so that it can communicate with other peers to learn which history can be pruned, and tells the `json` object to prune it.
 
-[Click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
-
 The Antimatter Algorithm was invented by Michael Toomim and Greg Little in the
 [Invisible College](https://invisible.college/).
+
+[Click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
 
 # API
 
