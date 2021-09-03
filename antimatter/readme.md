@@ -13,7 +13,7 @@ var {sequence, json, antimatter} = require('@braidjs/antimatter')
 
 [Click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
 
-The Antimatter Algorithm was created by Michael Toomim and Greg Little in the
+The Antimatter Algorithm was invented by Michael Toomim and Greg Little in the
 [Invisible College](https://invisible.college/).
 
 # API
