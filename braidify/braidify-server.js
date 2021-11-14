@@ -206,8 +206,10 @@ function send_version(res, data, url, peer) {
     // Validate that the body and patches are strings
     if (body)
         assert(typeof body === 'string')
-    else
+    else {
+        assert(patches)
         patches.forEach(p => assert(typeof p.content === 'string'))
+    }
 
     // Write the headers or virtual headers
     for (var [header, value] of Object.entries(data)) {
