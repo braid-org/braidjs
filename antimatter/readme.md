@@ -209,7 +209,7 @@ json_instance.ancestors({alice12: true, bob10: true})
 gather `versions` and all their descendants into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true — we'll basically return a larger set. if `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our datastructure
 
 ``` js
-json_instance.ancestors({alice12: true, bob10: true})
+json_instance.descendants({alice12: true, bob10: true})
 ```
 
 # json_instance.get_leaves(versions)
