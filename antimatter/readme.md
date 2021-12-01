@@ -20,12 +20,12 @@ The Antimatter Algorithm was invented by Michael Toomim and Greg Little in the
 
 # antimatter.create(send[, init])
 creates and returns a new antimatter object (or adds antimatter methods and properties to `init`)
-* `send`: a callback function to be called whenever this antimatter wants to send a message to a peer antimatter. the function takes two parameters: `peer`, and `message`, where `peer` is a string id of the peer to send to, and `message` is a javascript object to send to them, where ultimately we want to call `receive` on the target peer, and pass it `message` as a parameter.
+* `send`: a callback function to be called whenever this antimatter wants to send a message over a connection registered with `get` or `connect`. the sole parameter to this function is a JSONafiable object that hopes to be passed to the `receive` method on the antimatter object at the other end of the connection specified in the `conn` key.
 * `init`: (optional) an antimatter object to start with, which we'll add any properties to that it doesn't have, and we'll add all the antimatter methods to it. this option exists so you can serialize an antimatter instance as JSON, and then restore it later.
 
 ``` js
-var antimatter_instance = antimatter.create((peer, msg) => {
-    websockets[peer].send(JSON.stringify(msg))
+var antimatter_instance = antimatter.create(msg => {
+    websockets[msg.conn].send(JSON.stringify(msg))
 }, JSON.parse(fs.readFileSync('./antimatter.backup')))
 ```
 
@@ -38,44 +38,39 @@ websocket.on('message', data => {
 });
 ```
 
-you generally do not need to mess with a message object directly, but here are the various message objects you might see:
+you generally do not need to mess with a message object directly, but below are the various message objects you might see, categorized by their `cmd` entry. note that each object also contains a `conn` entry with the id of the connection the message is sent over
 
-## message `get` or `get_back`
-`get` is the first message sent to a newly connected peer, and it will respond with `get_back`
+## message `get`
+`get` is the first message sent over a connection, and the peer at the other end will respond with `welcome`
 ``` js
-{cmd: 'get', peer: 'PEER_ID', conn: 'CONN_ID'}
+{cmd: 'get', peer: 'SENDER_ID', conn: 'CONN_ID'}
 ```
 
 ## message `forget`
-used to disconnect without creating a fissure
+used to disconnect without creating a fissure, presumably meaning the sending peer doesn't plan to make any edits while they're disconnected
 ``` js
-{cmd: 'forget', peer: 'PEER_ID', conn: 'CONN_ID'}
-```
-
-## message `forget_ack`
-sent in response to `forget`
-``` js
-{cmd: 'forget_ack', peer: 'PEER_ID', conn: 'CONN_ID'}
+{cmd: 'forget', conn: 'CONN_ID'}
 ```
 
 ## message `disconnect`
-issued locally when we detect that a peer has disconnected, in which case we'll set `fissure` to `true`; or when we are forgetting a peer (causing a disconnection), in which case we'll set `fissure` to `false`.
+issued locally when we detect that a peer has disconnected, in which case we'll set `fissure` to `true`; or when we are forgetting a peer, in which case we'll set `fissure` to `false`, since we don't plan to reconnect with them
 ``` js
-{cmd: 'disconnect', peer: 'PEER_ID', fissure: true or false}
+{cmd: 'disconnect', fissure: true or false, conn: 'CONN_ID'}
 ```
 
 ## message `fissure`
-sent to alert peers about a fissure. the fissure object contains information about the two peers involved in the fissure, the specific connection id that broke, the versions that need to be protected, and the time of the fissure (in case we want to ignore it after some time).
+sent to alert peers about a fissure. the `fissure` entry contains information about the two peers involved in the fissure, the specific connection id that broke, the `versions` that need to be protected, and the `time` of the fissure (in case we want to ignore it after some time). it is also possible to send multiple `fissures` in an array
 ``` js
 {
     cmd: 'fissure',
-    fissure: {
+    fissure: { // or fissures: [{...}, {...}, ...],
         a: 'PEER_A_ID',
         b: 'PEER_B_ID',
         conn: 'CONN_ID',
         versions: {'VERSION_ID': true, ...},
         time: Date.now()
-    }
+    },
+    conn: 'CONN_ID'
 }
 ```
 
@@ -88,61 +83,62 @@ sent to alert peers about a change in the document. the change is represented as
     parents: {'PARENT_VERSION_ID': true, ...},
     patches: [
         {range: '.json.path.a.b', content: 42}, ...
-    ]
+    ],
+    conn: 'CONN_ID'
 }
 ```
 
 ## message local `ack`
-sent in response to `set`, but not right away; a peer will first send the `set` to all its other peers, and only after they have all responded with a local `ack` will the peer send a local `ack` to the originating peer
+sent in response to `set`, but not right away; a peer will first send the `set` over all its other connections, and only after they have all responded with a local `ack` — and we didn't see a `fissure` message while waiting — will the peer send a local `ack` over the originating connection
 ``` js
-{cmd: 'ack', seen: 'local', version: 'VERSION_ID', peer: 'PEER_ID', conn: 'CONN_ID'}
+{cmd: 'ack', seen: 'local', version: 'VERSION_ID', conn: 'CONN_ID'}
 ```
 
 ## message global `ack`
-sent after an originating peer has received a local `ack` from all its peers, or by any peer who receives it to all its peers, so that everyone may come to know that this version has been seen by everyone in this peer group.
+sent after an originating peer has received a local `ack` over all its connections, or after any peer receives a global `ack`, so that everyone may come to know that this version has been seen by everyone in this peer group.
 ``` js
-{cmd: 'ack', seen: 'global', version: 'VERSION_ID', peer: 'PEER_ID', conn: 'CONN_ID'}
+{cmd: 'ack', seen: 'global', version: 'VERSION_ID', conn: 'CONN_ID'}
+```
+
+## message forget `ack`
+sent in response to `forget`.. so they know we forgot them
+``` js
+{cmd: 'ack', forget: true, conn: 'CONN_ID'}
 ```
 
 ## message `welcome`
-sent in response to a `get`, basically contains the initial state of the document; `welcome` messages are also propogated to our peers, with the inclusion of two extra fields: `unack_boundary` and `min_leaves` (these are meant to deal with the issue of a peer disconnecting during the connection process itself, in which case we'll want to include these "unack" versions in the resulting fissure)
+sent in response to a `get`, basically contains the initial state of the document; incoming `welcome` messages are also propagated over all our other connections (but only with information that was new to us, so that the propagation will eventually stop). when sent in response to a `get` (rather than being propogated), we include a `peer` entry with the id of the sending peer, so they know who we are, and to trigger them to send us their own `welcome` message
 ``` js
 {
     cmd: 'welcome',
     versions: [each version looks like a set message...],
-    fissures: [each fissure looks like the fissure property in a fissure message...],
+    fissures: [each fissure looks as it would in a fissure message...],
     parents: {'PARENT_VERSION_ID': true,
         ...versions you must have before consuming these new versions},
-
-    unack_boundary: {'VERSION_ID': true,
-        ...mark these and their ancestors as not-globally-acknowledged,
-        even if they were marked as such...},
-    min_leaves: {'VERSION_ID': true,
-        ...protect these and their ancestors from the unack_boundary's unacknowledging...},
-
-    peer: 'PEER_ID', conn: 'CONN_ID'
+    [ peer: 'SENDER_ID', ] // if sent in response to a get
+    conn: 'CONN_ID'
 }
 ```
 
-# antimatter_instance.get(peer) or connect(peer)
-connect to the given peer — triggers this antimatter object to send a `get` message to the given peer
+# antimatter_instance.get(conn) or connect(conn)
+register a new connection with id `conn` — triggers this antimatter object to send a `get` message over the given connection
 
 ``` js
-alice_antimatter_instance.get('bob')
+alice_antimatter_instance.get('connection_to_bob')
 ```
 
-# antimatter_instance.forget(peer)
-disconnect from the given peer without creating a fissure — we don't need to reconnect with them.. it seems.. if we do, then we need to call disconnect instead, which will create a fissure allowing us to reconnect.
+# antimatter_instance.forget(conn)
+disconnect the given connection without creating a fissure — we don't need to reconnect with them.. it seems.. if we do, then we need to call `disconnect` instead, which will create a fissure allowing us to reconnect
 
 ``` js
-alice_antimatter_instance.forget('bob')
+alice_antimatter_instance.forget('connection_to_bob')
 ```
 
-# antimatter_instance.disconnect(peer)
-if we detect that a peer has disconnected, let the antimatter object know by calling this method with the given peer — this will create a fissure so we can reconnect with this peer if they come back
+# antimatter_instance.disconnect(conn)
+if we detect that a connection has closed, let the antimatter object know by calling this method with the given connection id — this will create a fissure so we can reconnect with whoever was on the other end of the connection later on
 
 ``` js
-alice_antimatter_instance.disconnect('bob')
+alice_antimatter_instance.disconnect('connection_to_bob')
 ```
 
 # antimatter_instance.set(...patches)
