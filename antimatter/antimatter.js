@@ -23,46 +23,6 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         self.acks_in_process = self.acks_in_process ?? {}
         self.forget_cbs = self.forget_cbs ?? {}
 
-        self.resolve_fissures = () => {
-            let new_fissures = []
-            let unfissured = {}
-
-            Object.entries(self.fissures).forEach(([fk, f]) => {
-                var other_key = f.b + ':' + f.a + ':' + f.conn
-                var other = self.fissures[other_key]
-
-                if (!other && f.b == self.id && !self.proto_conns[f.conn] && !self.conns[f.conn]) {
-                    other = {...f, a: f.b, b: f.a}
-                    new_fissures.push(self.fissures[other_key] = other)
-                    self.acks_in_process = {}
-                }
-
-                if (other) {
-                    if (Object.keys(f.versions).length) {
-                        for (let v of Object.keys(f.versions)) unfissured[v] = true
-                        self.fissures[fk] = {...f, versions: {}}
-                    }
-                    if (Object.keys(other.versions).length) {
-                        for (let v of Object.keys(other.versions)) unfissured[v] = true
-                        self.fissures[other_key] = {...other, versions: {}}
-                    }
-                }
-            })
-
-            if (Object.keys(unfissured).length) {
-                let ack_versions = self.ancestors(self.acked_boundary)
-                let unfissured_descendants = self.descendants(unfissured, true)
-                for (let un of Object.keys(unfissured_descendants)) if (ack_versions[un]) delete ack_versions[un]
-                self.acked_boundary = self.get_leaves(ack_versions)
-
-                let u = self.ancestors(self.unack_boundary)
-                for (let x of Object.keys(self.ancestors(unfissured_descendants))) u[x] = true
-                self.unack_boundary = self.get_leaves(u)
-            }
-
-            return new_fissures
-        }
-
         self.receive = ({cmd, version, parents, patches, versions, fissure, fissures, seen, forget, peer, conn}) => {
         
             if (cmd == 'get' || (cmd == 'welcome' && peer != null)) {
@@ -90,7 +50,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 delete self.proto_conns[conn]
 
                 if (self.conns[conn] == null) {
-                    let new_fissures = self.resolve_fissures()
+                    let new_fissures = resolve_fissures()
                     if (new_fissures.length) for (let c of Object.keys(self.conns)) send({cmd: 'fissure', fissures: new_fissures, conn: c})
                 } else {
                     let peer = self.conns[conn]
@@ -111,7 +71,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         self.acks_in_process = {}
                     }
                 }
-                let extra_fissures = self.resolve_fissures()
+                let extra_fissures = resolve_fissures()
                 new_fissures = new_fissures.concat(extra_fissures)
 
                 if (extra_fissures.length) send({cmd: 'fissure', fissures: extra_fissures, conn})
@@ -178,7 +138,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         self.fissures[key] = f
                     }
                 })
-                let extra_fissures = self.resolve_fissures()
+                let extra_fissures = resolve_fissures()
                 new_fissures = new_fissures.concat(extra_fissures)
 
                 if (extra_fissures.length) send({cmd: 'fissure', fissures: extra_fissures, conn})
@@ -222,6 +182,46 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             let ack_versions = self.ancestors(self.acked_boundary)
             let versions = Object.fromEntries(Object.keys(self.T).filter(v => !ack_versions[v] || self.acked_boundary[v]).map(v => [v, true]))
             return {a: self.id, b: peer, conn, versions, time: Date.now()}
+        }
+
+        function resolve_fissures() {
+            let new_fissures = []
+            let unfissured = {}
+
+            Object.entries(self.fissures).forEach(([fk, f]) => {
+                var other_key = f.b + ':' + f.a + ':' + f.conn
+                var other = self.fissures[other_key]
+
+                if (!other && f.b == self.id && !self.proto_conns[f.conn] && !self.conns[f.conn]) {
+                    other = {...f, a: f.b, b: f.a}
+                    new_fissures.push(self.fissures[other_key] = other)
+                    self.acks_in_process = {}
+                }
+
+                if (other) {
+                    if (Object.keys(f.versions).length) {
+                        for (let v of Object.keys(f.versions)) unfissured[v] = true
+                        self.fissures[fk] = {...f, versions: {}}
+                    }
+                    if (Object.keys(other.versions).length) {
+                        for (let v of Object.keys(other.versions)) unfissured[v] = true
+                        self.fissures[other_key] = {...other, versions: {}}
+                    }
+                }
+            })
+
+            if (Object.keys(unfissured).length) {
+                let ack_versions = self.ancestors(self.acked_boundary)
+                let unfissured_descendants = self.descendants(unfissured, true)
+                for (let un of Object.keys(unfissured_descendants)) if (ack_versions[un]) delete ack_versions[un]
+                self.acked_boundary = self.get_leaves(ack_versions)
+
+                let u = self.ancestors(self.unack_boundary)
+                for (let x of Object.keys(self.ancestors(unfissured_descendants))) u[x] = true
+                self.unack_boundary = self.get_leaves(u)
+            }
+
+            return new_fissures
         }
 
         function prune() {
