@@ -52,6 +52,12 @@ used to disconnect without creating a fissure, presumably meaning the sending pe
 {cmd: 'forget', conn: 'CONN_ID'}
 ```
 
+## message forget `ack`
+sent in response to `forget`.. so they know we forgot them
+``` js
+{cmd: 'ack', forget: true, conn: 'CONN_ID'}
+```
+
 ## message `disconnect`
 issued locally when we detect that a peer has disconnected, in which case we'll set `fissure` to `true`; or when we are forgetting a peer, in which case we'll set `fissure` to `false`, since we don't plan to reconnect with them
 ``` js
@@ -98,12 +104,6 @@ sent in response to `set`, but not right away; a peer will first send the `set` 
 sent after an originating peer has received a local `ack` over all its connections, or after any peer receives a global `ack`, so that everyone may come to know that this version has been seen by everyone in this peer group.
 ``` js
 {cmd: 'ack', seen: 'global', version: 'VERSION_ID', conn: 'CONN_ID'}
-```
-
-## message forget `ack`
-sent in response to `forget`.. so they know we forgot them
-``` js
-{cmd: 'ack', forget: true, conn: 'CONN_ID'}
 ```
 
 ## message `welcome`
