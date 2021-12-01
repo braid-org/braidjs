@@ -45,6 +45,8 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 
                 delete self.conns[conn]
                 delete self.proto_conns[conn]
+            } else if (cmd == 'ack' && forget) {
+                self.forget_cbs[conn]()
             } else if (cmd == 'disconnect') {
                 if (self.conns[conn] == null && !self.proto_conns[conn]) throw Error('bad')
                 delete self.proto_conns[conn]
@@ -88,8 +90,6 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 
                 check_ack_count(version)
                 return rebased_patches
-            } else if (cmd == 'ack' && forget) {
-                self.forget_cbs[conn]()
             } else if (cmd == 'ack' && seen == 'local') {
                 if (self.acks_in_process[version]) {
                     self.acks_in_process[version].count--
