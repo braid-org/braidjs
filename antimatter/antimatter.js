@@ -1,6 +1,4 @@
 
-console.log('antimatter v415')
-
 var antimatter = {}    // The antimatter algorithm
 var json = {}          // A json crdt
 var sequence = {}      // A sequence crdt
