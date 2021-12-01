@@ -89,7 +89,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 check_ack_count(version)
                 return rebased_patches
             } else if (cmd == 'ack' && forget) {
-                self.forget_cbs[peer]()
+                self.forget_cbs[conn]()
             } else if (cmd == 'ack' && seen == 'local') {
                 if (self.acks_in_process[version]) {
                     self.acks_in_process[version].count--
