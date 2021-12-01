@@ -191,18 +191,32 @@ json_instance.add_version('alice6',
     [{range: '.a.b', content: 'c'}])
 ```
 
+# json_instance.get_child_map()
+returns a map where each key is a version, and each value is a set of child versions, represented as a map with versions as keys, and values of `true`.
+
+``` js
+json_instance.get_child_map()
+```
+
 # json_instance.ancestors(versions, ignore_nonexistent=false)
-gather `versions` and all their ancestors into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true — we'll basically return a larger set. if `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our datastructure.
+gather `versions` and all their ancestors into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true — we'll basically return a larger set. if `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our datastructure
+
+``` js
+json_instance.ancestors({alice12: true, bob10: true})
+```
+
+# json_instance.descendants(versions, ignore_nonexistent=false)
+gather `versions` and all their descendants into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true — we'll basically return a larger set. if `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our datastructure
 
 ``` js
 json_instance.ancestors({alice12: true, bob10: true})
 ```
 
 # json_instance.get_leaves(versions)
-returns a set of versions from `versions` which don't also have a child in `versions`. `versions` is itself a set of versions, represented as an object with version keys and `true` values, and the return value is represented the same way.
+returns a set of versions from `versions` which don't also have a child in `versions`. `versions` is itself a set of versions, represented as an object with version keys and `true` values, and the return value is represented the same way
 
 # json_instance.parse_patch(patch)
-takes a patch in the form `{range, content}`, and returns an object of the form `{path: [...], [slice: [...]], [delete: true], content}`; basically calling `parse_json_path` on `patch.range`, and adding `patch.content` along for the ride.
+takes a patch in the form `{range, content}`, and returns an object of the form `{path: [...], [slice: [...]], [delete: true], content}`; basically calling `parse_json_path` on `patch.range`, and adding `patch.content` along for the ride
 
 # json_instance.parse_json_path(json_path)
 parses the string `json_path` into an object like: `{path: [...], [slice: [...]], [delete: true]}`.
@@ -234,7 +248,7 @@ var sequence_node = sequence.create_node('alice1', 'hello')
 ```
 
 # sequence.generate_braid(root_node, version, is_anc)
-reconstructs an array of splice-information which can be passed to `sequence.add_version` in order to add `version` to another `sequence` instance — the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
+reconstructs an array of splice-information which can be passed to `sequence.add_version` in order to add `version` to another `sequence` instance — the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version)
 
 ``` js
 var root_node = sequence.create_node('alice1', 'hello')
