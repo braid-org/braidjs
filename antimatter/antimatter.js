@@ -47,19 +47,6 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 delete self.proto_conns[conn]
             } else if (cmd == 'ack' && forget) {
                 self.forget_cbs[conn]()
-            } else if (cmd == 'disconnect') {
-                if (self.conns[conn] == null && !self.proto_conns[conn]) throw Error('bad')
-                delete self.proto_conns[conn]
-
-                if (self.conns[conn] == null) {
-                    let new_fissures = resolve_fissures()
-                    if (new_fissures.length) for (let c of Object.keys(self.conns)) send({cmd: 'fissure', fissures: new_fissures, conn: c})
-                } else {
-                    let peer = self.conns[conn]
-                    delete self.conns[conn]
-
-                    if (fissure) self.receive({cmd: 'fissure', fissure: create_fissure(peer, conn)})
-                }
             } else if (cmd == 'fissure') {
                 if (fissure && fissures) throw Error('bad')
                 if (!fissures) fissures = [fissure]
@@ -164,12 +151,23 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     self.forget_cbs[conn] = done
                     send({cmd: 'forget', conn})
                 }
-                self.receive({cmd: 'disconnect', conn, fissure: false})
+                self.disconnect(conn, false)
             })
         }
 
-        self.disconnect = conn => {
-            self.receive({cmd: 'disconnect', conn, fissure: true})
+        self.disconnect = (conn, fissure=true) => {
+            if (self.conns[conn] == null && !self.proto_conns[conn]) return
+            delete self.proto_conns[conn]
+
+            if (self.conns[conn] == null) {
+                let new_fissures = resolve_fissures()
+                if (new_fissures.length) for (let c of Object.keys(self.conns)) send({cmd: 'fissure', fissures: new_fissures, conn: c})
+            } else {
+                let peer = self.conns[conn]
+                delete self.conns[conn]
+
+                if (fissure) self.receive({cmd: 'fissure', fissure: create_fissure(peer, conn)})
+            }
         }
 
         self.set = (...patches) => {
