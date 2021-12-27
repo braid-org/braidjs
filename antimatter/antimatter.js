@@ -586,7 +586,10 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     }
 
                     var rebased_splices = sequence.add_version(cur.S, version, [[r0, r1 - r0, parse.value, sort_key]], is_anc)
-                    for (let rebased_splice of rebased_splices) rebased_patches.push(`${parse.path.map(x => `[${JSON.stringify(x)}]`).join('')}[${rebased_splice[0]}:${rebased_splice[0] + rebased_splice[1]}] = ${JSON.stringify(rebased_splice[2])}`)
+                    for (let rebased_splice of rebased_splices) rebased_patches.push({
+                        range: `${parse.path.map(x => `[${JSON.stringify(x)}]`).join('')}[${rebased_splice[0]}:${rebased_splice[0] + rebased_splice[1]}]`,
+                        content: rebased_splice[2]
+                    })
                 }
             })
 
