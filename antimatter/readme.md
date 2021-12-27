@@ -62,13 +62,6 @@ Sent in response to `forget`.. so they know we forgot them.
 {cmd: 'ack', forget: true, conn: 'CONN_ID'}
 ```
 
-## message `disconnect`
-Issued locally when we detect that a peer has disconnected, in which case we'll set `fissure` to `true`; or when we are forgetting a peer, in which case we'll set `fissure` to `false`, since we don't plan to reconnect with them.
-
-``` js
-{cmd: 'disconnect', fissure: true or false, conn: 'CONN_ID'}
-```
-
 ## message `fissure`
 Sent to alert peers about a fissure. The `fissure` entry contains information about the two peers involved in the fissure, the specific connection id that broke, the `versions` that need to be protected, and the `time` of the fissure (in case we want to ignore it after some time). It is also possible to send multiple `fissures` in an array.
 
