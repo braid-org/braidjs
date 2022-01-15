@@ -144,6 +144,8 @@ function braid_fetch (url, params = {}) {
     // Initialize the headers object
     if (!params.headers)
         params.headers = new Headers()
+    if (!(params.headers instanceof Headers))
+        params.headers = new Headers(params.headers)
 
     // Always set the peer
     params.headers.set('peer', peer)
