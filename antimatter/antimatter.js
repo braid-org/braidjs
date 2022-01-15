@@ -1,4 +1,6 @@
 
+// v501
+
 var antimatter = {}    // The antimatter algorithm
 var json = {}          // A json crdt
 var sequence = {}      // A sequence crdt
@@ -8,10 +10,14 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 ;(() => {
     antimatter.create = (send, self) => {
         self = json.create(self)
+        self.send = send
 
         self.id = self.id ?? Math.random().toString(36).slice(2)
         self.next_seq = self.next_seq ?? 0
-        self.peers = self.peers ?? {}
+
+        self.conns = self.conns ?? {}
+        self.proto_conns = self.proto_conns ?? {}
+
         self.version_cache = self.version_cache ?? {}
         self.fissures = self.fissures ?? {}
         self.acked_boundary = self.acked_boundary ?? {}
@@ -19,55 +25,56 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         self.acks_in_process = self.acks_in_process ?? {}
         self.forget_cbs = self.forget_cbs ?? {}
 
-        var orig_send = send
-        send = (to, msg) => {
-            orig_send(to, {peer: self.id, conn: self.peers[to], ...msg})
-        }
+        self.receive = ({cmd, version, parents, patches, versions, fissure, fissures, seen, forget, peer, conn}) => {
+        
+            if (cmd == 'get' || (cmd == 'welcome' && peer != null)) {
+                if (self.conns[conn] != null) throw Error('bad')
+                self.conns[conn] = peer
 
-        self.receive = ({cmd, version, parents, patches, fissure, versions, fissures, unack_boundary, min_leaves, seen, peer, conn}) => {
-            if (cmd == 'get' || cmd == 'get_back') {
-                if (self.peers[peer]) throw 'bad'
-                self.peers[peer] = conn
-
-                if (cmd == 'get') send(peer, {cmd: 'get_back'})
-                send(peer, {cmd: 'welcome',
+                send({
+                    cmd: 'welcome',
                     versions: self.generate_braid(parents),
                     fissures: Object.values(self.fissures),
-                    parents: parents && Object.keys(parents).length ? self.get_leaves(self.ancestors(parents, true)) : {}
+                    parents: parents && Object.keys(parents).length ? self.get_leaves(self.ancestors(parents, true)) : {},
+                    ... cmd == 'get' ? {peer: self.id} : {},
+                    conn
                 })
-            } else if (cmd == 'forget') {
-                if (!self.peers[peer]) throw 'bad'
-                send(peer, {cmd: 'forget_ack'})
-                delete self.peers[peer]
-            } else if (cmd == 'forget_ack') {
-                self.forget_cbs[peer]()
-            } else if (cmd == 'disconnect') {
-                if (!self.peers[peer]) throw 'bad'
-                let conn = self.peers[peer]
-                delete self.peers[peer]
+            }
 
-                if (fissure) {
-                    let ack_versions = self.ancestors(self.acked_boundary)
-                    let versions = Object.fromEntries(Object.keys(self.T).filter(v => !ack_versions[v] || self.acked_boundary[v]).map(v => [v, true]))
-                    self.receive({cmd: 'fissure', fissure: {a: self.id, b: peer, conn, versions, time: Date.now()}})
-                }
+            if (cmd == 'forget') {
+                if (self.conns[conn] == null) throw Error('bad')
+                send({cmd: 'ack', forget: true, conn})
+
+                delete self.conns[conn]
+                delete self.proto_conns[conn]
+            } else if (cmd == 'ack' && forget) {
+                self.forget_cbs[conn]()
             } else if (cmd == 'fissure') {
-                var key = fissure.a + ':' + fissure.b + ':' + fissure.conn
-                if (!self.fissures[key]) {
-                    self.fissures[key] = fissure
-                    self.acks_in_process = {}
-                    for (let p of Object.keys(self.peers)) if (p != peer) send(p, {cmd: 'fissure', fissure})
-                    if (fissure.b == self.id) self.receive({cmd: 'fissure', fissure: {...fissure, a: self.id, b: fissure.a}})
+                if (fissure && fissures) throw Error('bad')
+                if (!fissures) fissures = [fissure]
+
+                let new_fissures = []
+                for (let fissure of fissures) {
+                    var key = fissure.a + ':' + fissure.b + ':' + fissure.conn
+                    if (!self.fissures[key]) {
+                        self.fissures[key] = fissure
+                        new_fissures.push(fissure)
+                        self.acks_in_process = {}
+                    }
                 }
+                let extra_fissures = resolve_fissures()
+                new_fissures = new_fissures.concat(extra_fissures)
+
+                if (extra_fissures.length) send({cmd: 'fissure', fissures: extra_fissures, conn})
+                if (new_fissures.length) for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'fissure', fissures: new_fissures, conn: c})
             } else if (cmd == 'set') {
-                for (p in parents) if (!self.T[p]) return send(peer, {cmd: 'error'})
-
-                if (!peer || !self.T[version]) {
+                if (conn == null || !self.T[version]) {
+                    for (p in parents) if (!self.T[p]) throw Error('bad')
+                    
                     var rebased_patches = self.add_version(version, parents, patches)
-                    for (let p of Object.keys(self.peers)) if (p != peer) send(p, {cmd: 'set', version, parents, patches})
+                    for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'set', version, parents, patches, conn: c})
 
-                    self.acks_in_process[version] = {origin: peer, count: Object.keys(self.peers).length}
-                    if (peer) self.acks_in_process[version].count--
+                    self.acks_in_process[version] = {origin: conn, count: Object.keys(self.conns).length - (conn != null ? 1 : 0)}
                 } else if (self.acks_in_process[version]) self.acks_in_process[version].count--
 
                 check_ack_count(version)
@@ -79,12 +86,14 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 }
             } else if (cmd == 'ack' && seen == 'global') {
                 if (!self.T[version]) return
-                if (self.ancestors(self.unack_boundary)[version]) return
+                if (self.ancestors(self.unack_boundary)[version]) return                
                 if (self.ancestors(self.acked_boundary)[version]) return
                 add_full_ack_leaf(version)
-                for (let p of Object.keys(self.peers)) if (p != peer) send(p, {cmd, seen, version})
+                for (let c of Object.keys(self.conns)) if (c != conn) send({cmd, seen, version, conn: c})
 
-            } else if (cmd == 'welcome') {
+            }
+
+            if (cmd == 'welcome') {
                 var versions_to_add = {}
                 versions.forEach(v => versions_to_add[v.version] = v.parents)
                 versions.forEach(v => {
@@ -99,101 +108,120 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     }
                 })
 
-                var send_error = () => send(peer, {cmd: 'error'})
-
                 var rebased_patches = []
                 var added_versions = []
                 for (var v of versions) {
                     if (versions_to_add[v.version]) {
-                        if (!Object.keys(v.parents).every(p => self.T[p])) return send_error()
+                        if (!Object.keys(v.parents).every(p => self.T[p])) throw Error('bad')
 
                         rebased_patches = rebased_patches.concat(self.add_version(v.version, v.parents, v.patches, v.sort_keys))
                         added_versions.push(v)
                     }
                 }
 
-                if (((min_leaves && Object.keys(min_leaves).some(k => !self.T[k])) || (unack_boundary && Object.keys(unack_boundary).some(k => !self.T[k])))) return send_error()
-
                 var new_fissures = []
-                var gen_fissures = []
                 fissures.forEach(f => {
                     var key = f.a + ':' + f.b + ':' + f.conn
                     if (!self.fissures[key]) {
-
                         new_fissures.push(f)
                         self.fissures[key] = f
-
-                        if (f.b == self.id) gen_fissures.push({...f, a: self.id, b: f.a})
                     }
                 })
+                let extra_fissures = resolve_fissures()
+                new_fissures = new_fissures.concat(extra_fissures)
 
-                if (!unack_boundary) unack_boundary = {...self.current_version}
-
-                var our_conn_versions = self.ancestors(self.T, self.unack_boundary)
-                var new_conn_versions = self.ancestors(self.T, unack_boundary)
-
-                Object.keys(self.unack_boundary).forEach(x => {
-                    if (new_conn_versions[x] && !unack_boundary[x])
-                        delete self.unack_boundary[x]
-                })
-                Object.keys(unack_boundary).forEach(x => {
-                    if (!our_conn_versions[x]) self.unack_boundary[x] = true
-                })
-                
-                if (!min_leaves) {
-                    if (versions.length === 0 && (!parents || Object.keys(parents).length === 0))
-                        min_leaves = {...self.current_version}
-                    else {
-                        min_leaves = parents ? {...parents} : {}
-                        versions.forEach(v => {
-                            if (!versions_to_add[v.version]) min_leaves[v.version] = true
-                        })
-                        min_leaves = self.get_leaves(self.ancestors(min_leaves, true))
-                    }
+                if (extra_fissures.length) send({cmd: 'fissure', fissures: extra_fissures, conn})
+                if (added_versions.length || new_fissures.length) {
+                    for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'welcome', versions: added_versions, fissures: new_fissures, conn: c})
                 }
-
-                var min_versions = self.ancestors(min_leaves)
-                var ack_versions = self.ancestors(self.acked_boundary)
-                Object.keys(self.acked_boundary).forEach(x => {
-                    if (!min_versions[x]) delete self.acked_boundary[x]
-                })
-                Object.keys(min_leaves).forEach(x => {
-                    if (ack_versions[x]) self.acked_boundary[x] = true
-                })
 
                 self.acks_in_process = {}
-
-                if (added_versions.length > 0 || new_fissures.length > 0) {
-                    for (let p of Object.keys(self.peers)) if (p != peer) send(p, {cmd: 'welcome', key, versions: added_versions, unack_boundary,min_leaves, fissures: new_fissures})
-                }
-
-                gen_fissures.forEach(f => self.receive({cmd: 'fissure', fissure: f}))
 
                 return rebased_patches
             }
         }
 
-        self.get = peer => {
-            send(peer, {cmd: 'get', conn: Math.random().toString(36).slice(2)})
+        self.get = conn => {
+            self.proto_conns[conn] = true
+            send({cmd: 'get', peer: self.id, conn})
         }
         self.connect = self.get
 
-        self.forget = async peer => {
+        self.forget = async conn => {
             await new Promise(done => {
-                self.forget_cbs[peer] = done
-                send(peer, {cmd: 'forget'})
-                self.receive({cmd: 'disconnect', peer, fissure: false})
+                if (self.conns[conn] != null) {
+                    self.forget_cbs[conn] = done
+                    send({cmd: 'forget', conn})
+                }
+                self.disconnect(conn, false)
             })
         }
 
-        self.disconnect = peer => {
-            self.receive({cmd: 'disconnect', peer, fissure: true})
+        self.disconnect = (conn, fissure=true) => {
+            if (self.conns[conn] == null && !self.proto_conns[conn]) return
+            delete self.proto_conns[conn]
+
+            if (self.conns[conn] == null) {
+                let new_fissures = resolve_fissures()
+                if (new_fissures.length) for (let c of Object.keys(self.conns)) send({cmd: 'fissure', fissures: new_fissures, conn: c})
+            } else {
+                let peer = self.conns[conn]
+                delete self.conns[conn]
+
+                if (fissure) self.receive({cmd: 'fissure', fissure: create_fissure(peer, conn)})
+            }
         }
 
         self.set = (...patches) => {
             var version = `${self.next_seq++}@${self.id}`
             self.receive({cmd: 'set', version, parents: {...self.current_version}, patches})
             return version
+        }
+
+        function create_fissure(peer, conn) {
+            let ack_versions = self.ancestors(self.acked_boundary)
+            let versions = Object.fromEntries(Object.keys(self.T).filter(v => !ack_versions[v] || self.acked_boundary[v]).map(v => [v, true]))
+            return {a: self.id, b: peer, conn, versions, time: Date.now()}
+        }
+
+        function resolve_fissures() {
+            let new_fissures = []
+            let unfissured = {}
+
+            Object.entries(self.fissures).forEach(([fk, f]) => {
+                var other_key = f.b + ':' + f.a + ':' + f.conn
+                var other = self.fissures[other_key]
+
+                if (!other && f.b == self.id && !self.proto_conns[f.conn] && !self.conns[f.conn]) {
+                    other = {...f, a: f.b, b: f.a}
+                    new_fissures.push(self.fissures[other_key] = other)
+                    self.acks_in_process = {}
+                }
+
+                if (other) {
+                    if (Object.keys(f.versions).length) {
+                        for (let v of Object.keys(f.versions)) unfissured[v] = true
+                        self.fissures[fk] = {...f, versions: {}}
+                    }
+                    if (Object.keys(other.versions).length) {
+                        for (let v of Object.keys(other.versions)) unfissured[v] = true
+                        self.fissures[other_key] = {...other, versions: {}}
+                    }
+                }
+            })
+
+            if (Object.keys(unfissured).length) {
+                let ack_versions = self.ancestors(self.acked_boundary)
+                let unfissured_descendants = self.descendants(unfissured, true)
+                for (let un of Object.keys(unfissured_descendants)) if (ack_versions[un]) delete ack_versions[un]
+                self.acked_boundary = self.get_leaves(ack_versions)
+
+                let u = self.ancestors(self.unack_boundary)
+                for (let x of Object.keys(self.ancestors(unfissured_descendants))) u[x] = true
+                self.unack_boundary = self.get_leaves(u)
+            }
+
+            return new_fissures
         }
 
         function prune() {
@@ -227,13 +255,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 if (!acked[x] || self.acked_boundary[x]) keep_us[x] = true
             })
 
-            var children = {}
-            Object.entries(self.T).forEach(([v, parents]) => {
-                Object.keys(parents).forEach(parent => {
-                    if (!children[parent]) children[parent] = {}
-                    children[parent][v] = true
-                })
-            })
+            var children = self.get_child_map()
 
             var to_bubble = {}
             var bubble_tops = {}
@@ -311,12 +333,13 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         }
 
         function check_ack_count(version) {
-            if (self.acks_in_process[version] && self.acks_in_process[version].count == 0) {
-                if (self.acks_in_process[version].origin) {
-                    send(self.acks_in_process[version].origin, {cmd: 'ack', seen: 'local', version})
+            let a = self.acks_in_process[version]
+            if (a?.count == 0) {
+                if (a.origin != null) {
+                    send({cmd: 'ack', seen: 'local', version, conn: a.origin})
                 } else {
                     add_full_ack_leaf(version)
-                    for (let p of Object.keys(self.peers)) send(p, {cmd: 'ack', seen: 'global', version})
+                    for (let c of Object.keys(self.conns)) send({cmd: 'ack', seen: 'global', version, conn: c})
                 }
             }
         }
@@ -335,8 +358,8 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         let make_lit = x => (x && typeof(x) == 'object') ? {t: 'lit', S: x} : x
             self = self ?? {}
     
-        self.read = () => {
-            let is_anc = () => true
+        self.read = (is_anc) => {
+            if (!is_anc) is_anc = () => true
 
             return rec_read(self.S)
             function rec_read(x) {
@@ -365,7 +388,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         }, true)
                         return s.join('')
                     }
-                    throw 'bad'
+                    throw Error('bad')
                 } return x
             }
         }
@@ -385,7 +408,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     return {
                         version,
                         parents: {},
-                        patches: [` = ${JSON.stringify(self.read(v => v == version))}`]
+                        patches: [{range: '', content: self.read(v => v == version)}]
                     }
                 }
             
@@ -404,7 +427,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     } else if (x.t === 'val') {
                         sequence.generate_braid(x.S, version, is_anc).forEach(s => {
                             if (s[2].length) {
-                                patches.push(`${path.join('')} = ${JSON.stringify(s[2][0])}`)
+                                patches.push({range: path.join(''), content: s[2][0]})
                                 if (s[3]) sort_keys[patches.length - 1] = s[3]
                             }
                         })
@@ -413,7 +436,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         })
                     } else if (x.t === 'arr') {
                         sequence.generate_braid(x.S, version, is_anc).forEach(s => {
-                            patches.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
+                            patches.push({range: `${path.join('')}[${s[0]}:${s[0] + s[1]}]`, content: s[2]})
                             if (s[3]) sort_keys[patches.length - 1] = s[3]
                         })
                         var i = 0
@@ -432,7 +455,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         })
                     } else if (x.t === 'str') {
                         sequence.generate_braid(x.S, version, is_anc).forEach(s => {
-                            patches.push(`${path.join('')}[${s[0]}:${s[0] + s[1]}] = ${JSON.stringify(s[2])}`)
+                            patches.push({range: `${path.join('')}[${s[0]}:${s[0] + s[1]}]`, content: s[2]})
                             if (s[3]) sort_keys[patches.length - 1] = s[3]
                         })
                     }
@@ -542,15 +565,15 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 var parse = self.parse_patch(patch)
                 var cur = resolve_path(parse)
                 if (!parse.slice) {
-                    if (cur.t != 'val') throw 'bad'
+                    if (cur.t != 'val') throw Error('bad')
                     var len = sequence.length(cur.S, is_anc)
                     sequence.add_version(cur.S, version, [[0, len, [parse.delete ? null : make_lit(parse.value)], sort_key]], is_anc)
                     rebased_patches.push(patch)
                 } else {
                     if (typeof parse.value === 'string' && cur.t !== 'str')
-                        throw `Cannot splice string ${JSON.stringify(parse.value)} into non-string`
+                        throw Error(`Cannot splice string ${JSON.stringify(parse.value)} into non-string`)
                     if (parse.value instanceof Array && cur.t !== 'arr')
-                        throw `Cannot splice array ${JSON.stringify(parse.value)} into non-array`
+                        throw Error(`Cannot splice array ${JSON.stringify(parse.value)} into non-array`)
                     if (parse.value instanceof Array)
                         parse.value = parse.value.map(x => make_lit(x))
 
@@ -563,7 +586,10 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     }
 
                     var rebased_splices = sequence.add_version(cur.S, version, [[r0, r1 - r0, parse.value, sort_key]], is_anc)
-                    for (let rebased_splice of rebased_splices) rebased_patches.push(`${parse.path.map(x => `[${JSON.stringify(x)}]`).join('')}[${rebased_splice[0]}:${rebased_splice[0] + rebased_splice[1]}] = ${JSON.stringify(rebased_splice[2])}`)
+                    for (let rebased_splice of rebased_splices) rebased_patches.push({
+                        range: `${parse.path.map(x => `[${JSON.stringify(x)}]`).join('')}[${rebased_splice[0]}:${rebased_splice[0] + rebased_splice[1]}]`,
+                        content: rebased_splice[2]
+                    })
                 }
             })
 
@@ -582,7 +608,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                             new_cur.t = 'arr'
                             new_cur.S = sequence.create_node(null, cur.S.map(x => make_lit(x)))
                         } else {
-                            if (typeof(cur.S) != 'object') throw 'bad'
+                            if (typeof(cur.S) != 'object') throw Error('bad')
                             new_cur.t = 'obj'
                             new_cur.S = {}
                             Object.entries(cur.S).forEach(e => new_cur.S[e[0]] = make_lit(e[1]))
@@ -600,7 +626,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         parse.value = (cur.t == 'str') ? parse.value : [parse.value]
                     } else if (cur.t == 'arr') {
                         cur = sequence.get(prev_S = cur.S, prev_i = key, is_anc)
-                    } else throw 'bad'
+                    } else throw Error('bad')
                 }
                 if (parse.slice) {
                     if (cur.t == 'val') cur = sequence.get(prev_S = cur.S, prev_i = 0, is_anc)
@@ -608,7 +634,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         cur = {t: 'str', S: sequence.create_node(null, cur)}
                         sequence.set(prev_S, prev_i, cur, is_anc)
                     } else if (cur.t == 'lit') {
-                        if (!(cur.S instanceof Array)) throw 'bad'
+                        if (!(cur.S instanceof Array)) throw Error('bad')
                         cur = {t: 'arr', S: sequence.create_node(null, cur.S.map(x => make_lit(x)))}
                         sequence.set(prev_S, prev_i, cur, is_anc)
                     }
@@ -619,16 +645,43 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             return rebased_patches
         }
 
+        self.get_child_map = () => {
+            let children = {}
+            Object.entries(self.T).forEach(([v, parents]) => {
+                Object.keys(parents).forEach(parent => {
+                    if (!children[parent]) children[parent] = {}
+                    children[parent][v] = true
+                })
+            })
+            return children
+        }
+
         self.ancestors = (versions, ignore_nonexistent) => {
             var result = {}
             function recurse(version) {
                 if (result[version]) return
                 if (!self.T[version]) {
                     if (ignore_nonexistent) return
-                    throw `The version ${version} no existo`
+                    throw Error(`The version ${version} no existo`)
                 }
                 result[version] = true
                 Object.keys(self.T[version]).forEach(recurse)
+            }
+            Object.keys(versions).forEach(recurse)
+            return result
+        }
+
+        self.descendants = (versions, ignore_nonexistent) => {
+            let children = self.get_child_map()
+            var result = {}
+            function recurse(version) {
+                if (result[version]) return
+                if (!self.T[version]) {
+                    if (ignore_nonexistent) return
+                    throw Error(`The version ${version} no existo`)
+                }
+                result[version] = true
+                Object.keys(children[version] ?? {}).forEach(recurse)
             }
             Object.keys(versions).forEach(recurse)
             return result
