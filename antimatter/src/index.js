@@ -1,11 +1,8 @@
-
 // v501
 
 var antimatter = {}    // The antimatter algorithm
 var json = {}          // A json crdt
 var sequence = {}      // A sequence crdt
-
-if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 
 ;(() => {
     antimatter.create = (send, self) => {
@@ -69,7 +66,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 if (new_fissures.length) for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'fissure', fissures: new_fissures, conn: c})
             } else if (cmd == 'set') {
                 if (conn == null || !self.T[version]) {
-                    for (p in parents) if (!self.T[p]) throw Error('bad')
+                    for (let p in parents) if (!self.T[p]) throw Error('bad')
                     
                     var rebased_patches = self.add_version(version, parents, patches)
                     for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'set', version, parents, patches, conn: c})
@@ -1048,3 +1045,5 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         return m;
     }
 })()
+
+export { antimatter, json, sequence }
