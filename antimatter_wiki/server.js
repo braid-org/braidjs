@@ -6,9 +6,8 @@ let fissure_lifetime = 1000 * 60 * 60 * 24 * 14
     console.log('v26')
 
     require('child_process').execSync(`npm install ws`, {stdio: 'inherit'})
-    // require('child_process').execSync(`npm install @braidjs/antimatter@0.0.11`, {stdio: 'inherit'})
-    // let {antimatter} = require('@braidjs/antimatter')
-    let {antimatter} = require('./antimatter.js')
+    require('child_process').execSync(`npm install @braidjs/antimatter@0.0.11`, {stdio: 'inherit'})
+    let {antimatter} = require('@braidjs/antimatter')
 
     let port = 60509
 
@@ -89,8 +88,8 @@ let fissure_lifetime = 1000 * 60 * 60 * 24 * 14
         client_html = await require('fs/promises').readFile('./client.html')
     }
 
-    async function write_to_log(obj) {
-        await require('fs/promises').appendFile(wol_filename, JSON.stringify(obj) + '\n')
+    function write_to_log(obj) {
+        require('fs').appendFileSync(wol_filename, JSON.stringify(obj) + '\n')
         dirty = true
     }
 
@@ -120,17 +119,19 @@ let fissure_lifetime = 1000 * 60 * 60 * 24 * 14
         let conn
 
         ws.on('message', async x => {
+            if (x == 'ping') return ws.send('pong')
+
             console.log(`RECV: ${x}`)
             x = JSON.parse(x)
 
             if (x.conn) conns[conn = x.conn] = ws
 
-            await write_to_log({key, receive: x})
+            write_to_log({key, receive: x})
             a.receive(x)
         })
         ws.on('close', async () => {
             console.log(`close: ` + conn)
-            await write_to_log({key, disconnect: conn})
+            write_to_log({key, disconnect: conn})
             a.disconnect(conn)
             delete conns[conn]
         })

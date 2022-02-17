@@ -6,8 +6,8 @@
     <link rel="stylesheet" href="https://invisible.college/css/github-markdown.css">
 </body>
 <script>
-    
-console.log('v5')
+
+console.log('v6')
 
 // let wiki_host = `wss://test.bloop.monster:60509`
 let wiki_host = `ws://localhost:60509`
@@ -90,6 +90,8 @@ console.log('channel: ' + channel)
 
 async function create_antimatter_client(url, cb) {
     let ws
+    let set_ws = x => ws = x
+    let get_ws = () => ws
     let send = x => {
 
         console.log(`ready?: ${ws?.readyState == WebSocket.OPEN}, to send: ${JSON.stringify(x)}`)
@@ -106,27 +108,36 @@ async function create_antimatter_client(url, cb) {
 
     connect()
     function connect() {
-        ws = new WebSocket(url)
+        console.log(`try'na connect to: ${url}`)
+        let ws = set_ws(new WebSocket(url))
         ws.my_id = Math.random().toString(36).slice(2)
+
+        let pong
+        let openned = false
 
         ws.onopen = () => {
             console.log(`OPEN`)
+            openned = true
             localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([Date.now(), Date.now()])
 
-            let interval = setInterval(() => {
-                console.log('INTERVAL')
-                localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`])[1], Date.now()])
-            }, interval_ms)
-
-            ws.onclose = () => {
-                clearInterval(interval)
-                localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = `[0,0]`
-                console.log(`CLOSE`)
-            }
-
             a.get(ws.my_id)
+
+            pong = true
+            ping()
+            function ping() {
+                if (ws.readyState > 1) return
+                if (!pong) {
+                    console.log('WS - NO PONG, CLOSING!')
+                    return ws.close()
+                }
+                pong = false
+                ws.send('ping')
+                setTimeout(ping, 7000)
+            }
         }
         ws.onmessage = x => {
+            if (x.data == 'pong') { pong = true; return }
+
             console.log(`RECV: ${x.data}`)
             let m = JSON.parse(x.data)
 
@@ -143,6 +154,24 @@ async function create_antimatter_client(url, cb) {
 
             if (done) done()
             else if (r?.length) cb(r)
+        }
+
+        let interval = setInterval(() => {
+            if (ws.readyState > 1) return clearInterval(interval)
+            if (!openned) return
+            console.log('INTERVAL')
+            localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`])[1], Date.now()])
+        }, interval_ms)
+
+        ws.onclose = () => {
+            console.log(`CLOSE`)
+            if (openned) {
+                localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = `[0,0]`
+                a.disconnect(ws.my_id)
+            }
+            setTimeout(() => {
+                if (ws == get_ws()) connect()
+            }, 3000)
         }
     }
 

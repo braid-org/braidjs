@@ -5,5 +5,9 @@
   "main": "server.js",
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
-  "homepage": "https://braid.org/antimatter"
+  "homepage": "https://braid.org/antimatter",
+  "dependencies": {
+    "@braidjs/antimatter": "^0.0.11",
+    "ws": "^8.5.0"
+  }
 }
