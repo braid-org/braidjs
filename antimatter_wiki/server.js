@@ -85,7 +85,8 @@ let fissure_lifetime = 1000 * 60 * 60 * 24 * 14
         }
         setTimeout(compactor, 1000 * 60)
 
-        client_html = await require('fs/promises').readFile('./client.html')
+        client_html = '' + await require('fs/promises').readFile('./client.html')
+        client_html = client_html.replace(/__WIKI_HOST__/, () => JSON.stringify(process.argv[2] ?? `ws://localhost:${port}`))
     }
 
     function write_to_log(obj) {

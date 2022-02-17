@@ -9,8 +9,7 @@
 
 console.log('v6')
 
-// let wiki_host = `wss://test.bloop.monster:60509`
-let wiki_host = `ws://localhost:60509`
+let wiki_host = __WIKI_HOST__
 
 document.title = window.location.pathname.substr(1)
 document.body.style.border = '3px solid transparent'
