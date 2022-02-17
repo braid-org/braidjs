@@ -1,0 +1,402 @@
+<body>
+    <script src="https://bloop.monster/antimatter.js"></script>
+    <script src="https://invisible-college.github.io/universal-sync/diffsync.js"></script>
+    <!--<script src="https://braid.news/diffsync.js"></script>-->
+    <script src="https://invisible.college/js/marked.min.js"></script>
+    <link rel="stylesheet" href="https://invisible.college/css/github-markdown.css">
+</body>
+<script>
+    
+console.log('v5')
+
+// let wiki_host = `wss://test.bloop.monster:60509`
+let wiki_host = `ws://localhost:60509`
+
+document.title = window.location.pathname.substr(1)
+document.body.style.border = '3px solid transparent'
+var real_errorrr_happened = false
+window.onerror = function (e) {
+    real_errorrr_happened = true
+    document.body.style.border = '4px red solid'
+}
+
+var output = document.createElement('div')
+output.className = 'pad'
+output.style.maxWidth = '900px'
+document.body.append(output)
+
+var t_d = make_html(`<div style="position:fixed;bottom:0px;right:0px;display:none;background:white"></div>`)
+document.body.append(t_d)
+
+var t = make_html('<textarea style="position:absolute;left:0px;top:0px;width:100%;height:100%;background:rgba(0,0,0,0);font-size:15px;font-family:helvetica, monaco, lucida grande, avenir"></textarea>')
+t_d.append(t)
+
+var hud = make_html(`<pre style="position:absolute;left:0px;bottom:0px;background:rgba(0,0,0,0);color:lightgrey;margin:0px;padding:10px">hi!</pre>`)
+t_d.append(hud)
+
+var edit = document.createElement('div')
+edit.style.position = 'fixed'
+edit.style.bottom = '0px'
+edit.style.right = '0px'
+edit.style.padding = '30px'
+edit.style.cursor = 'pointer'
+edit.style.textDecoration = 'underline'
+edit.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+edit.onclick = toggle_editor
+edit.innerText = 'edit'
+document.body.append(edit)
+
+var differ = document.createElement('div')
+differ.style.position = 'fixed'
+differ.style.bottom = '0px'
+differ.style.right = '30px'
+differ.style.fontSize = '10px'
+differ.style.cursor = 'pointer'
+differ.style.textDecoration = 'underline'
+differ.style.backgroundColor = 'rgba(100, 100, 100, .2)'
+differ.onclick = (e) => {showing_diff=!showing_diff; update_markdown()}
+differ.innerText = 'show diffs'
+//document.body.append(differ)
+
+let a
+var timer
+var render_delay = 100
+function update_markdown_later() {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(update_markdown, render_delay)
+}
+function update_markdown() {
+    timer = null
+    var source = showing_diff ? html_diffed(last_version||'', t.value) : t.value
+    output.innerHTML = marked(source, {sanitize: !is_safe})
+    document.body.className = 'nopad'
+
+    update_hud()
+}
+update_markdown()
+
+function update_hud() {
+    hud.textContent = 'loading..'
+    if (a) {
+        hud.textContent = `versions: ${Object.keys(a.T).length}
+            fissures: ${Object.keys(a.fissures).length}`.replace(/^\s*/mg, '')
+    }
+}
+
+var is_safe = true
+var channel = window.location.hash.slice(1) || 'default2'
+
+console.log('channel: ' + channel)
+
+async function create_antimatter_client(url, cb) {
+    let ws
+    let send = x => {
+
+        console.log(`ready?: ${ws?.readyState == WebSocket.OPEN}, to send: ${JSON.stringify(x)}`)
+
+        if (ws?.readyState == WebSocket.OPEN && ws.my_id == x.conn) ws.send(JSON.stringify(x))
+    }
+
+    let a = antimatter.create(send, {fissure_lifetime: 1000 * 60 * 60 * 24 * 14})
+
+    let done
+    let p = new Promise(d => done = d)
+
+    let interval_ms = 1000 * 10
+
+    connect()
+    function connect() {
+        ws = new WebSocket(url)
+        ws.my_id = Math.random().toString(36).slice(2)
+
+        ws.onopen = () => {
+            console.log(`OPEN`)
+            localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([Date.now(), Date.now()])
+
+            let interval = setInterval(() => {
+                console.log('INTERVAL')
+                localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`])[1], Date.now()])
+            }, interval_ms)
+
+            ws.onclose = () => {
+                clearInterval(interval)
+                localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = `[0,0]`
+                console.log(`CLOSE`)
+            }
+
+            a.get(ws.my_id)
+        }
+        ws.onmessage = x => {
+            console.log(`RECV: ${x.data}`)
+            let m = JSON.parse(x.data)
+
+            let r
+            try {
+                r = a.receive(m)
+            } catch (e) {
+                alert('copy your work, and reload -- lost sync with server')
+            }
+
+            if (m.cmd == 'welcome') resolve_old_fissures()
+
+            update_hud()
+
+            if (done) done()
+            else if (r?.length) cb(r)
+        }
+    }
+
+    window.addEventListener('unload', e => {
+        localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = `[0,0]`
+        a.forget(ws.my_id)
+    })
+
+    await p
+    done = null
+    return a
+
+    function resolve_old_fissures() {
+        // are we too old?
+        if (JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`])[0] < Date.now() - interval_ms*3) return
+
+        // since we're not too old, we can judge other connections for being too old..
+        let old_conns = {}
+        for (let i = 0; i < localStorage.length; i++) {
+            let k = localStorage.key(i)
+            let m = k.match(/^antimatter_conn_6c5kho7dle_(.*)$/)
+            if (m && JSON.parse(localStorage[k])[1] < Date.now() - interval_ms*2) old_conns[m[1]] = true
+        }
+
+        let self = a
+
+        let new_fissures = []
+        let unfissured = {}
+
+        Object.entries(self.fissures).forEach(([fk, f]) => {
+            var other_key = f.b + ':' + f.a + ':' + f.conn
+            var other = self.fissures[other_key]
+
+            if (!other && old_conns[f.conn]) {
+                other = {...f, a: f.b, b: f.a}
+                new_fissures.push(self.fissures[other_key] = other)
+                self.acks_in_process = {}
+
+                console.log(`OLD CONN REMOVAL: ${f.conn}`)
+            }
+
+            if (other) {
+                if (Object.keys(f.versions).length) {
+                    for (let v of Object.keys(f.versions)) unfissured[v] = true
+                    self.fissures[fk] = {...f, versions: {}}
+                }
+                if (Object.keys(other.versions).length) {
+                    for (let v of Object.keys(other.versions)) unfissured[v] = true
+                    self.fissures[other_key] = {...other, versions: {}}
+                }
+            }
+        })
+
+        if (Object.keys(unfissured).length) {
+            let ack_versions = self.ancestors(self.acked_boundary)
+            let unfissured_descendants = self.descendants(unfissured, true)
+            for (let un of Object.keys(unfissured_descendants)) if (ack_versions[un]) delete ack_versions[un]
+            self.acked_boundary = self.get_leaves(ack_versions)
+
+            let u = self.ancestors(self.unack_boundary)
+            for (let x of Object.keys(self.ancestors(unfissured_descendants))) u[x] = true
+            self.unack_boundary = self.get_leaves(u)
+        }
+
+        if (new_fissures.length) send({cmd: 'fissure', fissures: new_fissures, conn: ws.my_id})
+
+        for (let conn of Object.keys(old_conns)) localStorage.removeItem(`antimatter_conn_6c5kho7dle_${conn}`)
+    }
+}
+
+;(async () => {
+    a = await create_antimatter_client(`${wiki_host}/${encodeURIComponent(channel)}`, patches => {
+
+        console.log('PATCHES ' + JSON.stringify(patches, null, '    '))
+
+        for (let patch of patches) {
+
+            console.log(`patch = ${JSON.stringify(patch, null, '    ')}`)
+
+            let [range_start, range_end] = patch.range.match(/\d+/g)?.map(x => 1*x) ?? [0, 0]
+            let len = patch.content.length
+
+            let sel = [t.selectionStart, t.selectionEnd]
+
+            t.value = t.value.slice(0, range_start) + patch.content + t.value.slice(range_end)
+
+            if (range_end - range_start > 0) {
+                if (range_start < sel[0]) sel[0] -= Math.min(sel[0], range_end) - range_start
+                if (range_start < sel[1]) sel[1] -= Math.min(sel[1], range_end) - range_start
+            }
+            if (range_start <= sel[0]) {
+                sel[0] += len
+                sel[1] += len
+            } else if (range_start < sel[1]) sel[1] += len
+
+            t.selectionStart = sel[0]
+            t.selectionEnd = sel[1]
+        }
+
+        update_markdown_later()
+
+
+    })
+
+    console.log(`loaded: ${a.read()}`)
+
+    t.value = a.read()
+    update_markdown_later()
+
+    t.oninput = function () {
+        let slices = get_diff_patch(a.read(), t.value)
+        for (let s of slices) a.set({range: `[${s[0]}:${s[0] + s[1]}]`, content: s[2]})
+
+
+        console.log(`diff = ${JSON.stringify(slices)}`)
+
+        update_markdown_later()
+    }
+
+
+})()
+
+var vert = true, editing = false
+function render() {
+    t_d.style.display = editing ? null : 'none'
+
+    if (vert) {
+        t_d.style.width = '100%'
+        t_d.style.height = '50vh'
+        output.style.width = null
+    } else {
+        t_d.style.width = '45vw'
+        t_d.style.height = '100%'
+        output.style.width = editing ? '55vw' : null
+    }
+}
+var first_time = true
+function toggle_editor () {
+    editing = !editing
+    render()
+    if (editing) t.focus()
+    if (editing && first_time) {
+        first_time = false
+        t.setSelectionRange(0,0)
+        t.scrollTop = 0
+    }
+    update_markdown()
+}
+
+document.body.onkeydown = function (e) {
+    var mods = 0
+    for (k in {ctrlKey:1, shiftKey:1, altKey:1, metaKey:1})
+        if (e[k]) mods += 1
+
+    if (e.keyCode == 27
+        //|| (mods >= 2 && e.keyCode == 32)
+        ) {
+        e.stopPropagation()
+        toggle_editor()
+    }
+}
+
+window.onresize = function () {
+    var w = window.innerWidth, h = window.innerHeight
+    if (w < 1200 !== vert) {
+        vert = !vert
+        render()
+    }
+}
+onresize()
+render()
+
+function handle_pasted_images (el, cb) {
+    el.addEventListener("paste", function(e) {
+        // 1. Let's look for an image in the clipboard data
+        if (!e.clipboardData || !e.clipboardData.items) return
+        var items = e.clipboardData.items
+        var blob
+        for (var i=0; i<items.length; i++) {
+            if (items[i].type.indexOf("image") === -1) continue
+            blob = items[i].getAsFile()
+        }
+        if (!blob) return
+
+        // 2. Now we have the pasted image as a blob.  Let's convert it to a data: url
+        var reader = new FileReader()
+        reader.addEventListener('load', ()=> {cb(reader.result)}, false)
+        reader.readAsDataURL(blob)
+    }, false)
+}
+handle_pasted_images(window, x => {
+    insert_at_cursor(t, '<img src="'+x+'">')
+})
+
+function insert_at_cursor (textarea, string) {
+    // IE support
+    if (document.selection) {
+        textarea.focus()
+        sel = document.selection.createRange()
+        sel.text = string
+    }
+    // Mozilla and others
+    else if (textarea.selectionStart || textarea.selectionStart == '0') {
+        var startPos = textarea.selectionStart
+        var endPos = textarea.selectionEnd
+        textarea.value = textarea.value.substring(0, startPos)
+            + string
+            + textarea.value.substring(endPos, textarea.value.length)
+    } else
+        textarea.value += string;
+}
+
+var last_version
+var showing_diff = false
+addEventListener('keypress', function (e) {
+    if (e.ctrlKey && e.key === 's') {
+        last_version = t.value
+        event.preventDefault()
+        update_markdown()
+    }
+})
+
+color = (s, c) =>
+    s.split('\n\n').map(x => '<span style="background-color: '+ c +'">'+ x +'</span>').join('\n\n')
+
+green = (s) => color (s, '#cfc')
+red   = (s) => color (s, '#fcc')
+function html_diffed (Old, New) {
+    var diff = diff_main(Old, New)
+    var html = diff.map(
+        (x) => x[0] == 1 ? green(x[1])
+            : x[0] == -1 ? red(x[1])
+            : x[1]
+    ).join('')
+    //console.log(JSON.stringify(marked(html, {sanitize:false})))
+    return html
+}
+
+
+var ting = null
+function scroll () {
+    // We only scroll to the ting once -- if it's fresh
+    if (ting || location.hash.length === 0) return
+
+    ting = document.getElementById(location.hash.substr(1))
+    ting && ting.scrollIntoView()
+}
+for (i=0; i<50; i++)
+    setTimeout(scroll, i / 5.0 * 1000)
+
+function make_html(html) {
+    let d = document.createElement('div')
+    d.innerHTML = html
+    return d.firstChild    
+}
+    
+</script>

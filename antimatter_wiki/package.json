@@ -1,0 +1,9 @@
+{
+  "name": "@braidjs/antimatter_wiki",
+  "version": "0.0.1",
+  "description": "collaborative wiki based on antimatter",
+  "main": "server.js",
+  "author": "Braid Working Group",
+  "repository": "braid-org/braidjs",
+  "homepage": "https://braid.org/antimatter"
+}
