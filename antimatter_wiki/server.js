@@ -1,12 +1,15 @@
 
 let fissure_lifetime = 1000 * 60 * 60 * 24 * 14
 
+process.on('uncaughtException', console.log)
+process.on('unhandledRejection', console.log)
+
 ;(async () => {
 
     console.log('v26')
 
     require('child_process').execSync(`npm install ws`, {stdio: 'inherit'})
-    require('child_process').execSync(`npm install @braidjs/antimatter@0.0.11`, {stdio: 'inherit'})
+    require('child_process').execSync(`npm install @braidjs/antimatter@0.0.12`, {stdio: 'inherit'})
     let {antimatter} = require('@braidjs/antimatter')
 
     let port = 60509
@@ -53,6 +56,10 @@ let fissure_lifetime = 1000 * 60 * 60 * 24 * 14
         } else {
             for (let line of ('' + s).split(/\n/)) {
                 let x = JSON.parse(line || '{}')
+                if (x.antimatter) {
+                    antimatters[x.key] = x.antimatter
+                    ensure_antimatter(x.key)
+                }
                 if (x.receive) {
                     try {
                         ensure_antimatter(x.key).receive(x.receive)
@@ -115,7 +122,11 @@ let fissure_lifetime = 1000 * 60 * 60 * 24 * 14
         console.log(`new connection! ${req.url}`)
 
         let key = decodeURIComponent(req.url.slice(1))
-        let a = ensure_antimatter(key)
+        let a = antimatters[key]
+        if (!a) {
+            a = ensure_antimatter(key)
+            write_to_log({key, antimatter: a})
+        }
 
         let conn
 

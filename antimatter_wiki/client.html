@@ -1,5 +1,5 @@
 <body>
-    <script src="https://bloop.monster/antimatter.js"></script>
+    <script src="https://unpkg.com/@braidjs/antimatter@0.0.12"></script>
     <script src="https://invisible-college.github.io/universal-sync/diffsync.js"></script>
     <!--<script src="https://braid.news/diffsync.js"></script>-->
     <script src="https://invisible.college/js/marked.min.js"></script>
@@ -144,7 +144,11 @@ async function create_antimatter_client(url, cb) {
             try {
                 r = a.receive(m)
             } catch (e) {
+                a.disconnect(ws.my_id)
+                ws.onclose = () => {}
+                ws.close()
                 alert('copy your work, and reload -- lost sync with server')
+                return
             }
 
             if (m.cmd == 'welcome') resolve_old_fissures()
