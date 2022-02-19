@@ -282,8 +282,7 @@ async function create_antimatter_client(url, cb) {
 
     t.oninput = function () {
         let slices = get_diff_patch(a.read(), t.value)
-        for (let s of slices) a.set({range: `[${s[0]}:${s[0] + s[1]}]`, content: s[2]})
-
+        a.set(...slices.map(s => ({range: `[${s[0]}:${s[0] + s[1]}]`, content: s[2]})))
 
         console.log(`diff = ${JSON.stringify(slices)}`)
 
