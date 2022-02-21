@@ -204,10 +204,10 @@ function send_version(res, data, url, peer) {
                                     subscription: res.isSubscription})
 
     // Validate that the body and patches are strings
-    if (body)
+    if (body !== undefined)
         assert(typeof body === 'string')
     else {
-        assert(patches)
+        assert(patches !== undefined)
         patches.forEach(p => assert(typeof p.content === 'string'))
     }
 
