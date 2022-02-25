@@ -21,7 +21,7 @@ process.on('unhandledRejection', console.log)
         if (!antimatters[key]?.read) {
             antimatters[key] = antimatter.create(x => {
                 try {
-                    console.log(`key=${key}, sending to [${x.conn}]: ` + JSON.stringify(x))
+                    console.log(`key=${key}, sending to [${x.conn}]: ` + JSON.stringify(x).slice(0, 100))
                     conns[x.conn].send(JSON.stringify(x))
                 } catch (e) {
                     console.log(`key=${key}, failed to send: ` + e)
@@ -134,7 +134,7 @@ process.on('unhandledRejection', console.log)
         check_ping()
         function check_ping() {
             if (Date.now() - last_ping > 1000 * 12) {
-                console.log(`ping timeout! ${key}`)
+                console.log(`ping timeout! conn ${conn} key=${key}`)
                 ws.close()
                 return
             }
@@ -143,12 +143,13 @@ process.on('unhandledRejection', console.log)
 
         ws.on('message', async x => {
             if (x == 'ping') {
+                console.log(`got ping for conn ${conn} key=${key}`)
                 last_ping = Date.now()
                 ws.send('pong')
                 return
             }
 
-            console.log(`RECV: ${x}`)
+            console.log(`RECV: ${x.slice(0, 100)}`)
             x = JSON.parse(x)
 
             if (x.conn) conns[conn = x.conn] = ws
