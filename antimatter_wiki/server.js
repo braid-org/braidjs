@@ -133,9 +133,10 @@ process.on('unhandledRejection', console.log)
 
         check_ping()
         function check_ping() {
+            if (ws.readyState > 1) return
             if (Date.now() - last_ping > 1000 * 12) {
                 console.log(`ping timeout! conn ${conn} key=${key} (${Date.now() - last_ping})`)
-                ws.close()
+                ws.terminate()
                 return
             }
             setTimeout(check_ping, 1000)
