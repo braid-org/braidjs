@@ -129,9 +129,24 @@ process.on('unhandledRejection', console.log)
         }
 
         let conn
+        let last_ping = Date.now()
+
+        check_ping()
+        function check_ping() {
+            if (Date.now() - last_ping > 1000 * 12) {
+                console.log(`ping timeout! ${key}`)
+                ws.close()
+                return
+            }
+            setTimeout(check_ping, 1000)
+        }
 
         ws.on('message', async x => {
-            if (x == 'ping') return ws.send('pong')
+            if (x == 'ping') {
+                last_ping = Date.now()
+                ws.send('pong')
+                return
+            }
 
             console.log(`RECV: ${x}`)
             x = JSON.parse(x)
@@ -142,6 +157,8 @@ process.on('unhandledRejection', console.log)
             a.receive(x)
         })
         ws.on('close', async () => {
+            if (!conn) return
+
             console.log(`close: ` + conn)
             write_to_log({key, disconnect: conn})
             a.disconnect(conn)
