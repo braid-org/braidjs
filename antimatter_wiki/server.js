@@ -144,7 +144,7 @@ process.on('unhandledRejection', console.log)
 
         ws.on('message', async x => {
             if (x == 'ping') {
-                console.log(`got ping for conn ${conn} key=${key}`)
+                // console.log(`got ping for conn ${conn} key=${key}`)
                 last_ping = Date.now()
                 ws.send('pong')
                 return
