@@ -13,7 +13,7 @@ var {sequence, json, antimatter} = require('@braidjs/antimatter')
 - `antimatter` subclasses the `json` CRDT object, and adds antimatter algorithm methods to it so that it can communicate with other peers to learn which history can be pruned, and tells the `json` object to prune it.
 
 The Antimatter Algorithm was invented by Michael Toomim and Greg Little in the
-[Invisible College](https://invisible.college/).
+[Braid Project](https://braid.org) of [Invisible College](https://invisible.college/).
 
 [Click here to see this README side-by-side with the source code.](https://braid-org.github.io/braidjs/antimatter/doc.html)
 
