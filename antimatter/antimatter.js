@@ -906,10 +906,12 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         
         var si = 0
         var delete_up_to = 0
+
+        let EXIT_EARLY = Symbol(), FRESH_DELETE = Symbol()
         
-        var process_patch = (node, offset, has_nexts, prev, _version, deleted) => {
+        var process_patch = (node, offset, has_nexts, prev, _version, deleted, rebase_deleted) => {
             var s = splices[si]
-            if (!s) return false
+            if (!s) return EXIT_EARLY
             var sort_key = s[3]
             
             if (deleted) {
@@ -979,14 +981,16 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 }
                 node.deleted_by[version] = true
 
-                rebased_splices.push([rebase_offset, node.elems.length, ''])
+                if (!rebase_deleted) {
+                    rebased_splices.push([rebase_offset, node.elems.length, ''])
+                    return FRESH_DELETE
+                }
 
                 return
             }
         }
         
         var f = is_anc || (() => true)
-        var exit_early = {}
         var offset = 0
         var rebase_offset = 0
         function traverse(node, prev, version) {
@@ -994,10 +998,11 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             if (!version || f(version)) {
                 var has_nexts = node.nexts.find(next => f(next.version))
                 var deleted = Object.keys(node.deleted_by).some(version => f(version))
-                if (process_patch(node, offset, has_nexts, prev, version, deleted) == false) throw exit_early
+                var pp = process_patch(node, offset, has_nexts, prev, version, deleted, rebase_deleted)
+                if (pp == EXIT_EARLY) throw EXIT_EARLY
                 if (!deleted) offset += node.elems.length
             }
-            if (!rebase_deleted) rebase_offset += node.elems.length
+            if (!rebase_deleted && pp != FRESH_DELETE) rebase_offset += node.elems.length
 
             for (var next of node.nexts) traverse(next, null, next.version)
             if (node.next) traverse(node.next, node, version)
@@ -1005,7 +1010,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         try {
             traverse(S, null, S.version)
         } catch (e) {
-            if (e != exit_early) throw e
+            if (e != EXIT_EARLY) throw e
         }
 
         return rebased_splices
