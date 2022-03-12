@@ -917,6 +917,8 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     if (node.elems.length == 0 && !node.end_cap && has_nexts) return
                     var new_node = sequence.create_node(version, s[2], null, sort_key)
 
+                    fresh_nodes.add(new_node)
+
                     if (node.elems.length == 0 && !node.end_cap)
                         add_to_nexts(node.nexts, new_node)
                     else
@@ -931,6 +933,8 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 if (d > 0) return
                 if (d == 0 && !node.end_cap && has_nexts) return
                 var new_node = sequence.create_node(version, s[2], null, sort_key)
+
+                fresh_nodes.add(new_node)
 
                 if (d == 0 && !node.end_cap) {
                     add_to_nexts(node.nexts, new_node)
@@ -948,6 +952,8 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 
                 if (s[2]) {
                     var new_node = sequence.create_node(version, s[2], null, sort_key)
+
+                    fresh_nodes.add(new_node)
 
                     if (s[0] == offset && prev && prev.end_cap) {
                         add_to_nexts(prev.nexts, new_node)
@@ -979,7 +985,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         var f = is_anc || (() => true)
         var offset = 0
         var rebase_offset = 0
-        let new_version = version
+        let fresh_nodes = new Set()
         function traverse(node, prev, version) {
             if (!version || f(version)) {
                 var has_nexts = node.nexts.find(next => f(next.version))
@@ -990,7 +996,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 if (!deleted) offset += node.elems.length
                 if (!rebase_deleted && Object.keys(node.deleted_by).length) rebased_splices.push([rebase_offset, node.elems.length, ''])
             }
-            if (node.version == new_version) rebased_splices.push([rebase_offset, 0, node.elems])
+            if (fresh_nodes.has(node)) rebased_splices.push([rebase_offset, 0, node.elems])
             if (!Object.keys(node.deleted_by).length) rebase_offset += node.elems.length
 
             for (var next of node.nexts) traverse(next, null, next.version)
