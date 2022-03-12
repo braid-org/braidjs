@@ -908,10 +908,6 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         var delete_up_to = 0
         
         var process_patch = (node, offset, has_nexts, prev, _version, deleted, rebase_deleted) => {
-            if (node.version == version) {
-                rebased_splices.push([rebase_offset, 0, node.elems])
-            }
-
             var s = splices[si]
             if (!s) return
             var sort_key = s[3]
@@ -976,9 +972,6 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     si++
                 }
                 node.deleted_by[version] = true
-
-                if (!rebase_deleted) rebased_splices.push([rebase_offset, node.elems.length, ''])
-
                 return
             }
         }
@@ -986,14 +979,18 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         var f = is_anc || (() => true)
         var offset = 0
         var rebase_offset = 0
+        let new_version = version
         function traverse(node, prev, version) {
             if (!version || f(version)) {
                 var has_nexts = node.nexts.find(next => f(next.version))
                 var deleted = Object.keys(node.deleted_by).some(version => f(version))
-                var rebase_deleted = Object.keys(node.deleted_by).length > 0
-                process_patch(node, offset, has_nexts, prev, version, deleted, rebase_deleted)
+                let rebase_deleted = Object.keys(node.deleted_by).length
+                process_patch(node, offset, has_nexts, prev, version, deleted)
+
                 if (!deleted) offset += node.elems.length
+                if (!rebase_deleted && Object.keys(node.deleted_by).length) rebased_splices.push([rebase_offset, node.elems.length, ''])
             }
+            if (node.version == new_version) rebased_splices.push([rebase_offset, 0, node.elems])
             if (!Object.keys(node.deleted_by).length) rebase_offset += node.elems.length
 
             for (var next of node.nexts) traverse(next, null, next.version)
