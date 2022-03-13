@@ -925,6 +925,18 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         sequence.break_node(node, 0, undefined, new_node)
                     si++
                 }
+
+                if (delete_up_to <= offset && s[1] && s[2] && s[0] == offset && node.end_cap && !has_nexts && node.next?.elems.length && !Object.keys(node.next.deleted_by).some(version => f(version))) {
+
+                    delete_up_to = s[0] + s[1]
+                    
+                    var new_node = sequence.create_node(version, s[2], null, sort_key)
+                    
+                    fresh_nodes.add(new_node)
+
+                    add_to_nexts(node.nexts, new_node)
+                }
+
                 return            
             }
             
