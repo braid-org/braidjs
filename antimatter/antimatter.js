@@ -907,7 +907,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         var si = 0
         var delete_up_to = 0
         
-        var process_patch = (node, offset, has_nexts, prev, _version, deleted, rebase_deleted) => {
+        var process_patch = (node, offset, has_nexts, prev, _version, deleted) => {
             var s = splices[si]
             if (!s) return
             var sort_key = s[3]
@@ -947,7 +947,11 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             
             if (delete_up_to <= offset) {
                 var d = s[0] - (offset + node.elems.length)
-                if (d >= 0) return
+
+                let add_at_end = d == 0 && s[2] && node.end_cap && !has_nexts && node.next?.elems.length && !Object.keys(node.next.deleted_by).some(version => f(version))
+
+                if (d > 0 || (d == 0 && !add_at_end)) return
+
                 delete_up_to = s[0] + s[1]
                 
                 if (s[2]) {
@@ -955,12 +959,12 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 
                     fresh_nodes.add(new_node)
 
-                    if (s[0] == offset && prev && prev.end_cap) {
-                        add_to_nexts(prev.nexts, new_node)
+                    if (add_at_end) {
+                        add_to_nexts(node.nexts, new_node)
                     } else {
                         sequence.break_node(node, s[0] - offset, true, new_node)
-                        return
                     }
+                    return
                 } else {
                     if (s[0] == offset) {
                     } else {
