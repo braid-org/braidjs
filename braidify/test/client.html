@@ -1,0 +1,5 @@
+<script src="/braidify-client.js"></script>
+<script>
+  fetch('/json', {subscribe: {keep_alive: true } })
+    .andThen((version) => { console.log(version) })
+</script>
