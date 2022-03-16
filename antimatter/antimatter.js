@@ -909,7 +909,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         
         var process_patch = (node, offset, has_nexts, prev, _version, deleted) => {
             var s = splices[si]
-            if (!s) return false
+            if (!s) return
             var sort_key = s[3]
             
             if (deleted) {
@@ -917,7 +917,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     if (node.elems.length == 0 && !node.end_cap && has_nexts) return
                     var new_node = sequence.create_node(version, s[2], null, sort_key)
 
-                    rebased_splices.push([rebase_offset, 0, s[2]])
+                    fresh_nodes.add(new_node)
 
                     if (node.elems.length == 0 && !node.end_cap)
                         add_to_nexts(node.nexts, new_node)
@@ -925,6 +925,18 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                         sequence.break_node(node, 0, undefined, new_node)
                     si++
                 }
+
+                if (delete_up_to <= offset && s[1] && s[2] && s[0] == offset && node.end_cap && !has_nexts && node.next?.elems.length && !Object.keys(node.next.deleted_by).some(version => f(version))) {
+
+                    delete_up_to = s[0] + s[1]
+                    
+                    var new_node = sequence.create_node(version, s[2], null, sort_key)
+                    
+                    fresh_nodes.add(new_node)
+
+                    add_to_nexts(node.nexts, new_node)
+                }
+
                 return            
             }
             
@@ -934,7 +946,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 if (d == 0 && !node.end_cap && has_nexts) return
                 var new_node = sequence.create_node(version, s[2], null, sort_key)
 
-                rebased_splices.push([rebase_offset + s[0] - offset, 0, s[2]])
+                fresh_nodes.add(new_node)
 
                 if (d == 0 && !node.end_cap) {
                     add_to_nexts(node.nexts, new_node)
@@ -947,20 +959,24 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             
             if (delete_up_to <= offset) {
                 var d = s[0] - (offset + node.elems.length)
-                if (d >= 0) return
+
+                let add_at_end = d == 0 && s[2] && node.end_cap && !has_nexts && node.next?.elems.length && !Object.keys(node.next.deleted_by).some(version => f(version))
+
+                if (d > 0 || (d == 0 && !add_at_end)) return
+
                 delete_up_to = s[0] + s[1]
                 
                 if (s[2]) {
                     var new_node = sequence.create_node(version, s[2], null, sort_key)
 
-                    rebased_splices.push([rebase_offset + s[0] - offset, 0, s[2]])
+                    fresh_nodes.add(new_node)
 
-                    if (s[0] == offset && prev && prev.end_cap) {
-                        add_to_nexts(prev.nexts, new_node)
+                    if (add_at_end) {
+                        add_to_nexts(node.nexts, new_node)
                     } else {
                         sequence.break_node(node, s[0] - offset, true, new_node)
-                        return
                     }
+                    return
                 } else {
                     if (s[0] == offset) {
                     } else {
@@ -978,35 +994,31 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     si++
                 }
                 node.deleted_by[version] = true
-
-                rebased_splices.push([rebase_offset, node.elems.length, ''])
-
                 return
             }
         }
         
         var f = is_anc || (() => true)
-        var exit_early = {}
         var offset = 0
         var rebase_offset = 0
+        let fresh_nodes = new Set()
         function traverse(node, prev, version) {
-            var rebase_deleted = Object.keys(node.deleted_by).length > 0
             if (!version || f(version)) {
                 var has_nexts = node.nexts.find(next => f(next.version))
                 var deleted = Object.keys(node.deleted_by).some(version => f(version))
-                if (process_patch(node, offset, has_nexts, prev, version, deleted) == false) throw exit_early
+                let rebase_deleted = Object.keys(node.deleted_by).length
+                process_patch(node, offset, has_nexts, prev, version, deleted)
+
                 if (!deleted) offset += node.elems.length
+                if (!rebase_deleted && Object.keys(node.deleted_by).length) rebased_splices.push([rebase_offset, node.elems.length, ''])
             }
-            if (!rebase_deleted) rebase_offset += node.elems.length
+            if (fresh_nodes.has(node)) rebased_splices.push([rebase_offset, 0, node.elems])
+            if (!Object.keys(node.deleted_by).length) rebase_offset += node.elems.length
 
             for (var next of node.nexts) traverse(next, null, next.version)
             if (node.next) traverse(node.next, node, version)
         }
-        try {
-            traverse(S, null, S.version)
-        } catch (e) {
-            if (e != exit_early) throw e
-        }
+        traverse(S, null, S.version)
 
         return rebased_splices
     }
