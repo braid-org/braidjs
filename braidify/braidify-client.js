@@ -515,8 +515,8 @@ function parse_body (state) {
         }
 
         var consumed_length = content_length + 2
-        state.result = 'success',
-        state.body = state.input.substring(0, content_length),
+        state.result = 'success'
+        state.body = state.input.substring(0, content_length)
         state.input = state.input.substring(consumed_length)
         return state
     }
