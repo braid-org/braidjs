@@ -508,7 +508,7 @@ function parse_body (state) {
     // Parse Body Snapshot
 
     var content_length = parseInt(state.headers['content-length'])
-    if (content_length) {
+    if (content_length !== NaN) {
         if (content_length > state.input.length) {
             state.result = 'waiting'
             return state

@@ -227,9 +227,9 @@ function send_version(res, data, url, peer) {
     }
 
     // Write the patches or body
-    if (patches)
+    if (Array.isArray(patches))
         res.write(generate_patches(res, patches)) // adds its own newline
-    else if (body) {
+    else if (typeof body === 'string') {
         set_header('content-length', body.length)
         write_body(body)
     } else {

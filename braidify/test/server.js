@@ -17,6 +17,9 @@ require('http').createServer(
                 body: JSON.stringify({list: {list:[]}})
             })
 
+            setTimeout(() => res.sendVersion({version: 'another!', body: ''}),
+                       500)
+
             if (!req.subscribe)
                 res.end()
         }        
@@ -26,4 +29,4 @@ require('http').createServer(
         else if (req.url === '/braidify-client.js')
             sendfile('../braidify-client.js', req, res)
     }
-).listen(9935)
+).listen(9000, () => console.log("Listening on http://localhost:9000..."))
