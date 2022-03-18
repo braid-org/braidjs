@@ -508,15 +508,15 @@ function parse_body (state) {
     // Parse Body Snapshot
 
     var content_length = parseInt(state.headers['content-length'])
-    if (content_length) {
+    if (content_length !== NaN) {
         if (content_length > state.input.length) {
             state.result = 'waiting'
             return state
         }
 
         var consumed_length = content_length + 2
-        state.result = 'success',
-        state.body = state.input.substring(0, content_length),
+        state.result = 'success'
+        state.body = state.input.substring(0, content_length)
         state.input = state.input.substring(consumed_length)
         return state
     }

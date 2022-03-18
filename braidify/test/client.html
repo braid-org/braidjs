@@ -1,0 +1,7 @@
+<script src="/braidify-client.js"></script>
+<script>
+  fetch('/json', {subscribe: true})
+     .andThen((version) => {
+         document.writeln('<pre>We got ' + JSON.stringify(version) + '!')
+     })
+</script>

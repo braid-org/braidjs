@@ -181,6 +181,10 @@ function braidify (req, res, next) {
             req.on('abort',   disconnected)
         }
 
+    // Check the Useragent to work around Firefox bugs
+    if (req.headers['user-agent'].toLowerCase().indexOf('firefox') > -1)
+        res.is_firefox = true
+
     next && next()
 }
 
@@ -227,9 +231,9 @@ function send_version(res, data, url, peer) {
     }
 
     // Write the patches or body
-    if (patches)
+    if (Array.isArray(patches))
         res.write(generate_patches(res, patches)) // adds its own newline
-    else if (body) {
+    else if (typeof body === 'string') {
         set_header('content-length', body.length)
         write_body(body)
     } else {
@@ -239,8 +243,16 @@ function send_version(res, data, url, peer) {
 
     // Add a newline to prepare for the next version
     // See also https://github.com/braid-org/braid-spec/issues/73
-    if (res.isSubscription)
-        res.write("\r\n")
+    if (res.isSubscription) {
+        var extra_newlines = 0
+        if (res.is_firefox)
+            // Work around Firefox network buffering bug
+            // See https://github.com/braid-org/braidjs/issues/15
+            extra_newlines = 220
+
+        for (var i = 0; i < 1 + extra_newlines; i++)
+            res.write("\r\n")
+    }
 }
 
 

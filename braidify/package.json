@@ -1,9 +1,9 @@
 {
   "name": "braidify",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "Synchronization for the Web (reference implementation)",
   "scripts": {
-    "test": "node test/tests.js",
+    "test": "node test/server.js",
     "prepublish": "node ../util/braid-bundler.js"
   },
   "author": "Braid Working Group",
