@@ -13,8 +13,7 @@ require('http').createServer(
             // Send the current version
             res.sendVersion({
                 version: 'test',
-                parents: [],
-                body: JSON.stringify({list: {list:[]}})
+                body: JSON.stringify({this: 'stuff'})
             })
 
             setTimeout(() => res.sendVersion({version: 'another!', body: ''}),
