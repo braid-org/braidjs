@@ -149,10 +149,10 @@ function braidify (req, res, next) {
     )
     req.startSubscription = res.startSubscription =
         function startSubscription (args = {}) {
-            console.log('Starting subscription!!')
-            console.log('Timeouts are:',
-                        req.socket.server.timeout,
-                        req.socket.server.keepAliveTimeout)
+            console.log('Starting subscription!')
+            // console.log('Timeouts are:',
+            //             req.socket.server.timeout,
+            //             req.socket.server.keepAliveTimeout)
 
             res.isSubscription = true
 
@@ -165,20 +165,19 @@ function braidify (req, res, next) {
             res.setHeader('cache-control', 'no-cache, no-transform')
 
             var connected = true
-            function disconnected () {
-                console.log(`Connection closed on ${req.url}`)
-
+            function disconnected (x) {
                 if (!connected) return
                 connected = false
+                console.log(`Connection closed on ${req.url} from`, x, 'event')
 
                 // Now call the callback
                 if (args.onClose)
                     args.onClose()
             }
 
-            res.on('close',   disconnected)
-            res.on('finish',  disconnected)
-            req.on('abort',   disconnected)
+            res.on('close',   x => disconnected('close'))
+            res.on('finish',  x => disconnected('finish'))
+            req.on('abort',   x => disconnected('abort'))
         }
 
     // Check the Useragent to work around Firefox bugs
@@ -248,7 +247,7 @@ function send_version(res, data, url, peer) {
         if (res.is_firefox)
             // Work around Firefox network buffering bug
             // See https://github.com/braid-org/braidjs/issues/15
-            extra_newlines = 220
+            extra_newlines = 240
 
         for (var i = 0; i < 1 + extra_newlines; i++)
             res.write("\r\n")
