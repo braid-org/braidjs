@@ -15,7 +15,7 @@ document.title = window.location.pathname.substr(1)
 document.body.style.border = '3px solid transparent'
 var real_errorrr_happened = false
 window.onerror = function (e) {
-    real_errorrr_happened = true
+    real_errorrr_happened = e
     document.body.style.border = '4px red solid'
 }
 
@@ -30,7 +30,7 @@ document.body.append(t_d)
 var t = make_html('<textarea style="position:absolute;left:0px;top:0px;width:100%;height:100%;background:rgba(0,0,0,0);font-size:15px;font-family:helvetica, monaco, lucida grande, avenir"></textarea>')
 t_d.append(t)
 
-var hud = make_html(`<pre style="position:absolute;left:0px;bottom:0px;background:rgba(0,0,0,0);color:lightgrey;margin:0px;padding:10px">hi!</pre>`)
+var hud = make_html(`<pre style="position:absolute;right:20px;top:5px;background:rgba(255,255,255,.9);color:black;margin:0px;padding:4px;font-size: 10;">hi!</pre>`)
 t_d.append(hud)
 
 var edit = document.createElement('div')
@@ -59,7 +59,7 @@ differ.innerText = 'show diffs'
 
 let a
 var timer
-var render_delay = 100
+var render_delay = 30
 function update_markdown_later() {
     if (timer) clearTimeout(timer)
     timer = setTimeout(update_markdown, render_delay)
