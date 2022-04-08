@@ -158,6 +158,9 @@ function braid_fetch (url, params = {}) {
     if (params.subscribe)
         params.headers.set('subscribe', 'true')
 
+    // Prevent browsers from going to disk cache
+    params.cache = 'no-cache'
+
     // Prepare patches
     if (params.patches) {
         console.assert(Array.isArray(params.patches), 'Patches must be array')
