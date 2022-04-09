@@ -111,7 +111,7 @@ function parse_patches (req, cb) {
 }
 
 function braidify (req, res, next) {
-    console.log('\n## Braidifying', req.method, req.url, req.headers.peer)
+    // console.log('\n## Braidifying', req.method, req.url, req.headers.peer)
 
     // First, declare that we support Patches and JSON ranges.
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
@@ -149,7 +149,7 @@ function braidify (req, res, next) {
     )
     req.startSubscription = res.startSubscription =
         function startSubscription (args = {}) {
-            console.log('Starting subscription!')
+            // console.log('Starting subscription!')
             // console.log('Timeouts are:',
             //             req.socket.server.timeout,
             //             req.socket.server.keepAliveTimeout)
@@ -168,7 +168,7 @@ function braidify (req, res, next) {
             function disconnected (x) {
                 if (!connected) return
                 connected = false
-                console.log(`Connection closed on ${req.url} from`, x, 'event')
+                // console.log(`Connection closed on ${req.url} from`, x, 'event')
 
                 // Now call the callback
                 if (args.onClose)
@@ -203,8 +203,8 @@ function send_version(res, data, url, peer) {
             res.write(body)
     }
 
-    console.log('sending version', {url, peer, version, parents, patches, body,
-                                    subscription: res.isSubscription})
+    // console.log('sending version', {url, peer, version, parents, patches, body,
+    //                                 subscription: res.isSubscription})
 
     // Validate that the body and patches are strings
     if (body !== undefined)
