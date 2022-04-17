@@ -30,7 +30,7 @@ var port = 3009
 // Static files to serve over HTTP
 var known_files = {
 	'/braid-bundle.js': {
-		path: path.join(lib_path, `/builds/braid-bundle.js`),
+		path: path.join(lib_path, `../builds/braid-bundle.js`),
 		mime: 'text/javascript'
 	},
 	'/braidchat': {
