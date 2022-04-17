@@ -1,0 +1,17 @@
+{
+  "name": "braidjs",
+  "version": "0.0.1",
+  "description": "",
+  "author": "Braid Working Group",
+  "repository": "braid-org/braidjs",
+  "homepage": "https://braid.org",
+  "main": "server.js",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "start": "yarn workspaces run start"
+  }
+}

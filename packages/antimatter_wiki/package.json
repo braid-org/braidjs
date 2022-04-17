@@ -7,7 +7,7 @@
   "repository": "braid-org/braidjs",
   "homepage": "https://braid.org/antimatter",
   "dependencies": {
-    "@braidjs/antimatter": "^0.0.12",
+    "@braidjs/antimatter": "0.0.12",
     "ws": "^8.5.0"
   }
 }
