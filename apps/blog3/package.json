@@ -1,0 +1,15 @@
+{
+  "name": "@braidjs/blog3",
+  "version": "0.0.1",
+  "description": "",
+  "author": "Braid Working Group",
+  "repository": "braid-org/braidjs",
+  "homepage": "https://braid.org",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "spdy": "^4.0.2"
+  }
+}

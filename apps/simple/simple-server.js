@@ -49,6 +49,7 @@ bHieUzx8qriZ8KrD3PbjKqap
 -----END PRIVATE KEY-----
 `
 
-node = require('../../node')()
+
+node = require('../../packages/kernel/node')()
 node.pid = 'hub'
-require('../../websocket-server.js')(node, certificate, private_key)
+require('../../packages/kernel/websocket-server.js')(node, certificate, private_key)

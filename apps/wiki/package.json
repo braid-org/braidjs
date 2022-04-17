@@ -1,0 +1,12 @@
+{
+  "name": "@braidjs/wiki",
+  "version": "0.0.1",
+  "description": "",
+  "author": "Braid Working Group",
+  "repository": "braid-org/braidjs",
+  "homepage": "https://braid.org",
+  "main": "wiki-server.js",
+  "scripts": {
+    "start": "node wiki-server.js"
+  }
+}

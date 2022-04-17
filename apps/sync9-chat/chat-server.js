@@ -4,7 +4,7 @@ var ws = require('ws')
 require('dotenv').config()
 
 // When we have the npm version, this can be improved
-var lib_path = "../../../"
+var lib_path = path.resolve(__dirname, "../../packages/")
 
 // Bundler doesn't actually return anything, but calling it with require
 // generates the braid-bundle.js
@@ -204,7 +204,7 @@ store(node, db).then(node => {
 
 
 //App notifications
-var notification_node = require("../../node.js")()
+var notification_node = braid()
 notification_node.websocket_client({url:'wss://invisible.college:3009'})
 notification_node.get('/usr', add_users)
 notification_node.get('/chat', update_messages)
