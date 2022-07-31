@@ -1,15 +1,13 @@
 
-// v502
+// v503
 
-var antimatter_crdt = {}    // The antimatter crdt
-var json_crdt = {}          // A json crdt
-var sequence_crdt = {}      // A sequence crdt
-
-if (typeof module != 'undefined') module.exports = {antimatter_crdt, json_crdt, sequence_crdt}
+var create_antimatter_crdt  // create an antimatter crdt
+var create_json_crdt        // create a json crdt
+var sequence_crdt = {}      // sequence crdt functions
 
 ;(() => {
-    antimatter_crdt.create = (send, self) => {
-        self = json_crdt.create(self)
+    create_antimatter_crdt = (send, self) => {
+        self = create_json_crdt(self)
         self.send = send
 
         self.id = self.id ?? Math.random().toString(36).slice(2)
@@ -351,7 +349,7 @@ if (typeof module != 'undefined') module.exports = {antimatter_crdt, json_crdt, 
         return self
     }
 
-    json_crdt.create = self => {
+    create_json_crdt = self => {
         self = self ?? {}     
         self.S = self.S ?? null
         self.T = self.T ?? {}
@@ -1064,3 +1062,5 @@ if (typeof module != 'undefined') module.exports = {antimatter_crdt, json_crdt, 
         return m;
     }
 })()
+
+if (typeof module != 'undefined') module.exports = {create_antimatter_crdt, create_json_crdt, sequence_crdt}
