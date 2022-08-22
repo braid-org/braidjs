@@ -42,15 +42,16 @@ Here is an example of subscribing to a Braid resource using promises:
 ```javascript
 fetch('https://braid.org/chat', {subscribe: true}).then(
     res => res.subscribe(
-        (version) => {
-            console.log('We got a new version!', version)
+        (new_version) => {
+            console.log('We got a new version!', new_version)
             // {
             //   version: "me",
             //   parents: ["mom", "dad"],
             //   patches: [{unit: "json", range: ".foo", content: "3"}]
             //   body:    "3"
             // }
-            //   // Version will contain either patches *or* body
+            //
+            // Note that new_version will contain either patches *or* body
         }
     )
 )
@@ -62,15 +63,9 @@ If you want automatic reconnections, add two error handlers like this:
 function connect() {
     fetch('https://braid.org/chat', {subscribe: true}).then(
         res => res.subscribe(
-            (version) => {
-                console.log('We got a new version!', version)
-                // {
-                //   version: "me",
-                //   parents: ["mom", "dad"],
-                //   patches: [{unit: "json", range: ".foo", content: "3"}]
-                //   body:    "3"
-                // }
-                //   // Version will contain either patches *or* body
+            (new_version) => {
+                console.log('We got a new version!', new_version)
+                // Do something with the new_version
             },
             e => setTimeout(connect, 1000)
         )
@@ -85,7 +80,7 @@ connect()
 async function connect () {
     try {
         (await fetch('/chat', {subscribe: true})).subscribe(
-            (version) => {
+            (new_version) => {
                 // We got a new version!
             },
             () => setTimeout(connect, 1000)
