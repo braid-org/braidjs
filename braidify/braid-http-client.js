@@ -139,8 +139,7 @@ if (is_nodejs) {
     window.fetch = braid_fetch
 }
 
-
-function braid_fetch (url, params = {}) {
+async function braid_fetch (url, params = {}) {
     // Initialize the headers object
     if (!params.headers)
         params.headers = new Headers()
@@ -192,121 +191,97 @@ function braid_fetch (url, params = {}) {
             () => underlying_aborter.abort()
         )
 
-    // Wrap the original fetch's promise with a custom promise.
-    //
-    // This promise includes an additional .andThen(cb) method.  It calls the
-    // cb multiple times, and then if there's any crash, it'll call the
-    // original promise's .catch(cb) clause.
-    //
-    // We couldn't just augment the original promise with the .andThen()
-    // method, because there is no way of calling the .catch() method of the
-    // original promise ourselves.  You cannot get access to a promise's
-    // internal callback method that has been set by some other code.
+    // Now we run the original fetch....
+    var res = await normal_fetch(url, params)
 
-    var andThen, iterator
-    var promise = new Promise((resolve, reject) => {
+    // And customize the response with a couple methods for getting
+    // the braid subscription data:
+    res.subscribe    = start_subscription
+    res.subscription = {[Symbol.asyncIterator]: iterator}
 
-        // Run the actual fetch here!
-        var fetched = normal_fetch(url, params)
 
-        function start_subscription (cb, error) {
-            fetched.then(function (res) {
-                if (!res.ok)
-                    error(new Error('Subscription request failed', res))
+    // Now we define the subscription function we just used:
+    function start_subscription (cb, error) {
+        if (!res.ok)
+            throw new Error('Request returned not ok', res)
 
-                // Parse the streamed response
-                handle_fetch_stream(
-                    res.body,
+        if (res.bodyUsed)
+            // TODO: check if this needs a return
+            throw new Error('This response\'s body has already been read', res)
 
-                    // Each time something happens, we'll either get a new
-                    // version back, or an error.
-                    (result, err) => {
-                        if (!err)
-                            // Yay!  We got a new version!  Tell the callback!
-                            cb(result)
-                        else {
-                            // This error handling code runs if the connection
-                            // closes, or if there is unparseable stuff in the
-                            // streamed response.
+        // Parse the streamed response
+        handle_fetch_stream(
+            res.body,
 
-                            // In any case, we want to be sure to abort the
-                            // underlying fetch.
-                            underlying_aborter.abort()
+            // Each time something happens, we'll either get a new
+            // version back, or an error.
+            (result, err) => {
+                if (!err)
+                    // Yay!  We got a new version!  Tell the callback!
+                    cb(result)
+                else {
+                    // This error handling code runs if the connection
+                    // closes, or if there is unparseable stuff in the
+                    // streamed response.
 
-                            // Then send the error upstream.
-                            error(err)
-                        }
-                    }
-                )
-            })
-            // This catch will run if the initial fetch request fails to
-            // connect.  The error handling code above, on the other hand,
-            // runs if the response while the connection is held open.
-            .catch(error)
-        }
+                    // In any case, we want to be sure to abort the
+                    // underlying fetch.
+                    underlying_aborter.abort()
 
-        // If this is a subscribe, then:
-        //  - include the .andThen() method
-        //  - add an iterator to support "for await (var x of fetch(..))"
-        if (params.subscribe) {
-
-            // The andThen function just calls cb with each new version
-            andThen = cb => {
-                start_subscription(cb, reject)
-                return promise
-            }
-
-            // The iterator
-            iterator = () => ({
-                initialized: false,
-
-                // Each time next() is called, it creates a promise and stores
-                // the resolve and reject functions here.
-                resolve: null,
-                reject:  null,
-
-                async next() {
-                    // Start the subscription
-                    if (!this.initialized) {
-                        this.initialized = true
-
-                        // The subscription will call whichever resolve and
-                        // reject functions the current promise is waiting for
-                        start_subscription(x => this.resolve(x),
-                                           x => this.reject(x) )
-                    }
-
-                    // Now create a new promise, and wait for the subscription
-                    // (above) to resolve or reject it.
-                    var result = await new Promise((resolve, reject) => {
-                        this.resolve = resolve
-                        this.reject  = reject
-                    })
-
-                    // Sanity check: I want to make sure that the subscription
-                    // doesn't try to give us a new version before we've gone
-                    // through another loop of the iterator and created the
-                    // new promise.
-                    var tellme = 'Error! Please tell toomim@gmail.com that this happened.'
-                    this.resolve = () => {throw tellme}
-                    this.reject  = () => {throw tellme}
-
-                    return { done: false, value: result }
+                    // Then send the error upstream.
+                    if (error)
+                        error(err)
+                    else
+                        throw 'Unhandled network error in subscription'
                 }
-            })
+            }
+        )
+    }
+
+
+    // And the iterator for use with "for async (...)"
+    function iterator () {
+        // We'll keep this state while our iterator runs
+        var initialized = false,
+            inbox = [],
+            resolve = null,
+            reject = null
+
+        return {
+            async next() {
+                // If we've already received a version, return it
+                if (inbox.length > 0)
+                    return {done: false, value: inbox.shift()}
+
+                // Otherwise, let's set up a promise to resolve when we get the next item
+                var promise = new Promise((_resolve, _reject) => {
+                    resolve = _resolve
+                    reject  = _reject
+                })
+
+                // Start the subscription, if we haven't already
+                if (!initialized) {
+                    initialized = true
+
+                    // The subscription will call whichever resolve and
+                    // reject functions the current promise is waiting for
+                    start_subscription(x => resolve(x),
+                                       x => reject(x) )
+                }
+
+                // Now wait for the subscription to resolve or reject the promise.
+                var result = await promise
+
+                // Anything we get from here out we should add to the inbox
+                resolve = (new_version) => inbox.push(new_version)
+                reject  = (err) => {throw err}
+
+                return { done: false, value: result }
+            }
         }
+    }
 
-        // But if this wasn't a `subscribe` request, then we just wrap the
-        // underlying promise with our superpromise directly:
-        else fetched.then(resolve).catch(reject)
-
-        // ... and we're done.
-    })
-
-    promise.andThen               = andThen
-    promise[Symbol.asyncIterator] = iterator
-
-    return promise
+    return res
 }
 
 // Parse a stream of versions from the incoming bytes

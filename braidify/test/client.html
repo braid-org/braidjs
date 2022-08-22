@@ -1,7 +1,36 @@
-<script src="/braidify-client.js"></script>
-<script>
-  fetch('/json', {subscribe: true})
-     .andThen((version) => {
-         document.writeln('<pre>We got ' + JSON.stringify(version) + '!')
-     })
+<script src="/braid-http-client.js"></script>
+<script type=module>
+
+// This test should display the following in browser:
+//
+//   We got 1 {"version":"test","body":"{\"this\":\"stuff\"}"}!
+//   We got 2 {"version":"test","body":"{\"this\":\"stuff\"}"}!
+//   We got 1 {"version":"another!","body":""}!
+//   We got 2 {"version":"another!","body":""}!
+//
+// And when you restart the server, it should wait a second and then reconnect
+// and display this again.
+
+async function test1 () {
+    (await fetch('/json', {subscribe: true})).subscribe(
+        (version) => {
+            document.writeln('<pre>We got 1 ' + JSON.stringify(version) + '!')
+        },
+        () => {console.log('Try again 1'); setTimeout(test1, 1000)}
+    )
+}
+
+async function test2 () {
+    try {
+        for await (var version of (await fetch('/json', {subscribe: true})).subscription) 
+        document.writeln('<pre>We got 2 ' + JSON.stringify(version) + '!')
+    } catch (e) {
+        console.log('Try again 2', e)
+        setTimeout(test2, 1000)
+    }
+}
+
+test1()
+test2()
+
 </script>

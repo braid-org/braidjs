@@ -1,15 +1,15 @@
 // This is the root file for es modules:
 //
-//    import {fetch, http} from 'braidify.js'
+//    import {fetch, http} from 'braid-http.js'
 //
 // This file combines the client and server files into one file.
 
-import braidify_client from './braidify-client.js' 
-import braidify_server from './braidify-server.js' 
+import braid_client from './braid-http-client.js'
+import braid_server from './braid-http-server.js'
 
-var fetch = braidify_client.fetch,
-    http  = braidify_client.http,
-    http_server = braidify_server
+var fetch = braid_client.fetch,
+    http  = braid_client.http,
+    http_server = braid_server
 
 export { fetch, http, http_server }
 export default { fetch, http, http_server }

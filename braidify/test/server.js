@@ -1,14 +1,14 @@
-var braidify = require('../braidify-server.js')
+var braidify = require('../braid-http-server.js')
 var sendfile = (f, req, res) => res.end(require('fs').readFileSync(require('path').join(__dirname, f)))
 require('http').createServer(
     (req, res) => {
         braidify(req, res)
 
         if (req.url === '/json') {
+            //res.setHeader('merge-type', 'dt')
+
             if (req.subscribe)
                 res.startSubscription()
-            else
-                res.statusCode = 200
 
             // Send the current version
             res.sendVersion({
@@ -16,16 +16,19 @@ require('http').createServer(
                 body: JSON.stringify({this: 'stuff'})
             })
 
-            setTimeout(() => res.sendVersion({version: 'another!', body: ''}),
-                       500)
+            if (req.subscribe)
+                setTimeout(() => res.sendVersion({version: 'another!', body: ''}),
+                           500)
 
-            if (!req.subscribe)
+            if (!req.subscribe) {
+                res.statusCode = 200
                 res.end()
+            }
         }        
 
         else if (req.url === '/')
             sendfile('client.html', req, res)
-        else if (req.url === '/braidify-client.js')
-            sendfile('../braidify-client.js', req, res)
+        else if (req.url === '/braid-http-client.js')
+            sendfile('../braid-http-client.js', req, res)
     }
 ).listen(9000, () => console.log("Listening on http://localhost:9000..."))
