@@ -29,15 +29,15 @@ require('braid-http').http_server // A polyfill for require('http') servers
 
 ## Using it in Browsers
 
-This library adds two fields to the response of `fetch()` that let you access
-the updates in a Braid resource:
+This library adds a `{subscribe: true}` option to `fetch()`, and lets you
+access the result of a subscription with two new fields on the fetch response:
 
 - `response.subscribe( new_version => ... )`
 - `response.subscription`: an iterator that can be used with `for await`
 
-### A Braid Fetch with Promises
+### Example Subscription with Promises
 
-Here is an example of subscribing to a Braid resource using a promise:
+Here is an example of subscribing to a Braid resource using promises:
 
 ```html
 <script>
@@ -58,7 +58,7 @@ Here is an example of subscribing to a Braid resource using a promise:
 </script>
 ```
 
-If you want automatic reconnections, you can add two error handlers:
+If you want automatic reconnections, add two error handlers like this:
 
 ```javascript
 function connect() {
@@ -81,7 +81,7 @@ function connect() {
 connect()
 ```
 
-### Braid Fetch with `async` Function
+### Example Subscription with Async Function
 
 ```javascript
 async function connect () {
@@ -98,7 +98,7 @@ async function connect () {
 }
 ```
 
-### Braid Fetch with `for await`
+### Example Subscription with `for await`
 
 ```javascript
 async function connect () {
@@ -124,7 +124,7 @@ async function connect () {
 
 ## Using it in Nodejs
 
-### Nodejs server with `require('http')`
+### Example Nodejs server with `require('http')`
 
 Braidify adds these fields and methods to requests and responses:
 - `req.subscribe`
@@ -160,7 +160,7 @@ require('http').createServer(
 ).listen(9935)
 ```
 
-### Nodejs server with `require('express')`
+### Example Nodejs server with `require('express')`
 
 With `express`, you can simply call `app.use(braidify)` to get braid features
 added to every request and response.
@@ -202,7 +202,7 @@ require('http').createServer(app).listen(8583)
 
 
 
-### Nodejs client with `require('http')`
+### Example Nodejs client with `require('http')`
 
 ```javascript
 // Use this line if necessary for self-signed certs
@@ -251,7 +251,7 @@ connect()
 ```
 
 
-### Nodejs client with `fetch()`
+### Example Nodejs client with `fetch()`
 
 ```javascript
 var fetch = require('braid-http').fetch
