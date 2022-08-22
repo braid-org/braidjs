@@ -15,13 +15,13 @@ Browsers:
 
 Node.js:
 
-```
+```shell
 npm install braid-http
 ```
 
 Then in your node.js code:
 
-```
+```javascript
 require('braid-http').fetch       // A polyfill for require('node-fetch')
 require('braid-http').http        // A polyfill for require('http') clients
 require('braid-http').http_server // A polyfill for require('http') servers
@@ -39,23 +39,21 @@ access the result of a subscription with two new fields on the fetch response:
 
 Here is an example of subscribing to a Braid resource using promises:
 
-```html
-<script>
-    fetch('https://braid.org/chat', {subscribe: true}).then(
-        res => res.subscribe(
-            (version) => {
-                console.log('We got a new version!', version)
-                // {
-                //   version: "me",
-                //   parents: ["mom", "dad"],
-                //   patches: [{unit: "json", range: ".foo", content: "3"}]
-                //   body:    "3"
-                // }
-                //   // Version will contain either patches *or* body
-            }
-        )
+```javascript
+fetch('https://braid.org/chat', {subscribe: true}).then(
+    res => res.subscribe(
+        (version) => {
+            console.log('We got a new version!', version)
+            // {
+            //   version: "me",
+            //   parents: ["mom", "dad"],
+            //   patches: [{unit: "json", range: ".foo", content: "3"}]
+            //   body:    "3"
+            // }
+            //   // Version will contain either patches *or* body
+        }
     )
-</script>
+)
 ```
 
 If you want automatic reconnections, add two error handlers like this:
