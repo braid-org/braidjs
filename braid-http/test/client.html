@@ -1,0 +1,64 @@
+<script src="/braid-http-client.js"></script>
+<script type=module>
+
+// This test should display the following in browser:
+//
+//   We got 1 {"version":"test","body":"{\"this\":\"stuff\"}"}!
+//   We got 2 {"version":"test","body":"{\"this\":\"stuff\"}"}!
+//   We got 3 {"version":"test","body":"{\"this\":\"stuff\"}"}!
+//   We got 1 {"version":"another!","body":""}!
+//   We got 2 {"version":"another!","body":""}!
+//   We got 3 {"version":"another!","body":""}!
+//
+// And when you restart the server, it should wait a second and then reconnect
+// and display this again.
+
+function test1 () {
+    fetch('/json', {subscribe: true}).then(
+        res => res.subscribe(
+            (version) => {
+                document.writeln('<pre>We got 1 ' + JSON.stringify(version) + '!')
+            },
+            () => {
+                console.log('Try again 1')
+                setTimeout(test1, 1000)
+            }
+        )).catch(e => {
+            console.log('Try again 1')
+            setTimeout(test1, 1000)
+        })
+}
+
+
+async function test2 () {
+    try {
+        (await fetch('/json', {subscribe: true})).subscribe(
+            (version) => {
+                document.writeln('<pre>We got 2 ' + JSON.stringify(version) + '!')
+            },
+            () => {
+                console.log('Try again 2')
+                setTimeout(test2, 1000)
+            }
+        )
+    } catch (e) {
+        console.log('Try again 2')
+        setTimeout(test2, 1000)
+    }
+}
+
+async function test3 () {
+    try {
+        for await (var version of (await fetch('/json', {subscribe: true})).subscription) 
+        document.writeln('<pre>We got 3 ' + JSON.stringify(version) + '!')
+    } catch (e) {
+        console.log('Try again 3')
+        setTimeout(test3, 1000)
+    }
+}
+
+test1()
+test2()
+test3()
+
+</script>

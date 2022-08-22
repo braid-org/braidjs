@@ -1,6 +1,6 @@
 // This is the root file for es modules:
 //
-//    import {fetch, http} from 'braid-http.js'
+//    import {fetch, http} from 'braid-http'
 //
 // This file combines the client and server files into one file.
 

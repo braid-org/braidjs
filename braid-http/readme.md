@@ -1,0 +1,276 @@
+# Braid-HTTP
+
+This polyfill library implements the [Braid-HTTP v03 protocol](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-03.txt) in Javascript.  It extends the existing browser `fetch()` API, and the nodejs `http` library, with the ability to speak Braid.
+
+Developed in [braid.org](https://braid.org).
+
+
+## Installing
+
+Browsers:
+
+```html
+<script src="https://unpkg.com/braid-http/braid-http-client.js"></script>
+```
+
+Node.js:
+
+```
+npm install braid-http
+```
+
+Then in your node.js code:
+
+```
+require('braid-http').fetch       // A polyfill for require('node-fetch')
+require('braid-http').http        // A polyfill for require('http') clients
+require('braid-http').http_server // A polyfill for require('http') servers
+```
+
+## Using it in Browsers
+
+This library adds two fields to the response of `fetch()` that let you access
+the updates in a Braid resource:
+
+- `response.subscribe( new_version => ... )`
+- `response.subscription`: an iterator that can be used with `for await`
+
+### A Braid Fetch with Promises
+
+Here is an example of subscribing to a Braid resource using a promise:
+
+```html
+<script>
+    fetch('https://braid.org/chat', {subscribe: true}).then(
+        res => res.subscribe(
+            (version) => {
+                console.log('We got a new version!', version)
+                // {
+                //   version: "me",
+                //   parents: ["mom", "dad"],
+                //   patches: [{unit: "json", range: ".foo", content: "3"}]
+                //   body:    "3"
+                // }
+                //   // Version will contain either patches *or* body
+            }
+        )
+    )
+</script>
+```
+
+If you want automatic reconnections, you can add two error handlers:
+
+```javascript
+function connect() {
+    fetch('https://braid.org/chat', {subscribe: true}).then(
+        res => res.subscribe(
+            (version) => {
+                console.log('We got a new version!', version)
+                // {
+                //   version: "me",
+                //   parents: ["mom", "dad"],
+                //   patches: [{unit: "json", range: ".foo", content: "3"}]
+                //   body:    "3"
+                // }
+                //   // Version will contain either patches *or* body
+            },
+            e => setTimeout(connect, 1000)
+        )
+    ).catch(e => setTimeout(connect, 1000))
+}
+connect()
+```
+
+### Braid Fetch with `async` Function
+
+```javascript
+async function connect () {
+    try {
+        (await fetch('/chat', {subscribe: true})).subscribe(
+            (version) => {
+                // We got a new version!
+            },
+            () => setTimeout(connect, 1000)
+        )
+    } catch (e) {
+        setTimeout(connect, 1000)
+    }
+}
+```
+
+### Braid Fetch with `for await`
+
+```javascript
+async function connect () {
+    try {
+        for await (var v of fetch('/chat', {subscribe: true}).subscription) {
+            // Updates might come in the form of patches:
+            if (v.patches)
+                chat = apply_patches(v.patches, chat)
+
+            // Or complete versions:
+            else
+                // Beware the server doesn't send these yet.
+                chat = JSON.parse(v.body)
+
+            render_stuff()
+        }
+    } catch (e) {
+        console.log('Reconnecting...')
+        setTimeout(connect, 4000)
+    }
+}
+```
+
+## Using it in Nodejs
+
+### Nodejs server with `require('http')`
+
+Braidify adds these fields and methods to requests and responses:
+- `req.subscribe`
+- `req.startSubscription({onClose: cb})`
+- `await req.patches()`
+- `res.sendVersion()`
+
+Use it like this:
+
+```javascript
+var braidify = require('braid-http').http_server
+// or:
+import {http_server as braidify} from 'braid-http'
+
+require('http').createServer(
+    (req, res) => {
+        // Add braid stuff to req and res
+        braidify(req, res)
+
+        // Now use it
+        if (req.subscribe)
+            res.startSubscription({ onClose: _=> null })
+            // startSubscription automatically sets statusCode = 209
+        else
+            res.statusCode = 200
+
+        // Send the current version
+        res.sendVersion({
+            version: 'greg',
+            body: JSON.stringify({greg: 'greg'})
+        })
+    }
+).listen(9935)
+```
+
+### Nodejs server with `require('express')`
+
+With `express`, you can simply call `app.use(braidify)` to get braid features
+added to every request and response.
+
+```javascript
+var braidify = require('braid-http').http_server
+// or:
+import {http_server as braidify} from 'braid-http'
+
+var app = require('express')()
+
+app.use(braidify)    // Add braid stuff to req and res
+
+app.get('/', (req, res) => {
+    // Now use it
+    if (req.subscribe)
+        res.startSubscription({ onClose: _=> null })
+        // startSubscription automatically sets statusCode = 209
+    else
+        res.statusCode = 200
+
+    // Send the current version
+    res.sendVersion({
+        version: 'greg',
+        parents: ['gr','eg'],
+        body: JSON.stringify({greg: 'greg'})
+    })
+
+    // Or you can send patches like this:
+    // res.sendVersion({
+    //     version: 'greg',
+    //     parents: ['gr','eg'],
+    //     patches: [{range: '.greg', unit: 'json', content: '"greg"'}]
+    // })
+})
+
+require('http').createServer(app).listen(8583)
+```
+
+
+
+### Nodejs client with `require('http')`
+
+```javascript
+// Use this line if necessary for self-signed certs
+// process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
+
+var https = require('braid-http').http(require('https'))
+// or:
+// import braid_http from 'braid-http'
+// https = braid_http.http(require('https'))
+
+https.get(
+   'https://braid.org/chat',
+   {subscribe: true},
+   (res) => {
+      res.on('version', (version) => {
+          console.log('well we got one', version)
+      })
+   }
+)
+```
+
+To get auto-reconnections use:
+
+```javascript
+function connect () {
+    https.get(
+        'https://braid.org/chat',
+        {subscribe: true},
+        (res) => {
+            res.on('version', (version) => {
+                // {
+                //   version: "me",
+                //   parents: ["mom", "dad"],
+                //   patches: [{unit: "json", range: ".foo", content: "3"}]
+                //   body:    "3"
+                // }
+                //   // Version will contain either patches *or* body, but not both
+                console.log('We got a new version!', version)
+            })
+
+            res.on('end',   e => setTimeout(connect, 1000))
+            res.on('error', e => setTimeout(connect, 1000))
+        })
+}
+connect()
+```
+
+
+### Nodejs client with `fetch()`
+
+```javascript
+var fetch = require('braid-http').fetch
+// or:
+import {fetch} from 'braid-http'
+
+// process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
+
+fetch('https://localhost:3009/chat',
+      {subscribe: true}).andThen(
+          x => console.log('Got ', x)
+      )
+```
+
+Note: the current version of `node-fetch` doesn't properly throw errors when a
+response connection dies, and thus you cannot attach a `.catch()` handler to
+automatically reconnect.  (See
+[issue #980](https://github.com/node-fetch/node-fetch/issues/980) and
+[#753](https://github.com/node-fetch/node-fetch/issues/753).)  We recommend
+using the `http` library (below) for requests on nodejs instead.
+
+
