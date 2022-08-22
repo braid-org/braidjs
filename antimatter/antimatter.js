@@ -1,15 +1,13 @@
 
-// v501
+// v503
 
-var antimatter = {}    // The antimatter algorithm
-var json = {}          // A json crdt
-var sequence = {}      // A sequence crdt
-
-if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
+var create_antimatter_crdt  // create an antimatter crdt
+var create_json_crdt        // create a json crdt
+var sequence_crdt = {}      // sequence crdt functions
 
 ;(() => {
-    antimatter.create = (send, self) => {
-        self = json.create(self)
+    create_antimatter_crdt = (send, self) => {
+        self = create_json_crdt(self)
         self.send = send
 
         self.id = self.id ?? Math.random().toString(36).slice(2)
@@ -351,7 +349,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         return self
     }
 
-    json.create = self => {
+    create_json_crdt = self => {
         self = self ?? {}     
         self.S = self.S ?? null
         self.T = self.T ?? {}
@@ -369,7 +367,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             function rec_read(x) {
                 if (x && typeof(x) == 'object') {
                     if (x.t == 'lit') return JSON.parse(JSON.stringify(x.S))
-                    if (x.t == 'val') return rec_read(sequence.get(x.S, 0, is_anc))
+                    if (x.t == 'val') return rec_read(sequence_crdt.get(x.S, 0, is_anc))
                     if (x.t == 'obj') {
                         var o = {}
                         Object.entries(x.S).forEach(([k, v]) => {
@@ -380,14 +378,14 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     }
                     if (x.t == 'arr') {
                         var a = []
-                        sequence.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
+                        sequence_crdt.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
                             if (!deleted) node.elems.forEach((e) => a.push(rec_read(e)))
                         }, true)
                         return a
                     }
                     if (x.t == 'str') {
                         var s = []
-                        sequence.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
+                        sequence_crdt.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
                             if (!deleted) s.push(node.elems)
                         }, true)
                         return s.join('')
@@ -429,22 +427,22 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 function recurse(x) {
                     if (is_lit(x)) {
                     } else if (x.t === 'val') {
-                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence_crdt.generate_braid(x.S, version, is_anc).forEach(s => {
                             if (s[2].length) {
                                 patches.push({range: path.join(''), content: s[2][0]})
                                 if (s[3]) sort_keys[patches.length - 1] = s[3]
                             }
                         })
-                        sequence.traverse(x.S, is_anc, node => {
+                        sequence_crdt.traverse(x.S, is_anc, node => {
                             node.elems.forEach(recurse)
                         })
                     } else if (x.t === 'arr') {
-                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence_crdt.generate_braid(x.S, version, is_anc).forEach(s => {
                             patches.push({range: `${path.join('')}[${s[0]}:${s[0] + s[1]}]`, content: s[2]})
                             if (s[3]) sort_keys[patches.length - 1] = s[3]
                         })
                         var i = 0
-                        sequence.traverse(x.S, is_anc, node => {
+                        sequence_crdt.traverse(x.S, is_anc, node => {
                             node.elems.forEach(e => {
                                 path.push(`[${i++}]`)
                                 recurse(e)
@@ -458,7 +456,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                             path.pop()
                         })
                     } else if (x.t === 'str') {
-                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence_crdt.generate_braid(x.S, version, is_anc).forEach(s => {
                             patches.push({range: `${path.join('')}[${s[0]}:${s[0] + s[1]}]`, content: s[2]})
                             if (s[3]) sort_keys[patches.length - 1] = s[3]
                         })
@@ -478,16 +476,16 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             function recurse(x) {
                 if (is_lit(x)) return x
                 if (x.t == 'val') {
-                    sequence.apply_bubbles(x.S, to_bubble)
-                    sequence.traverse(x.S, () => true, node => {
+                    sequence_crdt.apply_bubbles(x.S, to_bubble)
+                    sequence_crdt.traverse(x.S, () => true, node => {
                         node.elems = node.elems.slice(0, 1).map(recurse)
                     }, true)
                     if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.length == 1 && is_lit(x.S.elems[0])) return x.S.elems[0]
                     return x
                 }
                 if (x.t == 'arr') {
-                    sequence.apply_bubbles(x.S, to_bubble)
-                    sequence.traverse(x.S, () => true, node => {
+                    sequence_crdt.apply_bubbles(x.S, to_bubble)
+                    sequence_crdt.traverse(x.S, () => true, node => {
                         node.elems = node.elems.map(recurse)
                     }, true)
                     if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.every(is_lit) && !Object.keys(x.S.deleted_by).length) return {t: 'lit', S: x.S.elems.map(get_lit)}
@@ -506,7 +504,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     return x
                 }
                 if (x.t == 'str') {
-                    sequence.apply_bubbles(x.S, to_bubble)
+                    sequence_crdt.apply_bubbles(x.S, to_bubble)
                     if (x.S.nexts.length == 0 && !x.S.next && !Object.keys(x.S.deleted_by).length) return x.S.elems
                     return x
                 }
@@ -570,8 +568,8 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 var cur = resolve_path(parse)
                 if (!parse.slice) {
                     if (cur.t != 'val') throw Error('bad')
-                    var len = sequence.length(cur.S, is_anc)
-                    sequence.add_version(cur.S, version, [[0, len, [parse.delete ? null : make_lit(parse.value)], sort_key]], is_anc)
+                    var len = sequence_crdt.length(cur.S, is_anc)
+                    sequence_crdt.add_version(cur.S, version, [[0, len, [parse.delete ? null : make_lit(parse.value)], sort_key]], is_anc)
                     rebased_patches.push(patch)
                 } else {
                     if (typeof parse.value === 'string' && cur.t !== 'str')
@@ -584,12 +582,12 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                     var r0 = parse.slice[0]
                     var r1 = parse.slice[1]
                     if (r0 < 0 || Object.is(r0, -0) || r1 < 0 || Object.is(r1, -0)) {
-                        let len = sequence.length(cur.S, is_anc)
+                        let len = sequence_crdt.length(cur.S, is_anc)
                         if (r0 < 0 || Object.is(r0, -0)) r0 = len + r0
                         if (r1 < 0 || Object.is(r1, -0)) r1 = len + r1
                     }
 
-                    var rebased_splices = sequence.add_version(cur.S, version, [[r0, r1 - r0, parse.value, sort_key]], is_anc)
+                    var rebased_splices = sequence_crdt.add_version(cur.S, version, [[r0, r1 - r0, parse.value, sort_key]], is_anc)
                     for (let rebased_splice of rebased_splices) rebased_patches.push({
                         range: `${parse.path.map(x => `[${JSON.stringify(x)}]`).join('')}[${rebased_splice[0]}:${rebased_splice[0] + rebased_splice[1]}]`,
                         content: rebased_splice[2]
@@ -600,17 +598,17 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             function resolve_path(parse) {
                 var cur = self.S
                 if (!cur || typeof(cur) != 'object' || cur.t == 'lit')
-                    cur = self.S = {t: 'val', S: sequence.create_node(null, [cur])}
+                    cur = self.S = {t: 'val', S: sequence_crdt.create_node(null, [cur])}
                 var prev_S = null
                 var prev_i = 0
                 for (var i=0; i<parse.path.length; i++) {
                     var key = parse.path[i]
-                    if (cur.t == 'val') cur = sequence.get(prev_S = cur.S, prev_i = 0, is_anc)
+                    if (cur.t == 'val') cur = sequence_crdt.get(prev_S = cur.S, prev_i = 0, is_anc)
                     if (cur.t == 'lit') {
                         var new_cur = {}
                         if (cur.S instanceof Array) {
                             new_cur.t = 'arr'
-                            new_cur.S = sequence.create_node(null, cur.S.map(x => make_lit(x)))
+                            new_cur.S = sequence_crdt.create_node(null, cur.S.map(x => make_lit(x)))
                         } else {
                             if (typeof(cur.S) != 'object') throw Error('bad')
                             new_cur.t = 'obj'
@@ -618,29 +616,29 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                             Object.entries(cur.S).forEach(e => new_cur.S[e[0]] = make_lit(e[1]))
                         }
                         cur = new_cur
-                        sequence.set(prev_S, prev_i, cur, is_anc)
+                        sequence_crdt.set(prev_S, prev_i, cur, is_anc)
                     }
                     if (cur.t == 'obj') {
                         let x = cur.S[key]
                         if (!x || typeof(x) != 'object' || x.t == 'lit')
-                            x = cur.S[key] = {t: 'val', S: sequence.create_node(null, [x == null ? null : x])}
+                            x = cur.S[key] = {t: 'val', S: sequence_crdt.create_node(null, [x == null ? null : x])}
                         cur = x
                     } else if (i == parse.path.length - 1 && !parse.slice) {
                         parse.slice = [key, key + 1]
                         parse.value = (cur.t == 'str') ? parse.value : [parse.value]
                     } else if (cur.t == 'arr') {
-                        cur = sequence.get(prev_S = cur.S, prev_i = key, is_anc)
+                        cur = sequence_crdt.get(prev_S = cur.S, prev_i = key, is_anc)
                     } else throw Error('bad')
                 }
                 if (parse.slice) {
-                    if (cur.t == 'val') cur = sequence.get(prev_S = cur.S, prev_i = 0, is_anc)
+                    if (cur.t == 'val') cur = sequence_crdt.get(prev_S = cur.S, prev_i = 0, is_anc)
                     if (typeof(cur) == 'string') {
-                        cur = {t: 'str', S: sequence.create_node(null, cur)}
-                        sequence.set(prev_S, prev_i, cur, is_anc)
+                        cur = {t: 'str', S: sequence_crdt.create_node(null, cur)}
+                        sequence_crdt.set(prev_S, prev_i, cur, is_anc)
                     } else if (cur.t == 'lit') {
                         if (!(cur.S instanceof Array)) throw Error('bad')
-                        cur = {t: 'arr', S: sequence.create_node(null, cur.S.map(x => make_lit(x)))}
-                        sequence.set(prev_S, prev_i, cur, is_anc)
+                        cur = {t: 'arr', S: sequence_crdt.create_node(null, cur.S.map(x => make_lit(x)))}
+                        sequence_crdt.set(prev_S, prev_i, cur, is_anc)
                     }
                 }
                 return cur
@@ -721,7 +719,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         return self
     }
 
-    sequence.create_node = (version, elems, end_cap, sort_key) => ({
+    sequence_crdt.create_node = (version, elems, end_cap, sort_key) => ({
         version,
         sort_key,
         elems,
@@ -731,7 +729,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         next : null
     })
 
-    sequence.generate_braid = (S, version, is_anc) => {
+    sequence_crdt.generate_braid = (S, version, is_anc) => {
         var splices = []
 
         function add_ins(offset, ins, sort_key, end_cap) {
@@ -784,9 +782,9 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         return splices
     }
 
-    sequence.apply_bubbles = (S, to_bubble) => {
+    sequence_crdt.apply_bubbles = (S, to_bubble) => {
 
-        sequence.traverse(S, () => true, node => {
+        sequence_crdt.traverse(S, () => true, node => {
             if (to_bubble[node.version] && to_bubble[node.version][0] != node.version) {
                 if (!node.sort_key) node.sort_key = node.version
                 node.version = to_bubble[node.version][0]
@@ -844,10 +842,10 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         }
     }
 
-    sequence.get = (S, i, is_anc) => {
+    sequence_crdt.get = (S, i, is_anc) => {
         var ret = null
         var offset = 0
-        sequence.traverse(S, is_anc ? is_anc : () => true, (node) => {
+        sequence_crdt.traverse(S, is_anc ? is_anc : () => true, (node) => {
             if (i - offset < node.elems.length) {
                 ret = node.elems[i - offset]
                 return false
@@ -857,9 +855,9 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         return ret
     }
 
-    sequence.set = (S, i, v, is_anc) => {
+    sequence_crdt.set = (S, i, v, is_anc) => {
         var offset = 0
-        sequence.traverse(S, is_anc ? is_anc : () => true, (node) => {
+        sequence_crdt.traverse(S, is_anc ? is_anc : () => true, (node) => {
             if (i - offset < node.elems.length) {
                 if (typeof node.elems == 'string') node.elems = node.elems.slice(0, i - offset) + v + node.elems.slice(i - offset + 1)
                 else node.elems[i - offset] = v
@@ -869,16 +867,16 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         })
     }
 
-    sequence.length = (S, is_anc) => {
+    sequence_crdt.length = (S, is_anc) => {
         var count = 0
-        sequence.traverse(S, is_anc ? is_anc : () => true, node => {
+        sequence_crdt.traverse(S, is_anc ? is_anc : () => true, node => {
             count += node.elems.length
         })
         return count
     }
 
-    sequence.break_node = (node, x, end_cap, new_next) => {
-        var tail = sequence.create_node(null, node.elems.slice(x), node.end_cap)
+    sequence_crdt.break_node = (node, x, end_cap, new_next) => {
+        var tail = sequence_crdt.create_node(null, node.elems.slice(x), node.end_cap)
         Object.assign(tail.deleted_by, node.deleted_by)
         tail.nexts = node.nexts
         tail.next = node.next
@@ -891,7 +889,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         return tail
     }
 
-    sequence.add_version = (S, version, splices, is_anc) => {
+    sequence_crdt.add_version = (S, version, splices, is_anc) => {
 
         var rebased_splices = []
         
@@ -915,14 +913,14 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             if (deleted) {
                 if (s[1] == 0 && s[0] == offset) {
                     if (node.elems.length == 0 && !node.end_cap && has_nexts) return
-                    var new_node = sequence.create_node(version, s[2], null, sort_key)
+                    var new_node = sequence_crdt.create_node(version, s[2], null, sort_key)
 
                     fresh_nodes.add(new_node)
 
                     if (node.elems.length == 0 && !node.end_cap)
                         add_to_nexts(node.nexts, new_node)
                     else
-                        sequence.break_node(node, 0, undefined, new_node)
+                    sequence_crdt.break_node(node, 0, undefined, new_node)
                     si++
                 }
 
@@ -930,7 +928,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 
                     delete_up_to = s[0] + s[1]
                     
-                    var new_node = sequence.create_node(version, s[2], null, sort_key)
+                    var new_node = sequence_crdt.create_node(version, s[2], null, sort_key)
                     
                     fresh_nodes.add(new_node)
 
@@ -944,14 +942,14 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 var d = s[0] - (offset + node.elems.length)
                 if (d > 0) return
                 if (d == 0 && !node.end_cap && has_nexts) return
-                var new_node = sequence.create_node(version, s[2], null, sort_key)
+                var new_node = sequence_crdt.create_node(version, s[2], null, sort_key)
 
                 fresh_nodes.add(new_node)
 
                 if (d == 0 && !node.end_cap) {
                     add_to_nexts(node.nexts, new_node)
                 } else {
-                    sequence.break_node(node, s[0] - offset, undefined, new_node)
+                    sequence_crdt.break_node(node, s[0] - offset, undefined, new_node)
                 }
                 si++
                 return
@@ -967,20 +965,20 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
                 delete_up_to = s[0] + s[1]
                 
                 if (s[2]) {
-                    var new_node = sequence.create_node(version, s[2], null, sort_key)
+                    var new_node = sequence_crdt.create_node(version, s[2], null, sort_key)
 
                     fresh_nodes.add(new_node)
 
                     if (add_at_end) {
                         add_to_nexts(node.nexts, new_node)
                     } else {
-                        sequence.break_node(node, s[0] - offset, true, new_node)
+                        sequence_crdt.break_node(node, s[0] - offset, true, new_node)
                     }
                     return
                 } else {
                     if (s[0] == offset) {
                     } else {
-                        sequence.break_node(node, s[0] - offset)
+                        sequence_crdt.break_node(node, s[0] - offset)
                         return
                     }
                 }
@@ -989,7 +987,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
             if (delete_up_to > offset) {
                 if (delete_up_to <= offset + node.elems.length) {
                     if (delete_up_to < offset + node.elems.length) {
-                        sequence.break_node(node, delete_up_to - offset)
+                        sequence_crdt.break_node(node, delete_up_to - offset)
                     }
                     si++
                 }
@@ -1023,7 +1021,7 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         return rebased_splices
     }
 
-    sequence.traverse = (S, f, cb, view_deleted, tail_cb) => {
+    sequence_crdt.traverse = (S, f, cb, view_deleted, tail_cb) => {
         var exit_early = {}
         var offset = 0
         function helper(node, prev, version) {
@@ -1064,3 +1062,5 @@ if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
         return m;
     }
 })()
+
+if (typeof module != 'undefined') module.exports = {create_antimatter_crdt, create_json_crdt, sequence_crdt}
