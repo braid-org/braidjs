@@ -7,6 +7,6 @@ var client = require('./braid-http-client'),
 
 module.exports = {
     fetch: client.fetch,
-    http: client.http,
+    http_client: client.http,
     http_server: server
 }

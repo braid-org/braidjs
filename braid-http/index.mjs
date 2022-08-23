@@ -8,8 +8,8 @@ import braid_client from './braid-http-client.js'
 import braid_server from './braid-http-server.js'
 
 var fetch = braid_client.fetch,
-    http  = braid_client.http,
+    http_client = braid_client.http,
     http_server = braid_server
 
-export { fetch, http, http_server }
-export default { fetch, http, http_server }
+export { fetch, http_client, http_server }
+export default { fetch, http_client, http_server }

@@ -20,13 +20,13 @@ npm install braid-http
 ```
 
 ```javascript
-// Import with require():
+// Import with require()
 require('braid-http').fetch       // A polyfill for require('node-fetch')
-require('braid-http').http        // A polyfill for require('http') clients
+require('braid-http').http_client // A polyfill for require('http') clients
 require('braid-http').http_server // A polyfill for require('http') servers
 
-// Or as es6 module:
-import {fetch, http, http_server} from 'braid-http'
+// Or as es6 module
+import {fetch, http_client, http_server} from 'braid-http'
 ```
 
 ## Using it in Browsers
@@ -203,10 +203,10 @@ require('http').createServer(app).listen(8583)
 // Use this line if necessary for self-signed certs
 // process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
 
-var https = require('braid-http').http(require('https'))
+var https = require('braid-http').http_client(require('https'))
 // or:
 // import braid_http from 'braid-http'
-// https = braid_http.http(require('https'))
+// https = braid_http.http_client(require('https'))
 
 https.get(
    'https://braid.org/chat',
