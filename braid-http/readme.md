@@ -19,12 +19,14 @@ Node.js:
 npm install braid-http
 ```
 
-Then in your node.js code:
-
 ```javascript
+// Using require():
 require('braid-http').fetch       // A polyfill for require('node-fetch')
 require('braid-http').http        // A polyfill for require('http') clients
 require('braid-http').http_server // A polyfill for require('http') servers
+
+// Using es6 modules:
+import {fetch, http, http_server} from 'braid-http'
 ```
 
 ## Using it in Browsers
@@ -74,7 +76,7 @@ function connect() {
 connect()
 ```
 
-### Example Subscription with Async Function
+### Example Subscription with Async/Await
 
 ```javascript
 async function connect () {
