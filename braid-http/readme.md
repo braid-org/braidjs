@@ -20,12 +20,12 @@ npm install braid-http
 ```
 
 ```javascript
-// Using require():
+// Import with require():
 require('braid-http').fetch       // A polyfill for require('node-fetch')
 require('braid-http').http        // A polyfill for require('http') clients
 require('braid-http').http_server // A polyfill for require('http') servers
 
-// Using es6 modules:
+// Or as es6 module:
 import {fetch, http, http_server} from 'braid-http'
 ```
 
