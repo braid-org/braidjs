@@ -1,5 +1,5 @@
 
-// v503
+// v0.0.505
 
 var create_antimatter_crdt  // create an antimatter crdt
 var create_json_crdt        // create a json crdt
@@ -353,6 +353,7 @@ var sequence_crdt = {}      // sequence crdt functions
         self = self ?? {}     
         self.S = self.S ?? null
         self.T = self.T ?? {}
+        self.root_version = null
         self.current_version = self.current_version ?? {}
 
         let is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
@@ -515,6 +516,8 @@ var sequence_crdt = {}      // sequence crdt functions
                 if (version === bubble[1])
                     self.T[bubble[0]] = self.T[bubble[1]]
                 if (version !== bubble[0]) {
+                    if (self.root_version == version)
+                        self.root_version = bubble[0]
                     delete self.T[version]
                     delete self.version_cache[version]
                 } else self.version_cache[version] = null
@@ -532,6 +535,8 @@ var sequence_crdt = {}      // sequence crdt functions
 
         self.add_version = (version, parents, patches, sort_keys) => {
             if (self.T[version]) return
+
+            if (self.root_version == null) self.root_version = version
 
             self.T[version] = {...parents}
 
@@ -598,7 +603,7 @@ var sequence_crdt = {}      // sequence crdt functions
             function resolve_path(parse) {
                 var cur = self.S
                 if (!cur || typeof(cur) != 'object' || cur.t == 'lit')
-                    cur = self.S = {t: 'val', S: sequence_crdt.create_node(null, [cur])}
+                    cur = self.S = {t: 'val', S: sequence_crdt.create_node(self.root_version, [cur])}
                 var prev_S = null
                 var prev_i = 0
                 for (var i=0; i<parse.path.length; i++) {
@@ -608,7 +613,7 @@ var sequence_crdt = {}      // sequence crdt functions
                         var new_cur = {}
                         if (cur.S instanceof Array) {
                             new_cur.t = 'arr'
-                            new_cur.S = sequence_crdt.create_node(null, cur.S.map(x => make_lit(x)))
+                            new_cur.S = sequence_crdt.create_node(self.root_version, cur.S.map(x => make_lit(x)))
                         } else {
                             if (typeof(cur.S) != 'object') throw Error('bad')
                             new_cur.t = 'obj'
@@ -621,7 +626,7 @@ var sequence_crdt = {}      // sequence crdt functions
                     if (cur.t == 'obj') {
                         let x = cur.S[key]
                         if (!x || typeof(x) != 'object' || x.t == 'lit')
-                            x = cur.S[key] = {t: 'val', S: sequence_crdt.create_node(null, [x == null ? null : x])}
+                            x = cur.S[key] = {t: 'val', S: sequence_crdt.create_node(self.root_version, [x == null ? null : x])}
                         cur = x
                     } else if (i == parse.path.length - 1 && !parse.slice) {
                         parse.slice = [key, key + 1]
@@ -633,11 +638,11 @@ var sequence_crdt = {}      // sequence crdt functions
                 if (parse.slice) {
                     if (cur.t == 'val') cur = sequence_crdt.get(prev_S = cur.S, prev_i = 0, is_anc)
                     if (typeof(cur) == 'string') {
-                        cur = {t: 'str', S: sequence_crdt.create_node(null, cur)}
+                        cur = {t: 'str', S: sequence_crdt.create_node(self.root_version, cur)}
                         sequence_crdt.set(prev_S, prev_i, cur, is_anc)
                     } else if (cur.t == 'lit') {
                         if (!(cur.S instanceof Array)) throw Error('bad')
-                        cur = {t: 'arr', S: sequence_crdt.create_node(null, cur.S.map(x => make_lit(x)))}
+                        cur = {t: 'arr', S: sequence_crdt.create_node(self.root_version, cur.S.map(x => make_lit(x)))}
                         sequence_crdt.set(prev_S, prev_i, cur, is_anc)
                     }
                 }
@@ -830,6 +835,11 @@ var sequence_crdt = {}      // sequence crdt functions
                     node.elems = node.elems.concat(next.elems)
                     node.end_cap = next.end_cap
                     node.nexts = next.nexts
+                    node.next = next.next
+                    continue
+                }
+
+                if (next && !next.elems.length && !next.nexts.length) {
                     node.next = next.next
                     continue
                 }
