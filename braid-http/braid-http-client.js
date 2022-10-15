@@ -136,7 +136,7 @@ if (is_nodejs) {
     normal_fetch = window.fetch
     AbortController = window.AbortController
     Headers = window.Headers
-    window.fetch = braid_fetch
+    // window.fetch = braid_fetch
 }
 
 async function braid_fetch (url, params = {}) {

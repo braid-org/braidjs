@@ -1,6 +1,6 @@
 # Braid-HTTP
 
-This polyfill library implements the [Braid-HTTP v03 protocol](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-03.txt) in Javascript.  It extends the existing browser `fetch()` API, and the nodejs `http` library, with the ability to speak Braid.
+This polyfill library implements the [Braid-HTTP v03 protocol](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-03.txt) in Javascript.  It gives browsers a `braid_fetch()` drop-in replacement for the `fetch()` API, and gives nodejs an `http` plugin, allowing them to speak Braid in a simple way.
 
 Developed in [braid.org](https://braid.org).
 
@@ -11,6 +11,10 @@ Browsers:
 
 ```html
 <script src="https://unpkg.com/braid-http/braid-http-client.js"></script>
+<script>
+  // To live on the cutting edge, you can now replace the browser's fetch() if desired:
+  // window.fetch = braid_fetch
+</script>
 ```
 
 Node.js:
@@ -98,7 +102,8 @@ async function connect () {
 ```javascript
 async function connect () {
     try {
-        for await (var v of fetch('/chat', {subscribe: true}).subscription) {
+        var subscription_iterator = fetch('/chat', {subscribe: true}).subscription
+        for await (var v of subscription_iterator) {
             // Updates might come in the form of patches:
             if (v.patches)
                 chat = apply_patches(v.patches, chat)
