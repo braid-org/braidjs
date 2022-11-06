@@ -1,5 +1,4 @@
-
-// v0.0.505
+// v0.0.506
 
 var create_antimatter_crdt  // create an antimatter crdt
 var create_json_crdt        // create a json crdt
@@ -19,11 +18,11 @@ var sequence_crdt = {}      // sequence crdt functions
         self.version_cache = self.version_cache ?? {}
         self.fissures = self.fissures ?? {}
         self.acked_boundary = self.acked_boundary ?? {}
-        self.unack_boundary = self.unack_boundary ?? {}
-        self.acks_in_process = self.acks_in_process ?? {}
+        self.marcos = self.marcos ?? {}
         self.forget_cbs = self.forget_cbs ?? {}
 
         self.receive = ({cmd, version, parents, patches, versions, fissure, fissures, seen, forget, peer, conn}) => {
+            let rebased_patches
         
             if (cmd == 'get' || (cmd == 'welcome' && peer != null)) {
                 if (self.conns[conn] != null) throw Error('bad')
@@ -38,16 +37,17 @@ var sequence_crdt = {}      // sequence crdt functions
                     conn
                 })
             }
-
             if (cmd == 'forget') {
                 if (self.conns[conn] == null) throw Error('bad')
                 send({cmd: 'ack', forget: true, conn})
 
                 delete self.conns[conn]
                 delete self.proto_conns[conn]
-            } else if (cmd == 'ack' && forget) {
+            }
+            if (cmd == 'ack' && forget) {
                 self.forget_cbs[conn]()
-            } else if (cmd == 'fissure') {
+            }
+            if (cmd == 'fissure') {
                 if (fissure && fissures) throw Error('bad')
                 if (!fissures) fissures = [fissure]
 
@@ -57,7 +57,7 @@ var sequence_crdt = {}      // sequence crdt functions
                     if (!self.fissures[key]) {
                         self.fissures[key] = fissure
                         new_fissures.push(fissure)
-                        self.acks_in_process = {}
+                        self.marcos = {}
                     }
                 }
                 let extra_fissures = resolve_fissures()
@@ -65,34 +65,59 @@ var sequence_crdt = {}      // sequence crdt functions
 
                 if (extra_fissures.length) send({cmd: 'fissure', fissures: extra_fissures, conn})
                 if (new_fissures.length) for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'fissure', fissures: new_fissures, conn: c})
-            } else if (cmd == 'set') {
+            }
+            if (cmd == 'set') {
                 if (conn == null || !self.T[version]) {
                     let ps = Object.keys(parents)
                     if (!ps.length && Object.keys(self.T).length) throw Error('bad')
                     for (p of ps) if (!self.T[p]) throw Error('bad')
                     
-                    var rebased_patches = self.add_version(version, parents, patches)
+                    rebased_patches = self.add_version(version, parents, patches)
                     for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'set', version, parents, patches, conn: c})
-
-                    self.acks_in_process[version] = {origin: conn, count: Object.keys(self.conns).length - (conn != null ? 1 : 0)}
-                } else if (self.acks_in_process[version]) self.acks_in_process[version].count--
-
-                check_ack_count(version)
-                return rebased_patches
-            } else if (cmd == 'ack' && seen == 'local') {
-                if (self.acks_in_process[version]) {
-                    self.acks_in_process[version].count--
-                    check_ack_count(version)
                 }
-            } else if (cmd == 'ack' && seen == 'global') {
-                if (!self.T[version]) return
-                if (self.ancestors(self.unack_boundary)[version]) return                
-                if (self.ancestors(self.acked_boundary)[version]) return
-                add_full_ack_leaf(version)
-                for (let c of Object.keys(self.conns)) if (c != conn) send({cmd, seen, version, conn: c})
-
             }
-
+            if (cmd == 'marco' || cmd == 'set') {
+                if (conn == null || !self.marcos[version]) {
+                    self.marcos[version] = {origin: conn, count: Object.keys(self.conns).length - (conn != null ? 1 : 0), versions: cmd == 'marco' ? versions : {[version]: true}}
+                    if (cmd == 'marco') for (let c of Object.keys(self.conns)) if (c != conn) send({cmd, version, conn: c})
+                } else if (self.marcos[version]) self.marcos[version].count--
+                check_marco_count(version)
+            }
+            if (cmd == 'ack' && seen == 'local') {
+                if (self.marcos[version]) {
+                    self.marcos[version].count--
+                    check_marco_count(version)
+                }
+            }
+            function check_marco_count(version) {
+                let m = self.marcos[version]
+                if (m?.count == 0) {
+                    if (m.origin != null) send({cmd: 'ack', seen: 'local', version, conn: m.origin})
+                    else add_full_ack_leaves(version, m.versions)
+                }
+            }
+            if (cmd == 'ack' && seen == 'global') {
+                if (!self.marcos[version]) return
+                add_full_ack_leaves(version, versions, conn)
+            }
+            function add_full_ack_leaves(version, versions, conn) {
+                delete self.marcos[version]
+                for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'ack', seen: 'global', version, versions, conn: c})
+                for (let v of Object.keys(versions)) {
+                    if (!self.T[v]) continue
+                    let marks = {}
+                    let f = v => {
+                        if (!marks[v]) {
+                            marks[v] = true
+                            delete self.acked_boundary[v]
+                            Object.keys(self.T[v]).forEach(f)
+                        }
+                    }
+                    f(v)
+                    self.acked_boundary[v] = true
+                }
+                prune()
+            }
             if (cmd == 'welcome') {
                 var versions_to_add = {}
                 versions.forEach(v => versions_to_add[v.version] = v.parents)
@@ -108,7 +133,7 @@ var sequence_crdt = {}      // sequence crdt functions
                     }
                 })
 
-                var rebased_patches = []
+                rebased_patches = []
                 var added_versions = []
                 for (var v of versions) {
                     if (versions_to_add[v.version]) {
@@ -137,10 +162,9 @@ var sequence_crdt = {}      // sequence crdt functions
                     for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'welcome', versions: added_versions, fissures: new_fissures, conn: c})
                 }
 
-                self.acks_in_process = {}
-
-                return rebased_patches
+                self.marcos = {}
             }
+            return rebased_patches
         }
 
         self.get = conn => {
@@ -180,6 +204,14 @@ var sequence_crdt = {}      // sequence crdt functions
             return version
         }
 
+        self.marco = () => {
+            var version = Math.random().toString(36).slice(2)
+            self.receive({cmd: 'marco', version, versions: {...self.current_version}})
+            return version
+        }
+
+        self.marco_useful = () => prune(true)
+
         function create_fissure(peer, conn) {
             let ack_versions = self.ancestors(self.acked_boundary)
             let versions = Object.fromEntries(Object.keys(self.T).filter(v => !ack_versions[v] || self.acked_boundary[v]).map(v => [v, true]))
@@ -197,7 +229,7 @@ var sequence_crdt = {}      // sequence crdt functions
                 if (!other && f.b == self.id && !self.proto_conns[f.conn] && !self.conns[f.conn]) {
                     other = {...f, a: f.b, b: f.a}
                     new_fissures.push(self.fissures[other_key] = other)
-                    self.acks_in_process = {}
+                    self.marcos = {}
                 }
 
                 if (other) {
@@ -217,45 +249,45 @@ var sequence_crdt = {}      // sequence crdt functions
                 let unfissured_descendants = self.descendants(unfissured, true)
                 for (let un of Object.keys(unfissured_descendants)) if (ack_versions[un]) delete ack_versions[un]
                 self.acked_boundary = self.get_leaves(ack_versions)
-
-                let u = self.ancestors(self.unack_boundary)
-                for (let x of Object.keys(self.ancestors(unfissured_descendants))) u[x] = true
-                self.unack_boundary = self.get_leaves(u)
             }
 
             return new_fissures
         }
 
-        function prune() {
-            Object.entries(self.fissures).forEach(x => {
+        function prune(just_checking) {
+            let fissures = just_checking ? {...self.fissures} : self.fissures
+
+            Object.entries(fissures).forEach(x => {
                 var other_key = x[1].b + ':' + x[1].a + ':' + x[1].conn
-                var other = self.fissures[other_key]
+                var other = fissures[other_key]
                 if (other) {
-                    delete self.fissures[x[0]]
-                    delete self.fissures[other_key]
+                    delete fissures[x[0]]
+                    delete fissures[other_key]
                 }
             })
 
             if (self.fissure_lifetime != null) {
                 var now = Date.now()
-                Object.entries(self.fissures).forEach(([k, f]) => {
+                Object.entries(fissures).forEach(([k, f]) => {
                     if (f.time == null) f.time = now
                     if (f.time <= now - self.fissure_lifetime) {
-                        delete self.fissures[k]
+                        delete fissures[k]
                     }
                 })
             }
 
             var keep_us = {}
 
-            Object.values(self.fissures).forEach(f => {
+            Object.values(fissures).forEach(f => {
                 Object.keys(f.versions).forEach(v => keep_us[v] = true)
             })
 
-            var acked = self.ancestors(self.acked_boundary)
-            Object.keys(self.T).forEach(x => {
-                if (!acked[x] || self.acked_boundary[x]) keep_us[x] = true
-            })
+            if (!just_checking) {
+                var acked = self.ancestors(self.acked_boundary)
+                Object.keys(self.T).forEach(x => {
+                    if (!acked[x] || self.acked_boundary[x]) keep_us[x] = true
+                })
+            }
 
             var children = self.get_child_map()
 
@@ -312,38 +344,11 @@ var sequence_crdt = {}      // sequence crdt functions
                 return null
             }
 
+            if (just_checking) return Object.keys(to_bubble).length
+
             self.apply_bubbles(Object.fromEntries(Object.entries(to_bubble).map(
                 ([v, bub]) => [v, [bub, bubble_bottoms[bub]]]
             )))
-        }
-
-        function add_full_ack_leaf(version) {
-            var marks = {}
-            function f(v) {
-                if (!marks[v]) {
-                    marks[v] = true
-                    delete self.unack_boundary[v]
-                    delete self.acked_boundary[v]
-                    delete self.acks_in_process[v]
-                    Object.keys(self.T[v]).forEach(f)
-                }
-            }
-            f(version)
-
-            self.acked_boundary[version] = true
-            prune(self)
-        }
-
-        function check_ack_count(version) {
-            let a = self.acks_in_process[version]
-            if (a?.count == 0) {
-                if (a.origin != null) {
-                    send({cmd: 'ack', seen: 'local', version, conn: a.origin})
-                } else {
-                    add_full_ack_leaf(version)
-                    for (let c of Object.keys(self.conns)) send({cmd: 'ack', seen: 'global', version, conn: c})
-                }
-            }
         }
 
         return self
