@@ -172,10 +172,9 @@ var sequence_crdt = {}      // sequence crdt functions
 
                 if (extra_fissures.length) send({cmd: 'fissure', fissures: extra_fissures, conn})
                 if (added_versions.length || new_fissures.length) {
+                    cancel_marcos()
                     for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'welcome', versions: added_versions, fissures: new_fissures, conn: c})
                 }
-
-                cancel_marcos()
 
                 if (peer != null && self.marco_useful()) self.marco()
             }
