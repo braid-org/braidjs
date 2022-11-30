@@ -1,4 +1,4 @@
-// v0.0.506
+// v0.0.507
 
 var create_antimatter_crdt  // create an antimatter crdt
 var create_json_crdt        // create a json crdt
@@ -21,7 +21,7 @@ var sequence_crdt = {}      // sequence crdt functions
         self.marcos = self.marcos ?? {}
         self.forget_cbs = self.forget_cbs ?? {}
 
-        self.receive = ({cmd, version, parents, patches, versions, fissure, fissures, seen, forget, peer, conn}) => {
+        self.receive = ({cmd, version, parents, patches, versions, fissure, fissures, seen, forget, marco, peer, conn}) => {
             let rebased_patches
         
             if (cmd == 'get' || (cmd == 'welcome' && peer != null)) {
@@ -73,37 +73,50 @@ var sequence_crdt = {}      // sequence crdt functions
                     for (p of ps) if (!self.T[p]) throw Error('bad')
                     
                     rebased_patches = self.add_version(version, parents, patches)
-                    for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'set', version, parents, patches, conn: c})
+                    for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'set', version, parents, patches, marco, conn: c})
                 }
             }
             if (cmd == 'marco' || cmd == 'set') {
-                if (conn == null || !self.marcos[version]) {
-                    self.marcos[version] = {origin: conn, count: Object.keys(self.conns).length - (conn != null ? 1 : 0), versions: cmd == 'marco' ? versions : {[version]: true}}
-                    if (cmd == 'marco') for (let c of Object.keys(self.conns)) if (c != conn) send({cmd, version, conn: c})
-                } else if (self.marcos[version]) self.marcos[version].count--
-                check_marco_count(version)
+                if (!self.marcos[marco]) {
+                    // only keep the top so many marcos,
+                    // so make sure this new marco is new enough,
+                    self.marcos[marco] = true
+                    let sorted = Object.keys(self.marcos).map(x => 1*x).sort((a, b) => b - a)
+                    for (let i = 10; i < sorted.length; i++)
+                        delete self.marcos[sorted[i]]
+                    if (self.marcos[marco]) {
+                        // ok, it's new enough
+                        self.marcos[marco] = {origin: conn, count: Object.keys(self.conns).length - (conn != null ? 1 : 0), versions: cmd == 'set' ? {[version]: true} : versions}
+                        if (cmd == 'marco') for (let c of Object.keys(self.conns)) if (c != conn) send({cmd, marco, versions, conn: c})
+                    }
+                } else if (self.marcos[marco]) self.marcos[marco].count--
+                check_marco_count(marco)
             }
             if (cmd == 'ack' && seen == 'local') {
-                if (self.marcos[version]) {
-                    self.marcos[version].count--
-                    check_marco_count(version)
+                if (self.marcos[marco]) {
+                    self.marcos[marco].count--
+                    check_marco_count(marco)
                 }
             }
-            function check_marco_count(version) {
-                let m = self.marcos[version]
-                if (m?.count == 0) {
-                    if (m.origin != null) send({cmd: 'ack', seen: 'local', version, conn: m.origin})
-                    else add_full_ack_leaves(version, m.versions)
+            function check_marco_count(marco) {
+                let m = self.marcos[marco]
+                if (m?.count === 0 && !m.cancelled) {
+                    if (m.origin != null) send({cmd: 'ack', seen: 'local', marco, conn: m.origin})
+                    else add_full_ack_leaves(marco)
                 }
             }
             if (cmd == 'ack' && seen == 'global') {
-                if (!self.marcos[version]) return
-                add_full_ack_leaves(version, versions, conn)
+                let m = self.marcos[marco]
+                if (!m || m.cancelled) return
+                add_full_ack_leaves(marco, conn)
             }
-            function add_full_ack_leaves(version, versions, conn) {
-                delete self.marcos[version]
-                for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'ack', seen: 'global', version, versions, conn: c})
-                for (let v of Object.keys(versions)) {
+            function add_full_ack_leaves(marco, conn) {
+                let m = self.marcos[marco]
+                if (!m || m.cancelled) return
+                m.cancelled = true
+
+                for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'ack', seen: 'global', marco, conn: c})
+                for (let v of Object.keys(m.versions)) {
                     if (!self.T[v]) continue
                     let marks = {}
                     let f = v => {
@@ -162,7 +175,9 @@ var sequence_crdt = {}      // sequence crdt functions
                     for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'welcome', versions: added_versions, fissures: new_fissures, conn: c})
                 }
 
-                self.marcos = {}
+                cancel_marcos()
+
+                if (peer != null && self.marco_useful()) self.marco()
             }
             return rebased_patches
         }
@@ -200,17 +215,25 @@ var sequence_crdt = {}      // sequence crdt functions
 
         self.set = (...patches) => {
             var version = `${self.next_seq++}@${self.id}`
-            self.receive({cmd: 'set', version, parents: {...self.current_version}, patches})
+            self.receive({cmd: 'set', version, parents: {...self.current_version}, patches, marco: get_next_marco_number()})
             return version
         }
 
         self.marco = () => {
-            var version = Math.random().toString(36).slice(2)
-            self.receive({cmd: 'marco', version, versions: {...self.current_version}})
-            return version
+            let marco = get_next_marco_number()
+            self.receive({cmd: 'marco', marco, versions: {...self.current_version}})
+            return marco
         }
 
         self.marco_useful = () => prune(true)
+
+        function cancel_marcos() {
+            for (let m of Object.values(self.marcos)) m.cancelled = true
+        }
+
+        function get_next_marco_number() {
+            return Date.now() + Math.random()
+        }
 
         function create_fissure(peer, conn) {
             let ack_versions = self.ancestors(self.acked_boundary)
