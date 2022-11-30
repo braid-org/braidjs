@@ -1,4 +1,4 @@
-// v0.0.507
+// v0.0.508
 
 var create_antimatter_crdt  // create an antimatter crdt
 var create_json_crdt        // create a json crdt
