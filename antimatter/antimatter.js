@@ -1,4 +1,4 @@
-// v0.0.510
+// v0.0.511
 
 var create_antimatter_crdt  // create an antimatter crdt
 var create_json_crdt        // create a json crdt
@@ -147,8 +147,9 @@ var sequence_crdt = {}      // sequence crdt functions
             function check_marco_count(marco_key) {
                 let m = self.marcos[marco_key]
                 if (m?.count === 0 && !m.cancelled) {
-                    if (m.origin != null) send({cmd: 'ack', seen: 'local', marco, versions, conn: m.origin})
-                    else add_full_ack_leaves(marco_key)
+                    if (m.origin != null) {
+                        if (self.conns[m.origin]) send({cmd: 'ack', seen: 'local', marco, versions, conn: m.origin})
+                    } else add_full_ack_leaves(marco_key)
                 }
             }
             if (cmd == 'ack' && seen == 'global') {
