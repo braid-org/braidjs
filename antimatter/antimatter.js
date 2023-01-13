@@ -1,4 +1,4 @@
-// v0.0.511
+// v0.0.512
 
 var create_antimatter_crdt  // create an antimatter crdt
 var create_json_crdt        // create a json crdt
@@ -219,7 +219,7 @@ var sequence_crdt = {}      // sequence crdt functions
                 sent_marco = resolve_fissures()
             }
 
-            if (!sent_marco && cmd == 'welcome' && peer != null && self.marco_useful()) {
+            if (!sent_marco && cmd == 'welcome' && peer != null && prune(true)) {
                 self.marco()
             }
 
@@ -272,8 +272,6 @@ var sequence_crdt = {}      // sequence crdt functions
             self.receive({cmd: 'marco', marco, versions})
             return marco_key
         }
-
-        self.marco_useful = () => prune(true)
 
         function cancel_marcos() {
             for (let m of Object.values(self.marcos)) m.cancelled = true
