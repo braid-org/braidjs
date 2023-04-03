@@ -762,16 +762,26 @@ var sequence_crdt = {}      // sequence crdt functions
 
         self.ancestors = (versions, ignore_nonexistent) => {
             var result = {}
-            function recurse(version) {
-                if (result[version]) return
+            var stack = Object.keys(versions)
+
+            while (stack.length > 0) {
+                var version = stack.pop()
+
+                if (result[version]) continue
+
                 if (!self.T[version]) {
-                    if (ignore_nonexistent) return
+                    if (ignore_nonexistent) continue
                     throw Error(`The version ${version} no existo`)
                 }
-                result[version] = true
-                Object.keys(self.T[version]).forEach(recurse)
+
+                result[version] = true;
+                Object.keys(self.T[version]).forEach(childVersion => {
+                    if (!result[childVersion]) {
+                        stack.push(childVersion)
+                    }
+                })
             }
-            Object.keys(versions).forEach(recurse)
+
             return result
         }
 
