@@ -1,12 +1,15 @@
-// v0.0.515
 
-var create_antimatter_crdt  // create an antimatter crdt
-var create_json_crdt        // create a json crdt
-var sequence_crdt = {}      // sequence crdt functions
+// v502
+
+var antimatter = {}    // The antimatter algorithm
+var json = {}          // A json crdt
+var sequence = {}      // A sequence crdt
+
+if (typeof module != 'undefined') module.exports = {antimatter, json, sequence}
 
 ;(() => {
-    create_antimatter_crdt = (send, self) => {
-        self = create_json_crdt(self)
+    antimatter.create = (send, self) => {
+        self = json.create(self)
         self.send = send
 
         self.id = self.id ?? Math.random().toString(36).slice(2)
@@ -14,84 +17,88 @@ var sequence_crdt = {}      // sequence crdt functions
 
         self.conns = self.conns ?? {}
         self.proto_conns = self.proto_conns ?? {}
-        self.conn_count = self.conn_count ?? 0
 
         self.version_cache = self.version_cache ?? {}
         self.fissures = self.fissures ?? {}
         self.acked_boundary = self.acked_boundary ?? {}
-        self.marcos = self.marcos ?? {}
-        self.max_marco = 0
+        self.unack_boundary = self.unack_boundary ?? {}
+        self.acks_in_process = self.acks_in_process ?? {}
         self.forget_cbs = self.forget_cbs ?? {}
 
-        self.receive = x => {
-            let {cmd, version, parents, patches, versions, fissure, fissures, seen, forget, marco, peer, conn} = x
-
+        self.receive = ({cmd, version, parents, patches, versions, fissure, fissures, seen, forget, peer, conn}) => {
+        
             if (cmd == 'get' || (cmd == 'welcome' && peer != null)) {
                 if (self.conns[conn] != null) throw Error('bad')
-                self.conns[conn] = {peer, seq: ++self.conn_count}
-            }
+                self.conns[conn] = peer
 
-            if (fissure) fissures = [fissure]
-
-            fissures?.forEach(f => f.t = self.conn_count)
-
-            if (versions && (cmd == 'set' || cmd == 'welcome')) versions = Object.fromEntries(versions.map(v => [v.version, v]))
-            if (version) versions = {[version]: true}
-
-            let rebased_patches = []
-
-            if (marco != null && marco >= self.max_marco) self.max_marco = marco
-
-            let fissures_back = []
-            let fissures_forward = []
-            let fissures_done = {}
-
-            function copy_fissures(fs) {
-                return fs.map(f => {
-                    f = JSON.parse(JSON.stringify(f))
-                    delete f.t
-                    return f
+                send({
+                    cmd: 'welcome',
+                    versions: self.generate_braid(parents),
+                    fissures: Object.values(self.fissures),
+                    parents: parents && Object.keys(parents).length ? self.get_leaves(self.ancestors(parents, true)) : {},
+                    ... cmd == 'get' ? {peer: self.id} : {},
+                    conn
                 })
             }
 
-            if (fissures) {
-                let fiss_map = Object.fromEntries(fissures.map(f => [f.a + ':' + f.b + ':' + f.conn, f]))
-                for (let [key, f] of Object.entries(fiss_map)) {
-                    if (fissures_done[f.conn]) continue
-                    fissures_done[f.conn] = true
+            if (cmd == 'forget') {
+                if (self.conns[conn] == null) throw Error('bad')
+                send({cmd: 'ack', forget: true, conn})
 
-                    let our_f = self.fissures[key]
-                    let other_key = f.b + ':' + f.a + ':' + f.conn
-                    let their_other = fiss_map[other_key]
-                    let our_other = self.fissures[other_key]
+                delete self.conns[conn]
+                delete self.proto_conns[conn]
+            } else if (cmd == 'ack' && forget) {
+                self.forget_cbs[conn]()
+            } else if (cmd == 'fissure') {
+                if (fissure && fissures) throw Error('bad')
+                if (!fissures) fissures = [fissure]
 
-                    if (!our_f) self.fissures[key] = f
-                    if (their_other && !our_other) self.fissures[other_key] = their_other
-
-                    if (!their_other && !our_other && f.b == self.id) {
-                        if (self.conns[f.conn]) delete self.conns[f.conn]
-                        our_other = self.fissures[other_key] = {...f, a: f.b, b: f.a, t: self.conn_count}
-                    }
-
-                    if (!their_other && our_other) {
-                        fissures_back.push(f)
-                        fissures_back.push(our_other)
-                    }
-
-                    if (!our_f || (their_other && !our_other)) {
-                        fissures_forward.push(f)
-                        if (their_other || our_other) fissures_forward.push(their_other || our_other)
+                let new_fissures = []
+                for (let fissure of fissures) {
+                    var key = fissure.a + ':' + fissure.b + ':' + fissure.conn
+                    if (!self.fissures[key]) {
+                        self.fissures[key] = fissure
+                        new_fissures.push(fissure)
+                        self.acks_in_process = {}
                     }
                 }
+                let extra_fissures = resolve_fissures()
+                new_fissures = new_fissures.concat(extra_fissures)
+
+                if (extra_fissures.length) send({cmd: 'fissure', fissures: extra_fissures, conn})
+                if (new_fissures.length) for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'fissure', fissures: new_fissures, conn: c})
+            } else if (cmd == 'set') {
+                if (conn == null || !self.T[version]) {
+                    let ps = Object.keys(parents)
+                    if (!ps.length && Object.keys(self.T).length) throw Error('bad')
+                    for (p of ps) if (!self.T[p]) throw Error('bad')
+                    
+                    var rebased_patches = self.add_version(version, parents, patches)
+                    for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'set', version, parents, patches, conn: c})
+
+                    self.acks_in_process[version] = {origin: conn, count: Object.keys(self.conns).length - (conn != null ? 1 : 0)}
+                } else if (self.acks_in_process[version]) self.acks_in_process[version].count--
+
+                check_ack_count(version)
+                return rebased_patches
+            } else if (cmd == 'ack' && seen == 'local') {
+                if (self.acks_in_process[version]) {
+                    self.acks_in_process[version].count--
+                    check_ack_count(version)
+                }
+            } else if (cmd == 'ack' && seen == 'global') {
+                if (!self.T[version]) return
+                if (self.ancestors(self.unack_boundary)[version]) return                
+                if (self.ancestors(self.acked_boundary)[version]) return
+                add_full_ack_leaf(version)
+                for (let c of Object.keys(self.conns)) if (c != conn) send({cmd, seen, version, conn: c})
+
             }
 
-            let _T = {}
-            let added_versions = []
             if (cmd == 'welcome') {
                 var versions_to_add = {}
-                let vs = Object.values(versions)
-                vs.forEach(v => versions_to_add[v.version] = v.parents)
-                vs.forEach(v => {
+                versions.forEach(v => versions_to_add[v.version] = v.parents)
+                versions.forEach(v => {
                     if (self.T[v.version]) {
                         remove_ancestors(v.version)
                         function remove_ancestors(v) {
@@ -103,152 +110,39 @@ var sequence_crdt = {}      // sequence crdt functions
                     }
                 })
 
-                for (let v of vs) _T[v.version] = v.parents
-
-                l1: for (var v of vs) {
+                var rebased_patches = []
+                var added_versions = []
+                for (var v of versions) {
                     if (versions_to_add[v.version]) {
                         let ps = Object.keys(v.parents)
-
-                        if (!ps.length && Object.keys(self.T).length) continue
-                        for (p of ps) if (!self.T[p]) continue l1
+                        if (!ps.length && Object.keys(self.T).length) throw Error('bad')
+                        for (p of ps) if (!self.T[p]) throw Error('bad')
 
                         rebased_patches = rebased_patches.concat(self.add_version(v.version, v.parents, v.patches, v.sort_keys))
                         added_versions.push(v)
-                        delete _T[v.version]
                     }
                 }
-            }
 
-            if (cmd == 'get' || (cmd == 'welcome' && peer != null)) {
-
-                let fissures_back = Object.values(self.fissures)
-
-                if (cmd == 'welcome') {
-                    var leaves = {..._T}
-                    Object.keys(_T).forEach(v => {
-                        Object.keys(_T[v]).forEach(p => delete leaves[p])
-                    })
-
-                    let f = {a: self.id, b: peer, conn: '-' + conn, versions: Object.fromEntries(added_versions.concat(Object.keys(leaves).map(v => versions[v])).map(v => [v.version, true])), time: Date.now(), t: self.conn_count}
-                    if (Object.keys(f.versions).length) {
-                        let key = f.a + ':' + f.b + ':' + f.conn
+                var new_fissures = []
+                fissures.forEach(f => {
+                    var key = f.a + ':' + f.b + ':' + f.conn
+                    if (!self.fissures[key]) {
+                        new_fissures.push(f)
                         self.fissures[key] = f
-                        fissures_back.push(f)
-                        fissures_forward.push(f)
                     }
-                }
-
-                send({
-                    cmd: 'welcome',
-                    versions: self.generate_braid(parents || versions),
-                    fissures: copy_fissures(fissures_back),
-                    parents: parents && Object.keys(parents).length && self.get_leaves(self.ancestors(parents, true)),
-                    ... cmd == 'get' ? {peer: self.id} : {},
-                    marco: self.max_marco,
-                    conn
                 })
-            } else if (fissures_back.length) {
-                send({cmd: 'fissure', fissures: copy_fissures(fissures_back), conn})
-            }
+                let extra_fissures = resolve_fissures()
+                new_fissures = new_fissures.concat(extra_fissures)
 
-            if (cmd == 'forget') {
-                if (self.conns[conn] == null) throw Error('bad')
-                send({cmd: 'ack', forget: true, conn})
-
-                delete self.conns[conn]
-                delete self.proto_conns[conn]
-            }
-
-            if (cmd == 'ack' && forget) {
-                self.forget_cbs[conn]()
-            }
-
-            if (cmd == 'set') {
-                if (conn == null || !self.T[version]) {
-                    let ps = Object.keys(parents)
-
-                    if (!ps.length && Object.keys(self.T).length) return
-                    for (p of ps) if (!self.T[p]) return
-                    
-                    rebased_patches = self.add_version(version, parents, patches)
-                    for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'set', version, parents, patches, marco, conn: c})
+                if (extra_fissures.length) send({cmd: 'fissure', fissures: extra_fissures, conn})
+                if (added_versions.length || new_fissures.length) {
+                    for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: 'welcome', versions: added_versions, fissures: new_fissures, conn: c})
                 }
-            }
-            if (cmd == 'marco' || cmd == 'set') {
-                if (!Object.keys(versions).every(v => self.T[v])) return
 
-                let marco_key = JSON.stringify(Object.keys(versions).sort())
-                let m = self.marcos[marco_key]
+                self.acks_in_process = {}
 
-                if (m && m.number > marco) return
-                if (!m || m.number < marco) {
-                    self.marcos[marco_key] = {number: marco, origin: conn, count: Object.keys(self.conns).length - (conn != null ? 1 : 0), versions, seq: self.conn_count}
-                    if (cmd == 'marco') for (let c of Object.keys(self.conns)) if (c != conn) send({cmd, marco, versions, conn: c})
-                } else if (m.seq < self.conns[conn].seq) {
-                    send({cmd: 'ack', seen: 'local', marco, versions, conn})
-                    return
-                } else m.count--
-                check_marco_count(marco_key)
+                return rebased_patches
             }
-            if (cmd == 'ack' && seen == 'local') {
-                let marco_key = JSON.stringify(Object.keys(versions).sort())
-                let m = self.marcos[marco_key]
-                if (!m || m.number != marco || m.cancelled) return
-                m.count--
-                check_marco_count(marco_key)
-            }
-            function check_marco_count(marco_key) {
-                let m = self.marcos[marco_key]
-                if (m?.count === 0 && !m.cancelled) {
-                    if (m.origin != null) {
-                        if (self.conns[m.origin]) send({cmd: 'ack', seen: 'local', marco, versions, conn: m.origin})
-                    } else add_full_ack_leaves(marco_key)
-                }
-            }
-            if (cmd == 'ack' && seen == 'global') {
-                let marco_key = JSON.stringify(Object.keys(versions).sort())
-                let m = self.marcos[marco_key]
-
-                if (!m || m.number != marco || m.cancelled) return
-                add_full_ack_leaves(marco_key, conn)
-            }
-            function add_full_ack_leaves(marco_key, conn) {
-                let m = self.marcos[marco_key]
-                if (!m || m.cancelled) return
-                m.cancelled = true
-
-                for (let [c, cc] of Object.entries(self.conns)) if (c != conn && cc.seq <= m.seq) send({cmd: 'ack', seen: 'global', marco, versions, conn: c})
-
-                for (let v of Object.keys(m.versions)) {
-                    if (!self.T[v]) continue
-                    let marks = {}
-                    let f = v => {
-                        if (!marks[v]) {
-                            marks[v] = true
-                            delete self.acked_boundary[v]
-                            Object.keys(self.T[v]).forEach(f)
-                        }
-                    }
-                    f(v)
-                    self.acked_boundary[v] = true
-                }
-                prune(false, m.seq)
-            }
-
-            if (added_versions.length || fissures_forward.length) {                    
-                for (let c of Object.keys(self.conns)) if (c != conn) send({cmd: added_versions.length ? 'welcome' : 'fissure', ...(added_versions.length ? {versions: added_versions} : {}), fissures: copy_fissures(fissures_forward), marco: self.max_marco,conn: c})
-            }
-
-            let sent_marco
-            if (fissures_forward.length) {
-                sent_marco = resolve_fissures()
-            }
-
-            if (!sent_marco && cmd == 'welcome' && peer != null && prune(true)) {
-                self.marco()
-            }
-
-            return rebased_patches
         }
 
         self.get = conn => {
@@ -271,52 +165,43 @@ var sequence_crdt = {}      // sequence crdt functions
             if (self.conns[conn] == null && !self.proto_conns[conn]) return
             delete self.proto_conns[conn]
 
-            if (self.conns[conn]) {
-                let peer = self.conns[conn].peer
+            if (self.conns[conn] == null) {
+                let new_fissures = resolve_fissures()
+                if (new_fissures.length) for (let c of Object.keys(self.conns)) send({cmd: 'fissure', fissures: new_fissures, conn: c})
+            } else {
+                let peer = self.conns[conn]
                 delete self.conns[conn]
 
-                if (fissure) {
-                    fissure = create_fissure(peer, conn)
-                    if (fissure) self.receive({cmd: 'fissure', fissure})
-                }
+                if (fissure) self.receive({cmd: 'fissure', fissure: create_fissure(peer, conn)})
             }
         }
 
         self.set = (...patches) => {
             var version = `${self.next_seq++}@${self.id}`
-            self.receive({cmd: 'set', version, parents: {...self.current_version}, patches, marco: 0})
+            self.receive({cmd: 'set', version, parents: {...self.current_version}, patches})
             return version
-        }
-
-        self.marco = () => {
-            let versions = {...self.current_version}
-            let marco_key = JSON.stringify(Object.keys(versions).sort())
-            let m = self.marcos[marco_key]
-            self.max_marco += Math.random()
-            let marco = self.max_marco
-            self.receive({cmd: 'marco', marco, versions})
-            return marco_key
-        }
-
-        function cancel_marcos() {
-            for (let m of Object.values(self.marcos)) m.cancelled = true
         }
 
         function create_fissure(peer, conn) {
             let ack_versions = self.ancestors(self.acked_boundary)
-
-            let entries = Object.keys(self.T).filter(v => !ack_versions[v] || self.acked_boundary[v]).map(v => [v, true])
-            if (!entries.length) return
-            let versions = Object.fromEntries(entries)
+            let versions = Object.fromEntries(Object.keys(self.T).filter(v => !ack_versions[v] || self.acked_boundary[v]).map(v => [v, true]))
             return {a: self.id, b: peer, conn, versions, time: Date.now()}
         }
 
         function resolve_fissures() {
+            let new_fissures = []
             let unfissured = {}
 
             Object.entries(self.fissures).forEach(([fk, f]) => {
                 var other_key = f.b + ':' + f.a + ':' + f.conn
                 var other = self.fissures[other_key]
+
+                if (!other && f.b == self.id && !self.proto_conns[f.conn] && !self.conns[f.conn]) {
+                    other = {...f, a: f.b, b: f.a}
+                    new_fissures.push(self.fissures[other_key] = other)
+                    self.acks_in_process = {}
+                }
+
                 if (other) {
                     if (Object.keys(f.versions).length) {
                         for (let v of Object.keys(f.versions)) unfissured[v] = true
@@ -330,52 +215,49 @@ var sequence_crdt = {}      // sequence crdt functions
             })
 
             if (Object.keys(unfissured).length) {
-                cancel_marcos()
-
                 let ack_versions = self.ancestors(self.acked_boundary)
                 let unfissured_descendants = self.descendants(unfissured, true)
                 for (let un of Object.keys(unfissured_descendants)) if (ack_versions[un]) delete ack_versions[un]
                 self.acked_boundary = self.get_leaves(ack_versions)
 
-                self.marco()
-                return true
+                let u = self.ancestors(self.unack_boundary)
+                for (let x of Object.keys(self.ancestors(unfissured_descendants))) u[x] = true
+                self.unack_boundary = self.get_leaves(u)
             }
+
+            return new_fissures
         }
 
-        function prune(just_checking, t) {
-            let fissures = just_checking ? {...self.fissures} : self.fissures
-
-            Object.entries(fissures).forEach(x => {
+        function prune() {
+            Object.entries(self.fissures).forEach(x => {
                 var other_key = x[1].b + ':' + x[1].a + ':' + x[1].conn
-                var other = fissures[other_key]
-                if (other && x[1].t <= t && other.t <= t) {
-                    delete fissures[x[0]]
-                    delete fissures[other_key]
+                var other = self.fissures[other_key]
+                if (other) {
+                    delete self.fissures[x[0]]
+                    delete self.fissures[other_key]
                 }
             })
 
             if (self.fissure_lifetime != null) {
                 var now = Date.now()
-                Object.entries(fissures).forEach(([k, f]) => {
+                Object.entries(self.fissures).forEach(([k, f]) => {
                     if (f.time == null) f.time = now
                     if (f.time <= now - self.fissure_lifetime) {
-                        delete fissures[k]
+                        delete self.fissures[k]
                     }
                 })
             }
 
             var keep_us = {}
 
-            Object.values(fissures).forEach(f => {
+            Object.values(self.fissures).forEach(f => {
                 Object.keys(f.versions).forEach(v => keep_us[v] = true)
             })
 
-            if (!just_checking) {
-                var acked = self.ancestors(self.acked_boundary)
-                Object.keys(self.T).forEach(x => {
-                    if (!acked[x] || self.acked_boundary[x]) keep_us[x] = true
-                })
-            }
+            var acked = self.ancestors(self.acked_boundary)
+            Object.keys(self.T).forEach(x => {
+                if (!acked[x] || self.acked_boundary[x]) keep_us[x] = true
+            })
 
             var children = self.get_child_map()
 
@@ -432,25 +314,47 @@ var sequence_crdt = {}      // sequence crdt functions
                 return null
             }
 
-            if (just_checking) return Object.keys(to_bubble).length
-
             self.apply_bubbles(Object.fromEntries(Object.entries(to_bubble).map(
                 ([v, bub]) => [v, [bub, bubble_bottoms[bub]]]
             )))
+        }
 
-            for (let [k, m] of Object.entries(self.marcos)) {
-                if (!Object.keys(m.versions).every(v => self.T[v])) delete self.marcos[k]
+        function add_full_ack_leaf(version) {
+            var marks = {}
+            function f(v) {
+                if (!marks[v]) {
+                    marks[v] = true
+                    delete self.unack_boundary[v]
+                    delete self.acked_boundary[v]
+                    delete self.acks_in_process[v]
+                    Object.keys(self.T[v]).forEach(f)
+                }
+            }
+            f(version)
+
+            self.acked_boundary[version] = true
+            prune(self)
+        }
+
+        function check_ack_count(version) {
+            let a = self.acks_in_process[version]
+            if (a?.count == 0) {
+                if (a.origin != null) {
+                    send({cmd: 'ack', seen: 'local', version, conn: a.origin})
+                } else {
+                    add_full_ack_leaf(version)
+                    for (let c of Object.keys(self.conns)) send({cmd: 'ack', seen: 'global', version, conn: c})
+                }
             }
         }
 
         return self
     }
 
-    create_json_crdt = self => {
+    json.create = self => {
         self = self ?? {}     
         self.S = self.S ?? null
         self.T = self.T ?? {}
-        self.root_version = null
         self.current_version = self.current_version ?? {}
 
         let is_lit = x => !x || typeof(x) != 'object' || x.t == 'lit'
@@ -465,7 +369,7 @@ var sequence_crdt = {}      // sequence crdt functions
             function rec_read(x) {
                 if (x && typeof(x) == 'object') {
                     if (x.t == 'lit') return JSON.parse(JSON.stringify(x.S))
-                    if (x.t == 'val') return rec_read(sequence_crdt.get(x.S, 0, is_anc))
+                    if (x.t == 'val') return rec_read(sequence.get(x.S, 0, is_anc))
                     if (x.t == 'obj') {
                         var o = {}
                         Object.entries(x.S).forEach(([k, v]) => {
@@ -476,14 +380,14 @@ var sequence_crdt = {}      // sequence crdt functions
                     }
                     if (x.t == 'arr') {
                         var a = []
-                        sequence_crdt.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
+                        sequence.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
                             if (!deleted) node.elems.forEach((e) => a.push(rec_read(e)))
                         }, true)
                         return a
                     }
                     if (x.t == 'str') {
                         var s = []
-                        sequence_crdt.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
+                        sequence.traverse(x.S, is_anc, (node, _, __, ___, ____, deleted) => {
                             if (!deleted) s.push(node.elems)
                         }, true)
                         return s.join('')
@@ -525,22 +429,22 @@ var sequence_crdt = {}      // sequence crdt functions
                 function recurse(x) {
                     if (is_lit(x)) {
                     } else if (x.t === 'val') {
-                        sequence_crdt.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
                             if (s[2].length) {
                                 patches.push({range: path.join(''), content: s[2][0]})
                                 if (s[3]) sort_keys[patches.length - 1] = s[3]
                             }
                         })
-                        sequence_crdt.traverse(x.S, is_anc, node => {
+                        sequence.traverse(x.S, is_anc, node => {
                             node.elems.forEach(recurse)
                         })
                     } else if (x.t === 'arr') {
-                        sequence_crdt.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
                             patches.push({range: `${path.join('')}[${s[0]}:${s[0] + s[1]}]`, content: s[2]})
                             if (s[3]) sort_keys[patches.length - 1] = s[3]
                         })
                         var i = 0
-                        sequence_crdt.traverse(x.S, is_anc, node => {
+                        sequence.traverse(x.S, is_anc, node => {
                             node.elems.forEach(e => {
                                 path.push(`[${i++}]`)
                                 recurse(e)
@@ -554,7 +458,7 @@ var sequence_crdt = {}      // sequence crdt functions
                             path.pop()
                         })
                     } else if (x.t === 'str') {
-                        sequence_crdt.generate_braid(x.S, version, is_anc).forEach(s => {
+                        sequence.generate_braid(x.S, version, is_anc).forEach(s => {
                             patches.push({range: `${path.join('')}[${s[0]}:${s[0] + s[1]}]`, content: s[2]})
                             if (s[3]) sort_keys[patches.length - 1] = s[3]
                         })
@@ -574,16 +478,16 @@ var sequence_crdt = {}      // sequence crdt functions
             function recurse(x) {
                 if (is_lit(x)) return x
                 if (x.t == 'val') {
-                    sequence_crdt.apply_bubbles(x.S, to_bubble)
-                    sequence_crdt.traverse(x.S, () => true, node => {
+                    sequence.apply_bubbles(x.S, to_bubble)
+                    sequence.traverse(x.S, () => true, node => {
                         node.elems = node.elems.slice(0, 1).map(recurse)
                     }, true)
                     if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.length == 1 && is_lit(x.S.elems[0])) return x.S.elems[0]
                     return x
                 }
                 if (x.t == 'arr') {
-                    sequence_crdt.apply_bubbles(x.S, to_bubble)
-                    sequence_crdt.traverse(x.S, () => true, node => {
+                    sequence.apply_bubbles(x.S, to_bubble)
+                    sequence.traverse(x.S, () => true, node => {
                         node.elems = node.elems.map(recurse)
                     }, true)
                     if (x.S.nexts.length == 0 && !x.S.next && x.S.elems.every(is_lit) && !Object.keys(x.S.deleted_by).length) return {t: 'lit', S: x.S.elems.map(get_lit)}
@@ -602,7 +506,7 @@ var sequence_crdt = {}      // sequence crdt functions
                     return x
                 }
                 if (x.t == 'str') {
-                    sequence_crdt.apply_bubbles(x.S, to_bubble)
+                    sequence.apply_bubbles(x.S, to_bubble)
                     if (x.S.nexts.length == 0 && !x.S.next && !Object.keys(x.S.deleted_by).length) return x.S.elems
                     return x
                 }
@@ -613,8 +517,6 @@ var sequence_crdt = {}      // sequence crdt functions
                 if (version === bubble[1])
                     self.T[bubble[0]] = self.T[bubble[1]]
                 if (version !== bubble[0]) {
-                    if (self.root_version == version)
-                        self.root_version = bubble[0]
                     delete self.T[version]
                     delete self.version_cache[version]
                 } else self.version_cache[version] = null
@@ -632,8 +534,6 @@ var sequence_crdt = {}      // sequence crdt functions
 
         self.add_version = (version, parents, patches, sort_keys) => {
             if (self.T[version]) return
-
-            if (self.root_version == null) self.root_version = version
 
             self.T[version] = {...parents}
 
@@ -670,8 +570,8 @@ var sequence_crdt = {}      // sequence crdt functions
                 var cur = resolve_path(parse)
                 if (!parse.slice) {
                     if (cur.t != 'val') throw Error('bad')
-                    var len = sequence_crdt.length(cur.S, is_anc)
-                    sequence_crdt.add_version(cur.S, version, [[0, len, [parse.delete ? null : make_lit(parse.value)], sort_key]], is_anc)
+                    var len = sequence.length(cur.S, is_anc)
+                    sequence.add_version(cur.S, version, [[0, len, [parse.delete ? null : make_lit(parse.value)], sort_key]], is_anc)
                     rebased_patches.push(patch)
                 } else {
                     if (typeof parse.value === 'string' && cur.t !== 'str')
@@ -684,12 +584,12 @@ var sequence_crdt = {}      // sequence crdt functions
                     var r0 = parse.slice[0]
                     var r1 = parse.slice[1]
                     if (r0 < 0 || Object.is(r0, -0) || r1 < 0 || Object.is(r1, -0)) {
-                        let len = sequence_crdt.length(cur.S, is_anc)
+                        let len = sequence.length(cur.S, is_anc)
                         if (r0 < 0 || Object.is(r0, -0)) r0 = len + r0
                         if (r1 < 0 || Object.is(r1, -0)) r1 = len + r1
                     }
 
-                    var rebased_splices = sequence_crdt.add_version(cur.S, version, [[r0, r1 - r0, parse.value, sort_key]], is_anc)
+                    var rebased_splices = sequence.add_version(cur.S, version, [[r0, r1 - r0, parse.value, sort_key]], is_anc)
                     for (let rebased_splice of rebased_splices) rebased_patches.push({
                         range: `${parse.path.map(x => `[${JSON.stringify(x)}]`).join('')}[${rebased_splice[0]}:${rebased_splice[0] + rebased_splice[1]}]`,
                         content: rebased_splice[2]
@@ -700,17 +600,17 @@ var sequence_crdt = {}      // sequence crdt functions
             function resolve_path(parse) {
                 var cur = self.S
                 if (!cur || typeof(cur) != 'object' || cur.t == 'lit')
-                    cur = self.S = {t: 'val', S: sequence_crdt.create_node(self.root_version, [cur])}
+                    cur = self.S = {t: 'val', S: sequence.create_node(null, [cur])}
                 var prev_S = null
                 var prev_i = 0
                 for (var i=0; i<parse.path.length; i++) {
                     var key = parse.path[i]
-                    if (cur.t == 'val') cur = sequence_crdt.get(prev_S = cur.S, prev_i = 0, is_anc)
+                    if (cur.t == 'val') cur = sequence.get(prev_S = cur.S, prev_i = 0, is_anc)
                     if (cur.t == 'lit') {
                         var new_cur = {}
                         if (cur.S instanceof Array) {
                             new_cur.t = 'arr'
-                            new_cur.S = sequence_crdt.create_node(self.root_version, cur.S.map(x => make_lit(x)))
+                            new_cur.S = sequence.create_node(null, cur.S.map(x => make_lit(x)))
                         } else {
                             if (typeof(cur.S) != 'object') throw Error('bad')
                             new_cur.t = 'obj'
@@ -718,29 +618,29 @@ var sequence_crdt = {}      // sequence crdt functions
                             Object.entries(cur.S).forEach(e => new_cur.S[e[0]] = make_lit(e[1]))
                         }
                         cur = new_cur
-                        sequence_crdt.set(prev_S, prev_i, cur, is_anc)
+                        sequence.set(prev_S, prev_i, cur, is_anc)
                     }
                     if (cur.t == 'obj') {
                         let x = cur.S[key]
                         if (!x || typeof(x) != 'object' || x.t == 'lit')
-                            x = cur.S[key] = {t: 'val', S: sequence_crdt.create_node(self.root_version, [x == null ? null : x])}
+                            x = cur.S[key] = {t: 'val', S: sequence.create_node(null, [x == null ? null : x])}
                         cur = x
                     } else if (i == parse.path.length - 1 && !parse.slice) {
                         parse.slice = [key, key + 1]
                         parse.value = (cur.t == 'str') ? parse.value : [parse.value]
                     } else if (cur.t == 'arr') {
-                        cur = sequence_crdt.get(prev_S = cur.S, prev_i = key, is_anc)
+                        cur = sequence.get(prev_S = cur.S, prev_i = key, is_anc)
                     } else throw Error('bad')
                 }
                 if (parse.slice) {
-                    if (cur.t == 'val') cur = sequence_crdt.get(prev_S = cur.S, prev_i = 0, is_anc)
+                    if (cur.t == 'val') cur = sequence.get(prev_S = cur.S, prev_i = 0, is_anc)
                     if (typeof(cur) == 'string') {
-                        cur = {t: 'str', S: sequence_crdt.create_node(self.root_version, cur)}
-                        sequence_crdt.set(prev_S, prev_i, cur, is_anc)
+                        cur = {t: 'str', S: sequence.create_node(null, cur)}
+                        sequence.set(prev_S, prev_i, cur, is_anc)
                     } else if (cur.t == 'lit') {
                         if (!(cur.S instanceof Array)) throw Error('bad')
-                        cur = {t: 'arr', S: sequence_crdt.create_node(self.root_version, cur.S.map(x => make_lit(x)))}
-                        sequence_crdt.set(prev_S, prev_i, cur, is_anc)
+                        cur = {t: 'arr', S: sequence.create_node(null, cur.S.map(x => make_lit(x)))}
+                        sequence.set(prev_S, prev_i, cur, is_anc)
                     }
                 }
                 return cur
@@ -831,7 +731,7 @@ var sequence_crdt = {}      // sequence crdt functions
         return self
     }
 
-    sequence_crdt.create_node = (version, elems, end_cap, sort_key) => ({
+    sequence.create_node = (version, elems, end_cap, sort_key) => ({
         version,
         sort_key,
         elems,
@@ -841,7 +741,7 @@ var sequence_crdt = {}      // sequence crdt functions
         next : null
     })
 
-    sequence_crdt.generate_braid = (S, version, is_anc) => {
+    sequence.generate_braid = (S, version, is_anc) => {
         var splices = []
 
         function add_ins(offset, ins, sort_key, end_cap) {
@@ -849,7 +749,7 @@ var sequence_crdt = {}      // sequence crdt functions
                 ins = ins.map(x => read_raw(x, () => false))
             if (splices.length > 0) {
                 var prev = splices[splices.length - 1]
-                if (prev[0] + prev[1] === offset && !end_cap && (!prev[3] || !sort_key || prev[3] === sort_key) && (prev[4] === 'i' || (prev[4] === 'r' && prev[1] === 0))) {
+                if (prev[0] + prev[1] === offset && !end_cap && (prev[4] === 'i' || (prev[4] === 'r' && prev[1] === 0))) {
                     prev[2] = prev[2].concat(ins)
                     return
                 }
@@ -894,9 +794,9 @@ var sequence_crdt = {}      // sequence crdt functions
         return splices
     }
 
-    sequence_crdt.apply_bubbles = (S, to_bubble) => {
+    sequence.apply_bubbles = (S, to_bubble) => {
 
-        sequence_crdt.traverse(S, () => true, node => {
+        sequence.traverse(S, () => true, node => {
             if (to_bubble[node.version] && to_bubble[node.version][0] != node.version) {
                 if (!node.sort_key) node.sort_key = node.version
                 node.version = to_bubble[node.version][0]
@@ -946,11 +846,6 @@ var sequence_crdt = {}      // sequence crdt functions
                     continue
                 }
 
-                if (next && !next.elems.length && !next.nexts.length) {
-                    node.next = next.next
-                    continue
-                }
-
                 for (let n of node.nexts) do_line(n, n.version)
 
                 prev = node
@@ -959,10 +854,10 @@ var sequence_crdt = {}      // sequence crdt functions
         }
     }
 
-    sequence_crdt.get = (S, i, is_anc) => {
+    sequence.get = (S, i, is_anc) => {
         var ret = null
         var offset = 0
-        sequence_crdt.traverse(S, is_anc ? is_anc : () => true, (node) => {
+        sequence.traverse(S, is_anc ? is_anc : () => true, (node) => {
             if (i - offset < node.elems.length) {
                 ret = node.elems[i - offset]
                 return false
@@ -972,9 +867,9 @@ var sequence_crdt = {}      // sequence crdt functions
         return ret
     }
 
-    sequence_crdt.set = (S, i, v, is_anc) => {
+    sequence.set = (S, i, v, is_anc) => {
         var offset = 0
-        sequence_crdt.traverse(S, is_anc ? is_anc : () => true, (node) => {
+        sequence.traverse(S, is_anc ? is_anc : () => true, (node) => {
             if (i - offset < node.elems.length) {
                 if (typeof node.elems == 'string') node.elems = node.elems.slice(0, i - offset) + v + node.elems.slice(i - offset + 1)
                 else node.elems[i - offset] = v
@@ -984,16 +879,16 @@ var sequence_crdt = {}      // sequence crdt functions
         })
     }
 
-    sequence_crdt.length = (S, is_anc) => {
+    sequence.length = (S, is_anc) => {
         var count = 0
-        sequence_crdt.traverse(S, is_anc ? is_anc : () => true, node => {
+        sequence.traverse(S, is_anc ? is_anc : () => true, node => {
             count += node.elems.length
         })
         return count
     }
 
-    sequence_crdt.break_node = (node, x, end_cap, new_next) => {
-        var tail = sequence_crdt.create_node(null, node.elems.slice(x), node.end_cap)
+    sequence.break_node = (node, x, end_cap, new_next) => {
+        var tail = sequence.create_node(null, node.elems.slice(x), node.end_cap)
         Object.assign(tail.deleted_by, node.deleted_by)
         tail.nexts = node.nexts
         tail.next = node.next
@@ -1006,7 +901,7 @@ var sequence_crdt = {}      // sequence crdt functions
         return tail
     }
 
-    sequence_crdt.add_version = (S, version, splices, is_anc) => {
+    sequence.add_version = (S, version, splices, is_anc) => {
 
         var rebased_splices = []
         
@@ -1030,14 +925,14 @@ var sequence_crdt = {}      // sequence crdt functions
             if (deleted) {
                 if (s[1] == 0 && s[0] == offset) {
                     if (node.elems.length == 0 && !node.end_cap && has_nexts) return
-                    var new_node = sequence_crdt.create_node(version, s[2], null, sort_key)
+                    var new_node = sequence.create_node(version, s[2], null, sort_key)
 
                     fresh_nodes.add(new_node)
 
                     if (node.elems.length == 0 && !node.end_cap)
                         add_to_nexts(node.nexts, new_node)
                     else
-                    sequence_crdt.break_node(node, 0, undefined, new_node)
+                        sequence.break_node(node, 0, undefined, new_node)
                     si++
                 }
 
@@ -1045,7 +940,7 @@ var sequence_crdt = {}      // sequence crdt functions
 
                     delete_up_to = s[0] + s[1]
                     
-                    var new_node = sequence_crdt.create_node(version, s[2], null, sort_key)
+                    var new_node = sequence.create_node(version, s[2], null, sort_key)
                     
                     fresh_nodes.add(new_node)
 
@@ -1059,14 +954,14 @@ var sequence_crdt = {}      // sequence crdt functions
                 var d = s[0] - (offset + node.elems.length)
                 if (d > 0) return
                 if (d == 0 && !node.end_cap && has_nexts) return
-                var new_node = sequence_crdt.create_node(version, s[2], null, sort_key)
+                var new_node = sequence.create_node(version, s[2], null, sort_key)
 
                 fresh_nodes.add(new_node)
 
                 if (d == 0 && !node.end_cap) {
                     add_to_nexts(node.nexts, new_node)
                 } else {
-                    sequence_crdt.break_node(node, s[0] - offset, undefined, new_node)
+                    sequence.break_node(node, s[0] - offset, undefined, new_node)
                 }
                 si++
                 return
@@ -1082,20 +977,20 @@ var sequence_crdt = {}      // sequence crdt functions
                 delete_up_to = s[0] + s[1]
                 
                 if (s[2]) {
-                    var new_node = sequence_crdt.create_node(version, s[2], null, sort_key)
+                    var new_node = sequence.create_node(version, s[2], null, sort_key)
 
                     fresh_nodes.add(new_node)
 
                     if (add_at_end) {
                         add_to_nexts(node.nexts, new_node)
                     } else {
-                        sequence_crdt.break_node(node, s[0] - offset, true, new_node)
+                        sequence.break_node(node, s[0] - offset, true, new_node)
                     }
                     return
                 } else {
                     if (s[0] == offset) {
                     } else {
-                        sequence_crdt.break_node(node, s[0] - offset)
+                        sequence.break_node(node, s[0] - offset)
                         return
                     }
                 }
@@ -1104,7 +999,7 @@ var sequence_crdt = {}      // sequence crdt functions
             if (delete_up_to > offset) {
                 if (delete_up_to <= offset + node.elems.length) {
                     if (delete_up_to < offset + node.elems.length) {
-                        sequence_crdt.break_node(node, delete_up_to - offset)
+                        sequence.break_node(node, delete_up_to - offset)
                     }
                     si++
                 }
@@ -1138,25 +1033,27 @@ var sequence_crdt = {}      // sequence crdt functions
         return rebased_splices
     }
 
-    sequence_crdt.traverse = (S, f, cb, view_deleted, tail_cb) => {
+    sequence.traverse = (S, f, cb, view_deleted, tail_cb) => {
+        var exit_early = {}
         var offset = 0
         function helper(node, prev, version) {
             var has_nexts = node.nexts.find(next => f(next.version))
             var deleted = Object.keys(node.deleted_by).some(version => f(version))
             if (view_deleted || !deleted) {
-                if (cb(node, offset, has_nexts, prev, version, deleted) == false) return true
+                if (cb(node, offset, has_nexts, prev, version, deleted) == false)
+                    throw exit_early
                 offset += node.elems.length
             }
             for (var next of node.nexts)
-                if (f(next.version)) {
-                    if (helper(next, null, next.version)) return true
-                }
-            if (node.next) {
-                if (helper(node.next, node, version)) return true
-            }
+                if (f(next.version)) helper(next, null, next.version)
+            if (node.next) helper(node.next, node, version)
             else if (tail_cb) tail_cb(node)
         }
-        helper(S, null, S.version)
+        try {
+            helper(S, null, S.version)
+        } catch (e) {
+            if (e != exit_early) throw e
+        }
     }
 
     // modified from https://stackoverflow.com/questions/22697936/binary-search-in-javascript
@@ -1177,5 +1074,3 @@ var sequence_crdt = {}      // sequence crdt functions
         return m;
     }
 })()
-
-if (typeof module != 'undefined') module.exports = {create_antimatter_crdt, create_json_crdt, sequence_crdt}
