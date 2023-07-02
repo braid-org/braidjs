@@ -1,4 +1,4 @@
-// v520
+// v521
 
 var create_antimatter_crdt; // create an antimatter crdt
 var create_json_crdt; // create a json crdt
@@ -22,7 +22,6 @@ var sequence_crdt = {}; // sequence crdt functions
     self.proto_conns = self.proto_conns ?? {};
     self.conn_count = self.conn_count ?? 0;
 
-    self.version_cache = self.version_cache ?? {};
     self.fissures = self.fissures ?? {};
     self.acked_boundary = self.acked_boundary ?? {};
     self.marcos = self.marcos ?? {};
@@ -838,6 +837,7 @@ var sequence_crdt = {}; // sequence crdt functions
     self.T = self.T ?? {};
     self.root_version = null;
     self.current_version = self.current_version ?? {};
+    self.version_cache = self.version_cache ?? {};
 
     let is_lit = (x) => !x || typeof x != "object" || x.t == "lit";
     let get_lit = (x) => (x && typeof x == "object" && x.t == "lit" ? x.S : x);
@@ -847,48 +847,51 @@ var sequence_crdt = {}; // sequence crdt functions
     self.read = (is_anc) => {
       if (!is_anc) is_anc = () => true;
 
-      return rec_read(self.S);
-      function rec_read(x) {
-        if (x && typeof x == "object") {
-          if (x.t == "lit") return JSON.parse(JSON.stringify(x.S));
-          if (x.t == "val") return rec_read(sequence_crdt.get(x.S, 0, is_anc));
-          if (x.t == "obj") {
-            var o = {};
-            Object.entries(x.S).forEach(([k, v]) => {
-              var x = rec_read(v);
-              if (x != null) o[k] = x;
-            });
-            return o;
-          }
-          if (x.t == "arr") {
-            var a = [];
-            sequence_crdt.traverse(
-              x.S,
-              is_anc,
-              (node, _, __, ___, ____, deleted) => {
-                if (!deleted) node.elems.forEach((e) => a.push(rec_read(e)));
-              },
-              true
-            );
-            return a;
-          }
-          if (x.t == "str") {
-            var s = [];
-            sequence_crdt.traverse(
-              x.S,
-              is_anc,
-              (node, _, __, ___, ____, deleted) => {
-                if (!deleted) s.push(node.elems);
-              },
-              true
-            );
-            return s.join("");
-          }
-          throw Error("bad");
-        }
-        return x;
-      }
+      return raw_read(self.S, is_anc);
     };
+
+    function raw_read(x, is_anc) {
+      if (x && typeof x == "object") {
+        if (x.t == "lit") return JSON.parse(JSON.stringify(x.S));
+        if (x.t == "val")
+          return raw_read(sequence_crdt.get(x.S, 0, is_anc), is_anc);
+        if (x.t == "obj") {
+          var o = {};
+          Object.entries(x.S).forEach(([k, v]) => {
+            var x = raw_read(v, is_anc);
+            if (x != null) o[k] = x;
+          });
+          return o;
+        }
+        if (x.t == "arr") {
+          var a = [];
+          sequence_crdt.traverse(
+            x.S,
+            is_anc,
+            (node, _, __, ___, ____, deleted) => {
+              if (!deleted)
+                node.elems.forEach((e) => a.push(raw_read(e, is_anc)));
+            },
+            true
+          );
+          return a;
+        }
+        if (x.t == "str") {
+          var s = [];
+          sequence_crdt.traverse(
+            x.S,
+            is_anc,
+            (node, _, __, ___, ____, deleted) => {
+              if (!deleted) s.push(node.elems);
+            },
+            true
+          );
+          return s.join("");
+        }
+        throw Error("bad");
+      }
+      return x;
+    }
 
     self.generate_braid = (versions) => {
       var anc =
@@ -929,12 +932,14 @@ var sequence_crdt = {}; // sequence crdt functions
         function recurse(x) {
           if (is_lit(x)) {
           } else if (x.t === "val") {
-            sequence_crdt.generate_braid(x.S, version, is_anc).forEach((s) => {
-              if (s[2].length) {
-                patches.push({ range: path.join(""), content: s[2][0] });
-                if (s[3]) sort_keys[patches.length - 1] = s[3];
-              }
-            });
+            sequence_crdt
+              .generate_braid(x.S, version, is_anc, raw_read)
+              .forEach((s) => {
+                if (s[2].length) {
+                  patches.push({ range: path.join(""), content: s[2][0] });
+                  if (s[3]) sort_keys[patches.length - 1] = s[3];
+                }
+              });
             sequence_crdt.traverse(x.S, is_anc, (node) => {
               node.elems.forEach(recurse);
             });
@@ -1344,12 +1349,13 @@ var sequence_crdt = {}; // sequence crdt functions
     next: null,
   });
 
-  sequence_crdt.generate_braid = (S, version, is_anc) => {
+  sequence_crdt.generate_braid = (S, version, is_anc, read_array_elements) => {
+    if (!read_array_elements) read_array_elements = (x) => x;
     var splices = [];
 
     function add_ins(offset, ins, sort_key, end_cap, is_row_header) {
       if (typeof ins !== "string")
-        ins = ins.map((x) => read_raw(x, () => false));
+        ins = ins.map((x) => read_array_elements(x, () => false));
       if (splices.length > 0) {
         var prev = splices[splices.length - 1];
         if (
