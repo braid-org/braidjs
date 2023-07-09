@@ -405,7 +405,7 @@ var sequence_crdt = {};
       ///       'PARENT_VERSION_ID': true,
       ///       ...
       ///     },
-      ///   [peer: 'SENDER_ID'], // if sent in response to a get
+      ///   [peer: 'SENDER_ID'], // if  a get
       ///   conn: 'CONN_ID'
       /// } 
       /// ```
@@ -512,7 +512,8 @@ var sequence_crdt = {};
         delete self.proto_conns[conn];
       }
 
-      /// ## message forget `ack` Sent in response to `forget`.. so they know we forgot them.
+      /// ## message forget `ack` 
+      /// Sent in response to `forget`.. so they know we forgot them.
       /// ``` js
       /// {cmd: 'ack', forget: true, conn: 'CONN_ID'}
       /// ```
