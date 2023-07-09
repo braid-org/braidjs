@@ -1,10 +1,45 @@
-// v521
+/// # Software Architecture
+/// The software is architected into three objects:
+///
+/// ``` js
+/// var {create_antimatter_crdt, create_json_crdt, sequence_crdt} = require('@braidjs/antimatter') 
+/// ```
 
-var create_antimatter_crdt; // create an antimatter crdt
-var create_json_crdt; // create a json crdt
-var sequence_crdt = {}; // sequence crdt functions
+// v522
+
+/// - *antimatter_crdt*: created using `create_antimatter_crdt`, this object is a json_crdt with antimatter algorithm methods added to it so that it can communicate with other peers to learn which history can be pruned, and tells the underlying json_crdt object to prune it.
+var create_antimatter_crdt;
+
+/// - *json_crdt*: created using `create_json_crdt`, this object is a pruneable
+///   JSON CRDT — "JSON" meaning it represents an arbitrary JSON datstructure, and
+///   "CRDT" and "pruneable" having the same meaning as for sequence_crdt below. The
+///   json_crdt makes recursive use of sequence_crdt structures to represent
+///   arbitrary JSON (for instance, a map is represented with a sequence_crdt
+///   structure for each value, where the first element in the sequence is the
+///   value).
+var create_json_crdt;
+
+/// - *sequence_crdt*: methods to manipulate a pruneable sequence CRDT —
+///   "sequence" meaning it represents a javascript string or array, "CRDT" meaning
+///   this structure can be merged with other ones, and "pruneable" meaning that it
+///   supports an operation to remove meta-data when it is no longer needed (whereas
+///   CRDT's often keep track of this meta-data forever).
+var sequence_crdt = {};
 
 (() => {
+  /// # create_antimatter_crdt(send[, init])
+  ///
+  /// Creates and returns a new antimatter_crdt object (or adds antimatter_crdt methods and properties to `init`).
+  ///
+  /// * `send`: A callback function to be called whenever this antimatter_crdt wants to send a
+  ///   message over a connection registered with `get` or `connect`. The sole
+  ///   parameter to this function is a JSONafiable object that hopes to be passed to
+  ///   the `receive` method on the antimatter_crdt object at the other end of the
+  ///   connection specified in the `conn` key.
+  /// * `init`: (optional) An antimatter_crdt object to start with, which we'll add any properties to that it doesn't have, and we'll add all the antimatter_crdt methods to it. This option exists so you can serialize an antimatter_crdt instance as JSON, and then restore it later. 
+  /// ``` js
+  /// var antimatter_crdt = create_antimatter_crdt(msg => { websockets[msg.conn].send(JSON.stringify(msg)) }, JSON.parse(fs.readFileSync('./antimatter.backup')))
+  /// ```
   create_antimatter_crdt = (
     send,
     get_time,
@@ -202,6 +237,16 @@ var sequence_crdt = {}; // sequence crdt functions
       orig_send(x);
     };
 
+    /// # antimatter_crdt.receive(message)
+    ///
+    /// Let this antimatter object "receive" a message from another antimatter object, presumably from its `send` callback.
+    /// ``` js
+    /// websocket.on('message', data => {
+    ///     antimatter_crdt.receive(JSON.parse(data)) });
+    /// ```
+    /// You generally do not need to mess with a message object directly, but below are the various message objects you might see, categorized by their `cmd` entry. Note that each object also
+    ///   contains a `conn` entry with the id of the connection the message is sent
+    ///   over.
     self.receive = (x) => {
       let {
         cmd,
@@ -260,11 +305,27 @@ var sequence_crdt = {}; // sequence crdt functions
         if (!Object.keys(versions).length) return;
       }
 
+      /// ## message `get`
+      /// `get` is the first message sent over a connection, and the peer at the other end will respond with `welcome`.
+      /// ``` js
+      /// { cmd: 'get', peer: 'SENDER_ID', conn: 'CONN_ID',
+      ///   parents: {'PARENT_VERSION_ID': true, ...} }
+      /// ```
+      /// The `parents` are optional, and describes which versions this peer already has. The other end will respond with versions since that set of parents.
       if (cmd == "get" || (cmd == "welcome" && peer != null)) {
         if (self.conns[conn] != null) throw Error("bad");
         self.conns[conn] = { peer, seq: ++self.conn_count };
       }
 
+      /// ## message `fissure`
+      ///
+      /// Sent to alert peers about a fissure. The `fissure` entry contains information about the two peers involved in the fissure, the specific connection id that broke, the `versions` that need to be protected, and the `time` of the fissure (in case we want to ignore it after some time). It is also possible to send multiple `fissures` in an array.
+      /// ``` js
+      /// { cmd: 'fissure', fissure: { // or fissures: [{...}, {...}, ...], a: 'PEER_A_ID', b:
+      ///   'PEER_B_ID', conn: 'CONN_ID', versions: {'VERSION_ID': true, ...}, time:
+      ///   Date.now() }, conn: 'CONN_ID' }
+      /// ```
+      /// Note that `time` isn't used for anything critical, as it's just wallclock time.
       if (fissure) fissures = [fissure];
 
       fissures?.forEach((f) => (f.t = self.conn_count));
@@ -326,6 +387,28 @@ var sequence_crdt = {}; // sequence crdt functions
         }
       }
 
+      /// ## message `welcome`
+      /// Sent in response to a `get`, basically contains the initial state of the document; incoming `welcome` messages are also propagated over all our other connections but only with information that was new to us, so the propagation will eventually stop. When sent in response to a `get` (rather than being propagated), we include a `peer` entry with the id of the sending peer, so they know who we are, and to trigger them to send us their own  `welcome` message.
+      ///
+      /// ``` js
+      /// {
+      ///   cmd: 'welcome',
+      ///   versions: [
+      ///     //each version looks like a set message...
+      ///   ],
+      ///   fissures: [
+      ///     //each fissure looks as it would in a fissure message...
+      ///   ],
+      ///   parents: 
+      ///     {
+      ///       //versions you must have before consuming these new versions
+      ///       'PARENT_VERSION_ID': true,
+      ///       ...
+      ///     },
+      ///   [peer: 'SENDER_ID'], // if sent in response to a get
+      ///   conn: 'CONN_ID'
+      /// } 
+      /// ```
       let _T = {};
       let added_versions = [];
       if (cmd == "welcome") {
@@ -415,6 +498,12 @@ var sequence_crdt = {}; // sequence crdt functions
         });
       }
 
+      /// ## message `forget`
+      /// Used to disconnect without creating a fissure, presumably meaning the sending peer doesn't plan to make any edits while they're disconnected.
+      /// ``` js
+      /// {cmd:
+      ///   'forget', conn: 'CONN_ID'}
+      /// ```
       if (cmd == "forget") {
         if (self.conns[conn] == null) throw Error("bad");
         send({ cmd: "ack", forget: true, conn });
@@ -423,10 +512,21 @@ var sequence_crdt = {}; // sequence crdt functions
         delete self.proto_conns[conn];
       }
 
+      /// ## message forget `ack` Sent in response to `forget`.. so they know we forgot them.
+      /// ``` js
+      /// {cmd: 'ack', forget: true, conn: 'CONN_ID'}
+      /// ```
       if (cmd == "ack" && forget) {
         self.forget_cbs[conn]();
       }
 
+      /// ## message `set`
+      /// Sent to alert peers about a change in the document. The change is represented as a version, with a unique id, a set of parent versions (the most recent versions known before adding this version), and an array of patches, where the offsets in the patches do not take into account the application of other patches in the same array.
+      /// ``` js
+      /// {
+      ///   cmd: 'set', version: 'VERSION_ID', parents: {'PARENT_VERSION_ID': true, ...},
+      ///   patches: [ {range: '.json.path.a.b', content: 42}, ... ], conn: 'CONN_ID' }
+      /// ```
       if (cmd == "set") {
         if (conn == null || !self.T[version]) {
           let ps = Object.keys(parents);
@@ -441,6 +541,13 @@ var sequence_crdt = {}; // sequence crdt functions
               send({ cmd: "set", version, parents, patches, marco, conn: c });
         }
       }
+
+      /// ## message `marco`
+      /// Sent for pruning purposes, to try and establish whether everyone has seen the most recent versions. Note that a `set` message is treated as a `marco` message for the version being set.
+      /// ``` js
+      /// { cmd: 'marco',
+      ///   version: 'MARCO_ID', versions: {'VERSION_ID_A': true, ...}, conn: 'CONN_ID' }
+      /// ```
       if (cmd == "marco" || cmd == "set") {
         if (!Object.keys(versions).every((v) => self.T[v])) return;
 
@@ -497,6 +604,13 @@ var sequence_crdt = {}; // sequence crdt functions
         } else m.count--;
         check_marco_count(marco);
       }
+
+      /// ## message local `ack`
+      /// Sent in response to `set`, but not right away; a peer will first send the `set` over all its other connections, and only after they have all responded with a local `ack` – and we didn't see a `fissure` message while waiting – will the peer send a local `ack` over the originating connection.
+      /// ``` js
+      /// {cmd: 'ack', seen: 'local', version: 'VERSION_ID', conn:
+      ///   'CONN_ID'}
+      /// ```
       if (cmd == "ack" && seen == "local") {
         let m = self.marcos[marco];
         if (!m || m.cancelled) return;
@@ -525,6 +639,12 @@ var sequence_crdt = {}; // sequence crdt functions
           } else add_full_ack_leaves(marco);
         }
       }
+
+      /// ## message global `ack`
+      /// Sent after an originating peer has received a local `ack` over all its connections, or after any peer receives a global `ack`, so that everyone may come to know that this version has been seen by everyone in this peer group.
+      /// ``` js
+      /// {cmd: 'ack', seen: 'global', version: 'VERSION_ID', conn: 'CONN_ID'}
+      /// ```
       if (cmd == "ack" && seen == "global") {
         let m = self.marcos[marco];
 
@@ -611,12 +731,26 @@ var sequence_crdt = {}; // sequence crdt functions
       return rebased_patches;
     };
 
+    /// # antimatter_crdt.get(conn) or connect(conn)
+    ///
+    /// Register a new connection with id `conn` – triggers this antimatter_crdt object to send a `get` message over the given connection. 
+    ///
+    /// ``` js
+    /// alice_antimatter_crdt.get('connection_to_bob')
+    /// ```
     self.get = (conn) => {
       self.proto_conns[conn] = true;
       send({ cmd: "get", peer: self.id, conn });
     };
     self.connect = self.get;
 
+    /// # antimatter_crdt.forget(conn)
+    ///
+    /// Disconnect the given connection without creating a fissure – we don't need to reconnect with them.. it seems.. if we do, then we need to call `disconnect` instead, which will create a fissure allowing us to reconnect.
+    ///
+    /// ``` js
+    /// alice_antimatter_crdt.forget('connection_to_bob')
+    /// ```
     self.forget = async (conn) => {
       await new Promise((done) => {
         if (self.conns[conn] != null) {
@@ -627,6 +761,13 @@ var sequence_crdt = {}; // sequence crdt functions
       });
     };
 
+    /// # antimatter_crdt.disconnect(conn)
+    ///
+    /// If we detect that a connection has closed, let the antimatter_crdt object know by calling this method with the given connection id – this will create a fissure so we can reconnect with whoever was on the other end of the connection later on. 
+    ///
+    /// ``` js
+    /// alice_antimatter_crdt.disconnect('connection_to_bob')
+    /// ```
     self.disconnect = (conn, fissure = true) => {
       if (self.conns[conn] == null && !self.proto_conns[conn]) return;
       delete self.proto_conns[conn];
@@ -642,6 +783,16 @@ var sequence_crdt = {}; // sequence crdt functions
       }
     };
 
+    /// # antimatter_crdt.set(...patches)
+    ///
+    /// Modify this antimatter_crdt object by applying the given patches. Each patch looks like `{range: '.life.meaning', content: 42}`. Calling this method will trigger calling the `send` callback to let our peers know about this change. 
+    ///
+    /// ``` js
+    /// antimatter_crdt.set({
+    ///   range: '.life.meaning',
+    ///   content: 42
+    /// })
+    /// ```
     self.set = (...patches) => {
       var version = `${self.next_seq++}@${self.id}`;
       self.receive({
@@ -654,6 +805,13 @@ var sequence_crdt = {}; // sequence crdt functions
       return version;
     };
 
+    /// # antimatter_crdt.marco()
+    ///
+    /// Initiate sending a `marco` message to try and establish whether certain versions can be pruned. 
+    ///
+    /// ``` js
+    /// antimatter_crdt.marco()
+    /// ```
     self.marco = () => {
       let versions = { ...self.current_version };
       Object.keys(versions).forEach((v) =>
@@ -831,6 +989,13 @@ var sequence_crdt = {}; // sequence crdt functions
     return self;
   };
 
+  /// ## create_json_crdt([init])
+  ///
+  /// Create a new `json_crdt` object (or start with `init`, and add stuff to that). 
+  ///
+  /// ``` js
+  /// var json_crdt = create_json_crdt()
+  /// ``` 
   create_json_crdt = (self) => {
     self = self ?? {};
     self.S = self.S ?? null;
@@ -844,6 +1009,13 @@ var sequence_crdt = {}; // sequence crdt functions
     let make_lit = (x) => (x && typeof x == "object" ? { t: "lit", S: x } : x);
     self = self ?? {};
 
+    /// # json_crdt.read()
+    ///
+    /// Returns an instance of the `json` object represented by this json_crdt data-structure. 
+    ///
+    /// ``` js
+    /// console.log(json_crdt.read())
+    /// ```
     self.read = (is_anc) => {
       if (!is_anc) is_anc = () => true;
 
@@ -893,6 +1065,16 @@ var sequence_crdt = {}; // sequence crdt functions
       return x;
     }
 
+    /// # json_crdt.generate_braid(versions)
+    ///
+    /// Returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to `antimatter_crdt.receive()`, we'll reconstruct the data in this `json_crdt` data-structure, assuming the recipient already has the given `versions` (each version is represented as an object with a version, and each value is `true`).
+    ///
+    /// ``` js
+    /// json_crdt.generate_braid({
+    ///   alice2: true, 
+    ///   bob3: true
+    /// })
+    /// ```
     self.generate_braid = (versions) => {
       var anc =
         versions && Object.keys(versions).length
@@ -985,6 +1167,17 @@ var sequence_crdt = {}; // sequence crdt functions
       }
     };
 
+    /// # json_crdt.apply_bubbles(to_bubble)
+    ///
+    /// This method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions – these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of
+    ///   two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble; "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to its parents. A bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. This method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to. 
+    ///
+    /// ``` js 
+    /// json_crdt.apply_bubbles({
+    ///   alice4: ['bob5', 'alice4'], 
+    ///   bob5: ['bob5', 'alice4']
+    /// }) 
+    /// ```
     self.apply_bubbles = (to_bubble) => {
       function recurse(x) {
         if (is_lit(x)) return x;
@@ -1095,6 +1288,30 @@ var sequence_crdt = {}; // sequence crdt functions
       }
     };
 
+    /// # json_crdt.add_version(version, parents, patches[, sort_keys])
+    ///
+    /// The main method for modifying a `json_crdt` data structure. 
+    ///
+    /// * `version`: Unique string associated with this edit. 
+    /// * `parents`: A set of versions that this version is aware of, represented as a map with versions as keys, and values of `true`. 
+    /// * `patches`: An array of patches, each patch looks like this `{range: '.life.meaning', content: 42}`. 
+    /// * `sort_keys`: (optional) An object where each key is an index, and the value is a sort_key to use with the patch at the given index in the `patches` array – a sort_key overrides the version for a patch for the purposes of sorting. This can be useful after doing some pruning. 
+    ///
+    /// ``` js
+    /// json_crdt.add_version(
+    ///   'alice6', 
+    ///   {
+    ///     alice5: true, 
+    ///     bob7: true
+    ///   }, 
+    ///   [
+    ///     {
+    ///       range: '.a.b', 
+    ///       content: 'c'
+    ///     }
+    ///   ]
+    /// )
+    /// ``` 
     self.add_version = (version, parents, patches, sort_keys) => {
       if (self.T[version]) return;
 
@@ -1265,6 +1482,13 @@ var sequence_crdt = {}; // sequence crdt functions
       return rebased_patches;
     };
 
+    /// # json_crdt.get_child_map()
+    ///
+    /// Returns a map where each key is a version, and each value is a set of child versions, represented as a map with versions as keys, and values of `true`.
+    ///
+    /// ``` js
+    /// json_crdt.get_child_map()
+    /// ``` 
     self.get_child_map = () => {
       let children = {};
       Object.entries(self.T).forEach(([v, parents]) => {
@@ -1276,6 +1500,16 @@ var sequence_crdt = {}; // sequence crdt functions
       return children;
     };
 
+    /// # json_crdt.ancestors(versions, ignore_nonexistent=false)
+    ///
+    /// Gather `versions` and all their ancestors into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true – we'll basically return a larger set. If `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our data-structure.
+    ///
+    /// ``` js
+    /// json_crdt.ancestors({
+    ///   alice12: true, 
+    ///   bob10: true
+    /// }) 
+    /// ``` 
     self.ancestors = (versions, ignore_nonexistent) => {
       var result = {};
       function recurse(version) {
@@ -1291,6 +1525,16 @@ var sequence_crdt = {}; // sequence crdt functions
       return result;
     };
 
+    /// # json_crdt.descendants(versions, ignore_nonexistent=false)
+    ///
+    /// Gather `versions` and all their descendants into a set. `versions` is a set of versions, i.e. a map with version-keys and values of true – we'll basically return a larger set. If `ignore_nonexistent` is `true`, then we won't throw an exception if we encounter a version that we don't have in our data-structure.
+    ///
+    /// ``` js
+    /// json_crdt.descendants({
+    ///   alice12: true, 
+    ///   bob10: true
+    /// }) 
+    /// ``` 
     self.descendants = (versions, ignore_nonexistent) => {
       let children = self.get_child_map();
       var result = {};
@@ -1307,6 +1551,9 @@ var sequence_crdt = {}; // sequence crdt functions
       return result;
     };
 
+    /// # json_crdt.get_leaves(versions)
+    ///
+    /// Returns a set of versions from `versions` which don't also have a child in `versions`. `versions` is itself a set of versions, represented as an object with version keys and `true` values, and the return value is represented the same way.
     self.get_leaves = (versions) => {
       var leaves = { ...versions };
       Object.keys(versions).forEach((v) => {
@@ -1315,12 +1562,26 @@ var sequence_crdt = {}; // sequence crdt functions
       return leaves;
     };
 
+    /// # json_crdt.parse_patch(patch)
+    ///
+    /// Takes a patch in the form `{range, content}`, and returns an object of the form `{path: [...], [slice: [...]], [delete: true], content}`; basically calling `parse_json_path` on `patch.range`, and adding `patch.content` along for the ride.
     self.parse_patch = (patch) => {
       let x = self.parse_json_path(patch.range);
       x.value = patch.content;
       return x;
     };
 
+    /// # json_crdt.parse_json_path(json_path)
+    ///
+    /// Parses the string `json_path` into an object like: `{path: [...], [slice: [...]], [delete: true]}`. 
+    ///
+    /// * `a.b[3]` --> `{path: ['a', 'b', 3]}`
+    /// * `a.b[3:5]` --> `{path: ['a', 'b'], slice: [3, 5]}`
+    /// * `delete a.b` --> `{path: ['a', 'b'], delete: true}`
+    ///
+    /// ``` js
+    /// console.log(json_crdt.parse_json_path('a.b.c'))
+    /// ```
     self.parse_json_path = (json_path) => {
       var ret = { path: [] };
       var re =
@@ -1339,6 +1600,23 @@ var sequence_crdt = {}; // sequence crdt functions
     return self;
   };
 
+  /// # sequence_crdt.create_node(version, elems, [end_cap, sort_key])
+  ///
+  /// Creates a node for a `sequence_crdt` sequence CRDT with the given properties. The resulting node will look like this:
+  ///
+  /// ``` js
+  /// {
+  ///   version, // globally unique string
+  ///   elems, // a string or array representing actual data elements of the underlying sequence
+  ///   end_cap, // this is useful for dealing with replace operations
+  ///   sort_key, // version to pretend this is for the purposes of sorting
+  ///   deleted_by : {}, // if this node gets deleted, we'll mark it here
+  ///   nexts : [], // array of nodes following this one
+  ///   next : null // final node following this one (after all the nexts)
+  /// } 
+  ///
+  /// var sequence_node = sequence_crdt.create_node('alice1', 'hello')
+  /// ```
   sequence_crdt.create_node = (version, elems, end_cap, sort_key) => ({
     version,
     sort_key,
@@ -1349,6 +1627,14 @@ var sequence_crdt = {}; // sequence crdt functions
     next: null,
   });
 
+  /// # sequence_crdt.generate_braid(root_node, version, is_anc)
+  ///  
+  /// Reconstructs an array of splice-information which can be passed to `sequence_crdt.add_version` in order to add `version` to another `sequence_crdt` instance – the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
+  ///
+  /// ``` js
+  /// var root_node = sequence_crdt.create_node('alice1', 'hello')
+  /// console.log(sequence_crdt.generate_braid(root_node, 'alice1', x => false)) // outputs [0, 0, "hello"]
+  /// ```
   sequence_crdt.generate_braid = (S, version, is_anc, read_array_elements) => {
     if (!read_array_elements) read_array_elements = (x) => x;
     var splices = [];
@@ -1419,6 +1705,16 @@ var sequence_crdt = {}; // sequence crdt functions
     return splices;
   };
 
+  /// # sequence_crdt.apply_bubbles(root_node, to_bubble)
+  /// 
+  /// This method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions – these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble. We will rename the given version to the "bottom" of the bubble. "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to its parents. A bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. This method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to.
+  /// 
+  /// ``` js
+  /// sequence_crdt.apply_bubbles(root_node, {
+  ///   alice4: ['bob5', 'alice4'],
+  ///   bob5: ['bob5', 'alice4']
+  /// })
+  /// ```
   sequence_crdt.apply_bubbles = (S, to_bubble) => {
     sequence_crdt.traverse(
       S,
@@ -1504,6 +1800,15 @@ var sequence_crdt = {}; // sequence crdt functions
     }
   };
 
+  /// # sequence_crdt.get(root_node, i, is_anc)
+  /// 
+  /// Returns the element at the `i`th position (0-based) in the `sequence_crdt` rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
+  /// 
+  /// ``` js
+  /// var x = sequence_crdt.get(root_node, 2, {
+  ///     alice1: true
+  /// })
+  /// ```
   sequence_crdt.get = (S, i, is_anc) => {
     var ret = null;
     var offset = 0;
@@ -1517,6 +1822,15 @@ var sequence_crdt = {}; // sequence crdt functions
     return ret;
   };
 
+  /// # sequence_crdt.set(root_node, i, v, is_anc)
+  /// 
+  /// Sets the element at the `i`th position (0-based) in the `sequence_crdt` rooted at `root_node` to the value `v`, when only considering versions which result in `true` when passed to `is_anc`.
+  /// 
+  /// ``` js
+  /// sequence_crdt.set(root_node, 2, 'x', {
+  ///   alice1: true
+  /// })
+  /// ```
   sequence_crdt.set = (S, i, v, is_anc) => {
     var offset = 0;
     sequence_crdt.traverse(S, is_anc ? is_anc : () => true, (node) => {
@@ -1533,6 +1847,15 @@ var sequence_crdt = {}; // sequence crdt functions
     });
   };
 
+  /// # sequence_crdt.length(root_node, is_anc)
+  /// 
+  /// Returns the length of the `sequence_crdt` rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
+  /// 
+  /// ``` js
+  /// console.log(sequence_crdt.length(root_node, {
+  ///  alice1: true
+  /// }))
+  /// ```
   sequence_crdt.length = (S, is_anc) => {
     var count = 0;
     sequence_crdt.traverse(S, is_anc ? is_anc : () => true, (node) => {
@@ -1541,6 +1864,14 @@ var sequence_crdt = {}; // sequence crdt functions
     return count;
   };
 
+  /// # sequence_crdt.break_node(node, break_position, end_cap, new_next)
+  /// 
+  /// This method breaks apart a `sequence_crdt` node into two nodes, each representing a subsequence of the sequence represented by the original node. The `node` parameter is modified into the first node, and the second node is returned. The first node represents the elements of the sequence before `break_position`, and the second node represents the rest of the elements. If `end_cap` is truthy, then the first node will have `end_cap` set – this is generally done if the elements in the second node are being replaced. This method will add `new_next` to the first node's `nexts` array.
+  /// 
+  /// ``` js
+  /// var node = sequence_crdt.create_node('alice1', 'hello') // node.elems == 'hello'
+  /// var second = sequence_crdt.break_node(node, 2) // now node.elems == 'he', and second.elems == 'llo'
+  /// ```
   sequence_crdt.break_node = (node, x, end_cap, new_next) => {
     var tail = sequence_crdt.create_node(
       null,
@@ -1559,6 +1890,16 @@ var sequence_crdt = {}; // sequence crdt functions
     return tail;
   };
 
+  /// # sequence_crdt.add_version(root_node, version, splices, [is_anc])
+  /// 
+  /// This is the main method in sequence_crdt, used to modify the sequence. The modification must be given a unique `version` string, and the modification itself is represented as an array of `splices`, where each splice looks like this: `[position, num_elements_to_delete, elements_to_insert, optional_sort_key]`. 
+  /// 
+  /// Note that all positions are relative to the original sequence, before any splices have been applied. Positions are counted by only considering nodes with versions which result in `true` when passed to `is_anc`. (and are not `deleted_by` any versions which return `true` when passed to `is_anc`).
+  /// 
+  /// ``` js
+  /// var node = sequence_crdt.create_node('alice1', 'hello') 
+  /// sequence_crdt.add_version(node, 'alice2', [[5, 0, ' world']], null, v => v == 'alice1') 
+  /// ```
   sequence_crdt.add_version = (S, version, splices, is_anc) => {
     var rebased_splices = [];
 
@@ -1723,6 +2064,26 @@ var sequence_crdt = {}; // sequence crdt functions
     return rebased_splices;
   };
 
+  /// # sequence_crdt.traverse(root_node, is_anc, callback, [view_deleted, tail_callback])
+  /// 
+  /// Traverses the subset of nodes in the tree rooted at `root_node` whose versions return `true` when passed to `is_anc`. For each node, `callback` is called with these parameters: `node, offset, has_nexts, prev, version, deleted`, 
+  /// 
+  /// Where
+  /// - `node` is the current node being traversed
+  /// - `offset` says how many elements we have passed so far 
+  /// - `has_nexts` is true if some of this node's `nexts` will be traversed according to `is_anc`
+  /// - `prev` is a pointer to the node whos `next` points to this one, or `null` if this is the root node
+  /// - `version` is the version of this node, or this node's `prev` if our version is `null`, or that node's `prev` if it is also `null`, etc
+  /// - `deleted` is true if this node is deleted according to `is_anc`
+  /// 
+  /// Usually we skip deleted nodes when traversing, but we'll include them if `view_deleted` is `true`. 
+  /// 
+  /// `tail_callback` is an optional callback that will get called with a single parameter `node` after all of that node's children `nexts` and `next` have been traversed. 
+  /// 
+  /// ``` js
+  /// sequence_crdt.traverse(node, () => true, node =>
+  ///   process.stdout.write(node.elems)) 
+  /// ```
   sequence_crdt.traverse = (S, f, cb, view_deleted, tail_cb) => {
     var offset = 0;
     function helper(node, prev, version) {
