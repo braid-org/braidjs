@@ -36,9 +36,19 @@ var sequence_crdt = {};
   ///   parameter to this function is a JSONafiable object that hopes to be passed to
   ///   the `receive` method on the antimatter_crdt object at the other end of the
   ///   connection specified in the `conn` key.
+  /// * `get_time`: function that returns a number representing time (e.g. `Date.now()`)
+  /// * `set_timeout`: function that takes a callback and timeout length, and calls that callback after that amount of time; also returns an identifier that can be passed to `clear_timeout` to cancel the timeout (e.g. wrapping the javascript setTimeout)
+  /// * `clear_timeout`: function that takes a timeout identifier an cancels it (e.g. wrapping the javascript clearTimeout)
   /// * `init`: (optional) An antimatter_crdt object to start with, which we'll add any properties to that it doesn't have, and we'll add all the antimatter_crdt methods to it. This option exists so you can serialize an antimatter_crdt instance as JSON, and then restore it later. 
   /// ``` js
-  /// var antimatter_crdt = create_antimatter_crdt(msg => { websockets[msg.conn].send(JSON.stringify(msg)) }, JSON.parse(fs.readFileSync('./antimatter.backup')))
+  /// var antimatter_crdt = create_antimatter_crdt(msg => {
+  ///     websockets[msg.conn].send(JSON.stringify(msg))
+  ///   },
+  ///   () => Date.now(),
+  ///   (func, t) => setTimeout(func, t),
+  ///   (t) => clearTimeout(t)),
+  ///.  JSON.parse(fs.readFileSync('./antimatter.backup'))
+  /// )
   /// ```
   create_antimatter_crdt = (
     send,
@@ -308,7 +318,9 @@ var sequence_crdt = {};
       /// ## message `get`
       /// `get` is the first message sent over a connection, and the peer at the other end will respond with `welcome`.
       /// ``` js
-      /// { cmd: 'get', peer: 'SENDER_ID', conn: 'CONN_ID',
+      /// { cmd: 'get',
+      ///   peer: 'SENDER_ID',
+      ///   conn: 'CONN_ID',
       ///   parents: {'PARENT_VERSION_ID': true, ...} }
       /// ```
       /// The `parents` are optional, and describes which versions this peer already has. The other end will respond with versions since that set of parents.
@@ -321,9 +333,15 @@ var sequence_crdt = {};
       ///
       /// Sent to alert peers about a fissure. The `fissure` entry contains information about the two peers involved in the fissure, the specific connection id that broke, the `versions` that need to be protected, and the `time` of the fissure (in case we want to ignore it after some time). It is also possible to send multiple `fissures` in an array.
       /// ``` js
-      /// { cmd: 'fissure', fissure: { // or fissures: [{...}, {...}, ...], a: 'PEER_A_ID', b:
-      ///   'PEER_B_ID', conn: 'CONN_ID', versions: {'VERSION_ID': true, ...}, time:
-      ///   Date.now() }, conn: 'CONN_ID' }
+      /// { cmd: 'fissure',
+      ///   fissure: { // or fissures: [{...}, {...}, ...],
+      ///     a: 'PEER_A_ID',
+      ///     b:  'PEER_B_ID',
+      ///     conn: 'CONN_ID',
+      ///     versions: {'VERSION_ID': true, ...},
+      ///     time: Date.now()
+      ///   },
+      ///   conn: 'CONN_ID' }
       /// ```
       /// Note that `time` isn't used for anything critical, as it's just wallclock time.
       if (fissure) fissures = [fissure];
@@ -405,7 +423,7 @@ var sequence_crdt = {};
       ///       'PARENT_VERSION_ID': true,
       ///       ...
       ///     },
-      ///   [peer: 'SENDER_ID'], // if  a get
+      ///   [peer: 'SENDER_ID'], // if responding to a get
       ///   conn: 'CONN_ID'
       /// } 
       /// ```
@@ -501,8 +519,7 @@ var sequence_crdt = {};
       /// ## message `forget`
       /// Used to disconnect without creating a fissure, presumably meaning the sending peer doesn't plan to make any edits while they're disconnected.
       /// ``` js
-      /// {cmd:
-      ///   'forget', conn: 'CONN_ID'}
+      /// {cmd: 'forget', conn: 'CONN_ID'}
       /// ```
       if (cmd == "forget") {
         if (self.conns[conn] == null) throw Error("bad");
@@ -524,9 +541,11 @@ var sequence_crdt = {};
       /// ## message `set`
       /// Sent to alert peers about a change in the document. The change is represented as a version, with a unique id, a set of parent versions (the most recent versions known before adding this version), and an array of patches, where the offsets in the patches do not take into account the application of other patches in the same array.
       /// ``` js
-      /// {
-      ///   cmd: 'set', version: 'VERSION_ID', parents: {'PARENT_VERSION_ID': true, ...},
-      ///   patches: [ {range: '.json.path.a.b', content: 42}, ... ], conn: 'CONN_ID' }
+      /// { cmd: 'set',
+      ///   version: 'VERSION_ID',
+      ///   parents: {'PARENT_VERSION_ID': true, ...},
+      ///   patches: [ {range: '.json.path.a.b', content: 42}, ... ],
+      ///   conn: 'CONN_ID' }
       /// ```
       if (cmd == "set") {
         if (conn == null || !self.T[version]) {
@@ -547,7 +566,9 @@ var sequence_crdt = {};
       /// Sent for pruning purposes, to try and establish whether everyone has seen the most recent versions. Note that a `set` message is treated as a `marco` message for the version being set.
       /// ``` js
       /// { cmd: 'marco',
-      ///   version: 'MARCO_ID', versions: {'VERSION_ID_A': true, ...}, conn: 'CONN_ID' }
+      ///   version: 'MARCO_ID',
+      ///   versions: {'VERSION_ID_A': true, ...},
+      ///   conn: 'CONN_ID' }
       /// ```
       if (cmd == "marco" || cmd == "set") {
         if (!Object.keys(versions).every((v) => self.T[v])) return;
@@ -609,8 +630,7 @@ var sequence_crdt = {};
       /// ## message local `ack`
       /// Sent in response to `set`, but not right away; a peer will first send the `set` over all its other connections, and only after they have all responded with a local `ack` – and we didn't see a `fissure` message while waiting – will the peer send a local `ack` over the originating connection.
       /// ``` js
-      /// {cmd: 'ack', seen: 'local', version: 'VERSION_ID', conn:
-      ///   'CONN_ID'}
+      /// {cmd: 'ack', seen: 'local', version: 'VERSION_ID', conn: 'CONN_ID'}
       /// ```
       if (cmd == "ack" && seen == "local") {
         let m = self.marcos[marco];
@@ -1170,8 +1190,7 @@ var sequence_crdt = {};
 
     /// # json_crdt.apply_bubbles(to_bubble)
     ///
-    /// This method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions – these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of
-    ///   two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble; "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to its parents. A bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. This method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to. 
+    /// This method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions – these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble is represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble. We will use the "bottom" as the new name for the version, and we'll use the "top" as the new parents.
     ///
     /// ``` js 
     /// json_crdt.apply_bubbles({
@@ -1707,8 +1726,8 @@ var sequence_crdt = {};
   };
 
   /// # sequence_crdt.apply_bubbles(root_node, to_bubble)
-  /// 
-  /// This method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions – these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble. We will rename the given version to the "bottom" of the bubble. "bottom" and "top" make sense when viewing versions in a directed graph with the oldest version(s) at the top, and each version pointing up to its parents. A bubble is then a set of versions where the only arrows leaving the bubble upward are from the "top" version, and the only arrows leaving the bubble downward are from the "bottom" version. This method effectively combines all the versions in a bubble into a single version, and may allow the data structure to be compressed, since now we don't need to distinguish between certain versions that we used to need to.
+  ///
+  /// This method helps prune away meta data and compress stuff when we have determined that certain versions can be renamed to other versions – these renamings are expressed in `to_bubble`, where keys are versions and values are "bubbles", each bubble is represented with an array of two elements, the first element is the "bottom" of the bubble, and the second element is the "top" of the bubble. We will use the "bottom" as the new name for the version, and we'll use the "top" as the new parents.
   /// 
   /// ``` js
   /// sequence_crdt.apply_bubbles(root_node, {
