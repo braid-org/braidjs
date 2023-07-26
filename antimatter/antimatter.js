@@ -60,33 +60,33 @@ var sequence_crdt = {};
     self = create_json_crdt(self);
     self.send = send;
 
-    self.id = self.id ?? Math.random().toString(36).slice(2);
-    self.next_seq = self.next_seq ?? 0;
+    self.id = self.id || Math.random().toString(36).slice(2);
+    self.next_seq = self.next_seq || 0;
 
-    self.conns = self.conns ?? {};
-    self.proto_conns = self.proto_conns ?? {};
-    self.conn_count = self.conn_count ?? 0;
+    self.conns = self.conns || {};
+    self.proto_conns = self.proto_conns || {};
+    self.conn_count = self.conn_count || 0;
 
-    self.fissures = self.fissures ?? {};
-    self.acked_boundary = self.acked_boundary ?? {};
-    self.marcos = self.marcos ?? {};
-    self.forget_cbs = self.forget_cbs ?? {};
+    self.fissures = self.fissures || {};
+    self.acked_boundary = self.acked_boundary || {};
+    self.marcos = self.marcos || {};
+    self.forget_cbs = self.forget_cbs || {};
 
-    self.version_groups = self.version_groups ?? {};
+    self.version_groups = self.version_groups || {};
 
-    self.marco_map = self.marco_map ?? {};
-    self.marco_time_est_1 = self.marco_time_est_1 ?? 1000;
-    self.marco_time_est_2 = self.marco_time_est_2 ?? 1000;
-    self.marco_current_wait_time = self.marco_current_wait_time ?? 1000;
+    self.marco_map = self.marco_map || {};
+    self.marco_time_est_1 = self.marco_time_est_1 || 1000;
+    self.marco_time_est_2 = self.marco_time_est_2 || 1000;
+    self.marco_current_wait_time = self.marco_current_wait_time || 1000;
     self.marco_increases_allowed = 1;
-    self.marco_timeout = self.marco_timeout ?? null;
+    self.marco_timeout = self.marco_timeout || null;
 
     function raw_add_version_group(version_array) {
       let version_map = {};
       for (let v of version_array) {
         if (version_map[v]) continue;
         version_map[v] = true;
-        self.version_groups[v]?.forEach((v) => (version_map[v] = true));
+        if (self.version_groups[v]) self.version_groups[v].forEach((v) => (version_map[v] = true));
       }
       let version_group = Object.keys(version_map).sort();
       version_group.forEach((v) => (self.version_groups[v] = version_group));
@@ -156,7 +156,7 @@ var sequence_crdt = {};
           if (!restricted) throw "bad";
           else return last_top;
         }
-        if (restricted?.[cur]) return last_top;
+        if (restricted && restricted[cur]) return last_top;
 
         if (seen[cur]) continue;
 
@@ -227,7 +227,7 @@ var sequence_crdt = {};
       if (x.parents) {
         x.parents = { ...x.parents };
         Object.keys(x.parents).forEach((v) =>
-          self.version_groups[v]?.forEach((v) => (x.parents[v] = true))
+          self.version_groups[v] && self.version_groups[v].forEach((v) => (x.parents[v] = true))
         );
       }
       if (Array.isArray(x.versions)) {
@@ -239,7 +239,7 @@ var sequence_crdt = {};
         );
         x.versions.forEach((v) => {
           Object.keys(v.parents).forEach((vv) =>
-            self.version_groups[vv]?.forEach((vv) => (v.parents[vv] = true))
+            self.version_groups[vv] && self.version_groups[vv].forEach((vv) => (v.parents[vv] = true))
           );
         });
       }
@@ -285,7 +285,7 @@ var sequence_crdt = {};
         });
       }
 
-      versions?.forEach?.((v) => {
+      if (versions && versions.forEach) versions.forEach((v) => {
         if (typeof v.version != "string") {
           if (!self.T[v.version[0]]) v.version = add_version_group(v.version);
           else v.version = v.version[0];
@@ -346,7 +346,7 @@ var sequence_crdt = {};
       /// Note that `time` isn't used for anything critical, as it's just wallclock time.
       if (fissure) fissures = [fissure];
 
-      fissures?.forEach((f) => (f.t = self.conn_count));
+      if (fissures) fissures.forEach((f) => (f.t = self.conn_count));
 
       if (versions && (cmd == "set" || cmd == "welcome"))
         versions = Object.fromEntries(versions.map((v) => [v.version, v]));
@@ -596,7 +596,7 @@ var sequence_crdt = {};
           m.orig_count = m.count;
           m.real_marco = cmd == "marco";
           m.key = JSON.stringify(Object.keys(m.versions).sort());
-          self.marco_map[m.key] = self.marco_map[m.key] ?? {};
+          self.marco_map[m.key] = self.marco_map[m.key] || {};
           let before = Object.keys(self.marco_map[m.key]).length;
           self.marco_map[m.key][m.id] = true;
           let after = Object.keys(self.marco_map[m.key]).length;
@@ -640,7 +640,7 @@ var sequence_crdt = {};
       }
       function check_marco_count(marco) {
         let m = self.marcos[marco];
-        if (m?.count === 0 && !m.cancelled) {
+        if (m && m.count === 0 && !m.cancelled) {
           m.time2 = get_time();
           if (m.orig_count > 0) {
             let t = m.time2 - m.time;
@@ -836,7 +836,7 @@ var sequence_crdt = {};
     self.marco = () => {
       let versions = { ...self.current_version };
       Object.keys(versions).forEach((v) =>
-        self.version_groups[v]?.forEach((v) => (versions[v] = true))
+        self.version_groups[v] && self.version_groups[v].forEach((v) => (versions[v] = true))
       );
 
       let marco = Math.random().toString(36).slice(2);
@@ -1018,17 +1018,17 @@ var sequence_crdt = {};
   /// var json_crdt = create_json_crdt()
   /// ``` 
   create_json_crdt = (self) => {
-    self = self ?? {};
-    self.S = self.S ?? null;
-    self.T = self.T ?? {};
+    self = self || {};
+    self.S = self.S || null;
+    self.T = self.T || {};
     self.root_version = null;
-    self.current_version = self.current_version ?? {};
-    self.version_cache = self.version_cache ?? {};
+    self.current_version = self.current_version || {};
+    self.version_cache = self.version_cache || {};
 
     let is_lit = (x) => !x || typeof x != "object" || x.t == "lit";
     let get_lit = (x) => (x && typeof x == "object" && x.t == "lit" ? x.S : x);
     let make_lit = (x) => (x && typeof x == "object" ? { t: "lit", S: x } : x);
-    self = self ?? {};
+    self = self || {};
 
     /// # json_crdt.read()
     ///
@@ -1565,7 +1565,7 @@ var sequence_crdt = {};
           throw Error(`The version ${version} no existo`);
         }
         result[version] = true;
-        Object.keys(children[version] ?? {}).forEach(recurse);
+        Object.keys(children[version] || {}).forEach(recurse);
       }
       Object.keys(versions).forEach(recurse);
       return result;
@@ -1965,7 +1965,7 @@ var sequence_crdt = {};
           s[0] == offset &&
           node.end_cap &&
           !has_nexts &&
-          node.next?.elems.length &&
+          (node.next && node.next.elems.length) &&
           !Object.keys(node.next.deleted_by).some((version) => f(version))
         ) {
           delete_up_to = s[0] + s[1];
@@ -2010,7 +2010,7 @@ var sequence_crdt = {};
           s[2] &&
           node.end_cap &&
           !has_nexts &&
-          node.next?.elems.length &&
+          (node.next && node.next.elems.length) &&
           !Object.keys(node.next.deleted_by).some((version) => f(version));
 
         if (d > 0 || (d == 0 && !add_at_end)) return;
