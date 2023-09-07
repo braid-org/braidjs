@@ -1,5 +1,6 @@
 <script src="/braid-http-client.js"></script>
 <script type=module>
+var fetch = braid_fetch
 
 // This test should display the following in browser:
 //
@@ -19,12 +20,12 @@ function test1 () {
             (version) => {
                 document.writeln('<pre>We got 1 ' + JSON.stringify(version) + '!')
             },
-            () => {
-                console.log('Try again 1')
+            (e) => {
+                console.log('Try again 1', e)
                 setTimeout(test1, 1000)
             }
         )).catch(e => {
-            console.log('Try again 1')
+            console.log('Try again 1', e)
             setTimeout(test1, 1000)
         })
 }
@@ -36,13 +37,13 @@ async function test2 () {
             (version) => {
                 document.writeln('<pre>We got 2 ' + JSON.stringify(version) + '!')
             },
-            () => {
-                console.log('Try again 2')
+            (e) => {
+                console.log('Try again 2', e)
                 setTimeout(test2, 1000)
             }
         )
     } catch (e) {
-        console.log('Try again 2')
+        console.log('Try again 2', e)
         setTimeout(test2, 1000)
     }
 }
@@ -52,7 +53,7 @@ async function test3 () {
         for await (var version of (await fetch('/json', {subscribe: true})).subscription) 
         document.writeln('<pre>We got 3 ' + JSON.stringify(version) + '!')
     } catch (e) {
-        console.log('Try again 3')
+        console.log('Try again 3', e)
         setTimeout(test3, 1000)
     }
 }
