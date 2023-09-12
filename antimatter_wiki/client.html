@@ -1,13 +1,17 @@
 <body>
-    <script src="https://unpkg.com/@braidjs/antimatter@0.0.18"></script>
+    <script src="https://unpkg.com/@braidjs/antimatter@0.0.20"></script>
     <script src="https://invisible-college.github.io/universal-sync/diffsync.js"></script>
     <!--<script src="https://braid.news/diffsync.js"></script>-->
     <script src="https://invisible.college/js/marked.min.js"></script>
     <link rel="stylesheet" href="https://invisible.college/css/github-markdown.css">
+    <style>note {position: absolute; left: 900; width: 400; background-color: #F8F3B7; padding: 10; box-shadow: -2px 2px 2px #ccc; border-radius: 2; text-align: left; font-size: 13; margin-top: -7}</style>
 </body>
+
+<!--<script src="https://braid.org/point.js"></script>-->
+
 <script>
 
-console.log('v6')
+console.log('0.0.22')
 
 let wiki_host = __WIKI_HOST__
 
@@ -23,6 +27,11 @@ var output = document.createElement('div')
 output.className = 'pad'
 output.style.maxWidth = '900px'
 document.body.append(output)
+
+var bottom_pad = document.createElement('div')
+bottom_pad.style.height = '50vh'
+bottom_pad.style.display = 'none'
+document.body.append(bottom_pad)
 
 var t_d = make_html(`<div style="position:fixed;bottom:0px;right:0px;display:none;background:white"></div>`)
 document.body.append(t_d)
@@ -67,7 +76,8 @@ function update_markdown_later() {
 function update_markdown() {
     timer = null
     var source = showing_diff ? html_diffed(last_version||'', t.value) : t.value
-    output.innerHTML = marked(source, {sanitize: !is_safe})
+    output.innerHTML = marked.parse(source, {sanitize: !is_safe})
+
     document.body.className = 'nopad'
 
     update_hud()
@@ -87,7 +97,7 @@ var channel = window.location.pathname.slice(1) || 'default2'
 
 console.log('channel: ' + channel)
 
-async function create_antimatter_client(url, cb) {
+async function create_antimatter_client(url, cb, on_receive) {
     let ws
     let set_ws = x => ws = x
     let get_ws = () => ws
@@ -103,7 +113,7 @@ async function create_antimatter_client(url, cb) {
     let done
     let p = new Promise(d => done = d)
 
-    let interval_ms = 1000 * 10
+    let interval_ms = 1000 * 60
 
     connect()
     function connect() {
@@ -111,8 +121,8 @@ async function create_antimatter_client(url, cb) {
         let ws = set_ws(new WebSocket(url))
         ws.my_id = Math.random().toString(36).slice(2)
 
-        let pong
         let openned = false
+        let last_ping = Date.now()
 
         ws.onopen = () => {
             console.log(`OPEN`)
@@ -121,27 +131,30 @@ async function create_antimatter_client(url, cb) {
 
             a.get(ws.my_id)
 
-            pong = true
-            ping()
-            function ping() {
+            last_ping = Date.now()
+            check_ping()
+            function check_ping() {
                 if (ws.readyState > 1) return
-                if (!pong) {
-                    console.log('WS - NO PONG, CLOSING!')
+                if (Date.now() - last_ping > 1000 * 12) {
+                    console.log('WS - NO PING, CLOSING!')
                     return ws.close()
                 }
-                pong = false
-                ws.send('ping')
-                setTimeout(ping, 7000)
+                setTimeout(check_ping, 1000)
             }
         }
         ws.onmessage = x => {
-            if (x.data == 'pong') { pong = true; return }
+            if (x.data == 'ping') {
+                last_ping = Date.now()
+                ws.send('pong')
+                return
+            }
 
             console.log(`RECV: ${x.data}`)
             let m = JSON.parse(x.data)
 
             let r
             try {
+                if (!done) on_receive?.(m)
                 r = a.receive(m)
             } catch (e) {
                 a.disconnect(ws.my_id)
@@ -189,14 +202,14 @@ async function create_antimatter_client(url, cb) {
 
     function resolve_old_fissures() {
         // are we too old?
-        if (JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`])[0] < Date.now() - interval_ms*3) return
+        if (JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`])[0] < Date.now() - interval_ms*2.1) return
 
         // since we're not too old, we can judge other connections for being too old..
         let old_conns = {}
         for (let i = 0; i < localStorage.length; i++) {
             let k = localStorage.key(i)
             let m = k.match(/^antimatter_conn_6c5kho7dle_(.*)$/)
-            if (m && JSON.parse(localStorage[k])[1] < Date.now() - interval_ms*2) old_conns[m[1]] = true
+            if (m && JSON.parse(localStorage[k])[1] < Date.now() - interval_ms*5) old_conns[m[1]] = true
         }
 
         let self = a
@@ -277,6 +290,10 @@ async function create_antimatter_client(url, cb) {
         update_markdown_later()
 
 
+    }, msg => {
+        let cv = Object.keys(a.current_version)
+        if (msg.cmd == 'ack' && cv.length == 1 && msg.version == cv[0])
+            t.style['caret-color'] = 'black'
     })
 
     console.log(`loaded: ${a.read()}`)
@@ -284,21 +301,24 @@ async function create_antimatter_client(url, cb) {
     t.value = a.read()
     update_markdown_later()
 
-    t.oninput = function () {
+    a.my_on_change = () => {
         let slices = get_diff_patch(a.read(), t.value)
         a.set(...slices.map(s => ({range: `[${s[0]}:${s[0] + s[1]}]`, content: s[2]})))
+
+        t.style['caret-color'] = 'rgb(255,0,0)'
 
         console.log(`diff = ${JSON.stringify(slices)}`)
 
         update_markdown_later()
     }
 
-
+    t.oninput = a.my_on_change
 })()
 
 var vert = true, editing = false
 function render() {
     t_d.style.display = editing ? null : 'none'
+    bottom_pad.style.display = (editing && vert) ? null : 'none'
 
     if (vert) {
         t_d.style.width = '100%'
@@ -358,12 +378,24 @@ function handle_pasted_images (el, cb) {
         }
         if (!blob) return
 
-        // 2. Now we have the pasted image as a blob.  Let's convert it to a data: url
-        var reader = new FileReader()
-        reader.addEventListener('load', ()=> {cb(reader.result)}, false)
-        reader.readAsDataURL(blob)
+        if (blob.size > 1000000) {
+            insert_at_cursor(t, '<mark>Pasted image is bigger than 1MB.</mark>')
+            return
+        }
+
+        // 2. Now we have the pasted image as a blob.  Let's upload it!
+        var filename = Math.random().toString(36).slice(2) + '.png'
+        fetch('https://invisible.college/wikimg/' + filename, {
+            method: 'PUT',
+            body: blob
+        }).then( r => {
+            if (r.status === 200)
+                cb('https://invisible.college/wiki-images/' + filename)
+        })
+
     }, false)
 }
+
 handle_pasted_images(window, x => {
     insert_at_cursor(t, '<img src="'+x+'">')
 })
@@ -384,6 +416,9 @@ function insert_at_cursor (textarea, string) {
             + textarea.value.substring(endPos, textarea.value.length)
     } else
         textarea.value += string;
+
+    // Now tell antimatter
+    a?.my_on_change()
 }
 
 var last_version

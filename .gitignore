@@ -133,3 +133,9 @@ dist
 
 # Mike isn't into package-lock, but feel free to disagree with him
 package-lock.json
+
+# antimatter wiki db files
+antimatter_wiki_db/
+antimatter_wiki_db.*
+antimatter_wiki.*
+april-db-backup
