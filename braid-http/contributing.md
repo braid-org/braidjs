@@ -1,4 +1,4 @@
-# Contributing to Braidify
+# Contributing to Braid-HTTP
 
 This is core code, and I'd like it to meet everyone's needs!  I welcome
 suggestions and improvements on all aspects, including style, features, API

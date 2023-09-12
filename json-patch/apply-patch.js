@@ -14,8 +14,8 @@ function apply_patch (obj, range, content) {
     // Handle negative indices, like "[-9]" or "[-0]"
     function de_neg (x) {
         return x[0] === '-'
-            ? curr_obj.length - parseInt(x.substr(1))
-            : parseInt(x)
+            ? curr_obj.length - parseInt(x.substr(1), 10)
+            : parseInt(x, 10)
     }
 
     // Now iterate through each segment of the range e.g. [3].a.b[3][9]

@@ -1,17 +1,16 @@
 {
-  "name": "braidify",
-  "version": "0.1.20",
-  "description": "Synchronization for the Web (reference implementation)",
+  "name": "braid-http",
+  "version": "0.1.0",
+  "description": "An implementation of Braid-HTTP for Node.js and Browsers",
   "scripts": {
-    "test": "node test/server.js",
-    "prepublish": "node ../util/braid-bundler.js"
+    "test": "node test/server.js"
   },
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
   "homepage": "https://braid.org",
   "files": [
-    "braidify-client.js",
-    "braidify-server.js",
+    "braid-http-client.js",
+    "braid-http-server.js",
     "index.js",
     "index.mjs"
   ],
