@@ -116,7 +116,6 @@ function braidify (req, res, next) {
     // First, declare that we support Patches and JSON ranges.
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
     res.setHeader('Range-Request-Allow-Units', 'json')
-    res.setHeader("Patches", "OK")
 
     // Extract braid info from headers
     var version = req.headers.version && JSON.parse(req.headers.version),
