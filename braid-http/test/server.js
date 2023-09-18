@@ -21,7 +21,7 @@ require('http').createServer(
 
             // If this is a subscription, let's simulate an update
             if (req.subscribe)
-                setTimeout(() => res.sendVersion({version: 'another!', body: '!'}), 500)
+                setTimeout(() => res.sendVersion({version: 'another!', body: '1'}), 500)
 
             // End the response, if this isn't a subscription
             if (!req.subscribe) {

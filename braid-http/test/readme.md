@@ -44,7 +44,7 @@ content-length: 16
 version: "another!"
 content-length: 1
 
-!
+1
 ```
 ...and the connection should stay open until you hit `C-c`.
 
