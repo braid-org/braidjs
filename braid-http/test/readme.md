@@ -42,8 +42,9 @@ content-length: 16
 {"this":"stuff"}
 
 version: "another!"
-content-length: 0
+content-length: 1
 
+!
 ```
 ...and the connection should stay open until you hit `C-c`.
 
