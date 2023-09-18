@@ -162,6 +162,7 @@ function braidify (req, res, next) {
             res.statusCode = 209
             res.setHeader("subscribe", req.headers.subscribe)
             res.setHeader('cache-control', 'no-cache, no-transform')
+            res.setHeader('transfer-encoding', '')
 
             var connected = true
             function disconnected (x) {

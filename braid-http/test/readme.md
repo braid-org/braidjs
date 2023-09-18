@@ -8,7 +8,29 @@ node server.js
 
 ### Test server from command-line
 
+Run:
+```shell
+$ nc localhost 9000  < test-reqeust.txt
+```
 
+You should see:
+
+```
+HTTP/1.1 209 unknown
+Range-Request-Allow-Methods: PATCH, PUT
+Range-Request-Allow-Units: json
+subscribe: true
+cache-control: no-cache, no-transform
+transfer-encoding: 
+Date: Mon, 18 Sep 2023 01:53:31 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+version: "test"
+content-length: 16
+
+{"this":"stuff"}
+```
 
 
 ### Test client from the server
