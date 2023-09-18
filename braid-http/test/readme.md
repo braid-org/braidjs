@@ -6,11 +6,11 @@ Run the server with:
 node server.js
 ```
 
-### Test server from command-line
+### Test the server alone
 
 Run:
 ```shell
-$ nc localhost 9000  < test-reqeust.txt
+$ nc localhost 9000 < test-reqeust.txt
 ```
 
 You should see:
@@ -33,7 +33,7 @@ content-length: 16
 ```
 
 
-### Test client from the server
+### Test the client and server together
 
 Open a browser to:
 ```
