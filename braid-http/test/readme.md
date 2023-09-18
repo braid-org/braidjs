@@ -10,7 +10,7 @@ node server.js
 
 Run:
 ```shell
-$ nc localhost 9000 < test-reqeust.txt
+$ nc localhost 9000 < test-request.txt
 ```
 
 You should see:
