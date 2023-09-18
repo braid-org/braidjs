@@ -2,11 +2,12 @@ var braidify = require('../braid-http-server.js')
 var sendfile = (f, req, res) => res.end(require('fs').readFileSync(require('path').join(__dirname, f)))
 require('http').createServer(
     (req, res) => {
+
+        // This braidifies our server
         braidify(req, res)
 
+        // This is our Braidly test route!
         if (req.url === '/json') {
-            //res.setHeader('merge-type', 'dt')
-
             if (req.subscribe)
                 res.startSubscription()
 
@@ -26,9 +27,11 @@ require('http').createServer(
             }
         }        
 
+        // Static HTML routes here:
         else if (req.url === '/')
             sendfile('client.html', req, res)
         else if (req.url === '/braid-http-client.js')
             sendfile('../braid-http-client.js', req, res)
     }
+
 ).listen(9000, () => console.log("Listening on http://localhost:9000..."))
