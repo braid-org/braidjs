@@ -8,6 +8,8 @@ require('http').createServer(
 
         // We'll serve Braid at the /json route!
         if (req.url === '/json') {
+
+            // If the client requested a subscription, let's honor it!
             if (req.subscribe)
                 res.startSubscription()
 
@@ -17,10 +19,12 @@ require('http').createServer(
                 body: JSON.stringify({this: 'stuff'})
             })
 
+            // If this is a subscription, let's simulate an update
             if (req.subscribe)
                 setTimeout(() => res.sendVersion({version: 'another!', body: ''}),
                            500)
 
+            // End the response, if this isn't a subscription
             if (!req.subscribe) {
                 res.statusCode = 200
                 res.end()
