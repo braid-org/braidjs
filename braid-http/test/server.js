@@ -3,10 +3,10 @@ var sendfile = (f, req, res) => res.end(require('fs').readFileSync(require('path
 require('http').createServer(
     (req, res) => {
 
-        // This braidifies our server
+        // Braidifies our server
         braidify(req, res)
 
-        // This is our Braidly test route!
+        // We'll serve Braid at the /json route!
         if (req.url === '/json') {
             if (req.subscribe)
                 res.startSubscription()
