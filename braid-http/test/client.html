@@ -2,64 +2,140 @@
 <script type=module>
 var fetch = braid_fetch
 
-// This test should display the following in browser:
-//
-//   We got 1 {"version":"test","body":"{\"this\":\"stuff\"}"}!
-//   We got 2 {"version":"test","body":"{\"this\":\"stuff\"}"}!
-//   We got 3 {"version":"test","body":"{\"this\":\"stuff\"}"}!
-//   We got 1 {"version":"another!","body":""}!
-//   We got 2 {"version":"another!","body":""}!
-//   We got 3 {"version":"another!","body":""}!
-//
-// And when you restart the server, it should wait a second and then reconnect
-// and display this again.
+// Setup the tests
+window.test_results = ''
+function result (message) {
+    console.log(message)
+    test_results += message + '\n'
 
-function test1 () {
+    // We test server restarts manually.
+    // If the main tests are complete:
+    if (document.getElementById('passfail')) {
+        // Then let's add our reconnection results
+        if (!document.getElementById('reconnections'))
+            document.writeln('<h2 id=reconnections>Reconnection Results</h2><pre>')
+
+        document.writeln(message)
+    }
+}
+
+
+// Reading data from the server
+function read_test1 () {
     fetch('/json', {subscribe: true}).then(
         res => res.subscribe(
-            (version) => {
-                document.writeln('<pre>We got 1 ' + JSON.stringify(version) + '!')
-            },
+            update => result('Read 1 ' + JSON.stringify(update) + '!'),
             (e) => {
+                result('Read 1 connection died')
                 console.log('Try again 1', e)
-                setTimeout(test1, 1000)
+                setTimeout(read_test1, 1000)
             }
         )).catch(e => {
+            result('Read 1 connection died')
             console.log('Try again 1', e)
-            setTimeout(test1, 1000)
+            setTimeout(read_test1, 1000)
         })
 }
 
 
-async function test2 () {
+async function read_test2 () {
     try {
         (await fetch('/json', {subscribe: true})).subscribe(
-            (version) => {
-                document.writeln('<pre>We got 2 ' + JSON.stringify(version) + '!')
-            },
+            update => result('Read 2 ' + JSON.stringify(update) + '!'),
             (e) => {
+                result('Read 2 connection died')
                 console.log('Try again 2', e)
-                setTimeout(test2, 1000)
+                setTimeout(read_test2, 1000)
             }
         )
     } catch (e) {
+        result('Read 2 connection died')
         console.log('Try again 2', e)
-        setTimeout(test2, 1000)
+        setTimeout(read_test2, 1000)
     }
 }
 
-async function test3 () {
+async function read_test3 () {
     try {
-        for await (var version of (await fetch('/json', {subscribe: true})).subscription) 
-        document.writeln('<pre>We got 3 ' + JSON.stringify(version) + '!')
+        for await (var update of (await fetch('/json', {subscribe: true})).subscription) 
+        result('Read 3 ' + JSON.stringify(update) + '!')
     } catch (e) {
+        result('Read 3 connection died')
         console.log('Try again 3', e)
-        setTimeout(test3, 1000)
+        setTimeout(read_test3, 1000)
     }
 }
 
-test1()
-test2()
-test3()
+setTimeout(read_test1, 0)
+setTimeout(read_test2, 10)
+setTimeout(read_test3, 20)
 
+
+// Writing data to the server
+function write_test1 () {
+    fetch('/json', {
+        version: 'test1',
+        patches: {unit: 'json', range: '[0]', content: '"test1"'},
+        method: 'PUT'
+    }).then(async res => {
+        result('Write test 1 returned ' + res.status)
+    })
+}
+function write_test2 () {
+    fetch('/json', {
+        version: 'test2',
+        patches: [{unit: 'json', range: '[0]', content: '"test2"'}],
+        method: 'PUT'
+    }).then(async res => {
+        result('Write test 2 returned ' + res.status)
+    })
+}
+
+function write_test3 () {
+    fetch('/json', {
+        version: 'test3',
+        patches: [
+            {unit: 'jsonpath', range: '[0]', content: '"test3"'},
+            {unit: 'jsonpath', range: '[1]', content: '"test3"'},
+            {unit: 'jsonpath', range: '[2]', content: '"test3"'}
+        ],
+        method: 'PUT'
+    }).then(async res => {
+        result('Write test 3 returned ' + res.status)
+    })
+}
+
+function write_test4 () {
+    fetch('/json', {
+        version: 'test4',
+        patches: [],
+        method: 'PUT'
+    }).then(async res => {
+        result('Write test 4 returned '+ res.status)
+    })
+}
+
+setTimeout(write_test1, 100)
+setTimeout(write_test2, 110)
+setTimeout(write_test3, 120)
+setTimeout(write_test4, 130)
+
+
+// Evaluate all the tests
+function evaluate_tests () {
+    fetch('/test-responses.txt').then(res => res.text()).then(text => {
+        window.known_results = text
+        document.writeln('<body></body>')
+        if (known_results === test_results) {
+            document.body.style.backgroundColor = '#efe'
+            document.writeln('<h1 id=passfail>Passed!</h1>')
+        } else {
+            document.body.style.backgroundColor = '#fee'
+            document.writeln('<h1 id=passfail>Failed! :(</h1>')
+        }
+        document.writeln('<h2>Our Results</h2><pre>' + test_results + '</pre>')
+        document.writeln('<h2>Known Results</h2><pre>' + known_results + '</pre>')
+    })
+}
+setTimeout(evaluate_tests, 300)
 </script>

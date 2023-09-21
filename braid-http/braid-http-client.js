@@ -162,16 +162,30 @@ async function braid_fetch (url, params = {}) {
 
     // Prepare patches
     if (params.patches) {
-        console.assert(Array.isArray(params.patches), 'Patches must be array')
         console.assert(!params.body, 'Cannot send both patches and body')
+        console.assert(typeof params.patches === 'object', 'Patches must be object or array')
 
-        params.patches = params.patches || []
-        params.headers.set('patches', params.patches.length)
-        params.body = (params.patches).map(patch => {
-            var length = `content-length: ${patch.content.length}`
-            var range = `content-range: ${patch.unit} ${patch.range}`
-            return `${length}\r\n${range}\r\n\r\n${patch.content}\r\n`
-        }).join('\r\n')
+        // We accept a single patch as an array of one patch
+        if (!Array.isArray(params.patches))
+            params.patches = [params.patches]
+
+        // If just one patch, send it directly!
+        if (params.patches.length === 1) {
+            let patch = params.patches[0]
+            params.headers.set('Content-Range', `${patch.unit} ${patch.range}`)
+            params.headers.set('Content-Length', `${patch.content.length}`)
+            params.body = patch.content
+        }
+
+        // Multiple patches get sent within a Patches: N block
+        else {
+            params.headers.set('Patches', params.patches.length)
+            params.body = (params.patches).map(patch => {
+                var length = `content-length: ${patch.content.length}`
+                var range = `content-range: ${patch.unit} ${patch.range}`
+                return `${length}\r\n${range}\r\n\r\n${patch.content}\r\n`
+            }).join('\r\n')
+        }
     }
 
     // Wrap the AbortController with a new one that we control.
@@ -482,19 +496,51 @@ function parse_headers (input) {
     return { result: 'success', headers, input }
 }
 
+// Content-range is of the form '<unit> <range>' e.g. 'json .index'
+var content_range_regex = /(\S+) (.*)/
 function parse_body (state) {
+
     // Parse Body Snapshot
 
     var content_length = parseInt(state.headers['content-length'])
-    if (content_length !== NaN) {
+    if (!isNaN(content_length)) {
+
+        // We've read a Content-Length, so we have a block to parse
         if (content_length > state.input.length) {
+            // But we haven't received the whole block yet
             state.result = 'waiting'
             return state
         }
 
+        // We have the whole block!
         var consumed_length = content_length + 2
         state.result = 'success'
-        state.body = state.input.substring(0, content_length)
+
+        // If we have a content-range, then this is a patch
+        if (state.headers['content-range']) {
+            var match = state.headers['content-range'].match(content_range_regex)
+            if (!match)
+                return {
+                    result: 'error',
+                    message: 'cannot parse content-range',
+                    range: state.headers['content-range']
+                }
+            state.patches = [{
+                unit: match[1],
+                range: match[2],
+                content: state.input.substring(0, content_length),
+
+                // Question: Perhaps we should include headers here, like we do for
+                // the Patches: N headers below?
+
+                // headers: state.headers
+            }]
+        }
+
+        // Otherwise, this is a snapshot body
+        else
+            state.body = state.input.substring(0, content_length)
+
         state.input = state.input.substring(consumed_length)
         return state
     }
@@ -535,7 +581,7 @@ function parse_body (state) {
                 state.input = parsed.input
             }
 
-            // Todo: support arbitrary patches, not just range-patch
+            // Todo: support custom patches, not just range-patch
 
             // Parse Range Patch format
             {
@@ -561,9 +607,7 @@ function parse_body (state) {
                     return state
                 }
 
-                // Content-range is of the form '<unit> <range>' e.g. 'json .index'
-                
-                var match = last_patch.headers['content-range'].match(/(\S+) (.*)/)
+                var match = last_patch.headers['content-range'].match(content_range_regex)
                 if (!match)
                     return {
                         result: 'error',

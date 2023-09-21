@@ -1,31 +1,62 @@
 var assert = require('assert')
 
-// Write an array of patches into the pseudoheader format.
+// Return a string of patches in pseudoheader format.
+//
+//   The `patches` argument can be:
+//     - Array of patches
+//     - A single patch
+//
+//   Multiple patches are generated like:
+//
+//       Patches: n
+//
+//       content-length: 21
+//       content-range: json .range
+//
+//       {"some": "json object"}
+//
+//       content-length: x
+//       ...
+//
+//   A single patch is generated like:
+//
+//       content-length: 21
+//       content-range: json .range
+//
+//       {"some": "json object"}
+//
 function generate_patches(res, patches) {
+
+    // `patches` must be an object or an array
+    assert(typeof patches === 'object')
+
+    // An array of one patch behaves like a single patch
+    if (!Array.isArray(patches))
+        var patches = [patches]
+
     for (let patch of patches) {
         assert(typeof patch.unit    === 'string')
         assert(typeof patch.range   === 'string')
         assert(typeof patch.content === 'string')
     }
 
-    // This will return something like:
-    // Patches: n
-    // 
-    // content-length: 21
-    // content-range: json .range
-    //
-    // {"some": "json object"}
-    //
-    // content-length: x
-    // ...
-    var result = `Patches: ${patches.length}\r\n`
-    for (let patch of patches)
-        result += `\r
-content-length: ${patch.content.length}\r
-content-range: ${patch.unit} ${patch.range}\r
+    // Build up the string as a result
+    var result = ''
+
+    // Add `Patches: N` header if we have multiple patches
+    if (patches.length > 1)
+        result += `Patches: ${patches.length}\r\n\r\n`
+
+    // Generate each patch
+    patches.forEach((patch, i) => {
+        if (i > 0)
+            result += '\r\n\r\n'
+
+        result += `Content-Length: ${patch.content.length}\r
+Content-Range: ${patch.unit} ${patch.range}\r
 \r
-${patch.content}\r
-`
+${patch.content}`
+    })
     return result
 }
 
@@ -33,81 +64,118 @@ ${patch.content}\r
 // This function reads num_patches in pseudoheader format from a
 // ReadableStream and then fires a callback when they're finished.
 function parse_patches (req, cb) {
-    // Todo: make this work in the case where there is no Patches: header, but
-    // Content-Range is still set, nonetheless.
+    var num_patches = req.headers.patches
 
-    var num_patches = req.headers.patches,
-        stream = req
+    // Parse a single patch from the request body
+    if (num_patches === undefined) {
 
-    let patches = []
-    let buffer = ""
-    if (num_patches === 0)
-        return cb(patches)
+        // We only support range patches right now, so there must be a
+        // Content-Range header.
+        assert(req.headers['content-range'], 'No patches to parse: need `Patches: N` or `Content-Range:` header in ' + JSON.stringify(req.headers))
 
-    stream.on('data', function parse (chunk) {
-        // Merge the latest chunk into our buffer
-        buffer = (buffer + chunk)
+        // Parse the Content-Range header
+        var match = req.headers['content-range'].match(/(\S+) (.*)/)
+        if (!match) {
+            console.error('Cannot parse Content-Range in', JSON.stringify(headers))
+            process.exit(1)
+        }
+        var [unit, range] = match.slice(1)
 
-        // We might have an extra newline at the start.  (mike: why?)
-        buffer = buffer.trimStart()
+        // The contents of the patch is in the request body
+        var buffer = ''
+        // Read the body one chunk at a time
+        req.on('data', chunk => buffer = buffer + chunk)
+        // Then return it
+        req.on('end', () => {
+            patches = [{unit, range, content: buffer}]
+            cb(patches)
+        })
+    }
 
-        while (patches.length < num_patches) {
-            // First parse the patch headers.  It ends with a double-newline.
-            // Let's see where that is.
-            var headers_end = buffer.match(/(\r?\n)(\r?\n)/)
+    // Parse multiple patches within a Patches: N block
+    else {
+        num_patches = parseInt(num_patches)
+        let patches = []
+        let buffer = ""
 
-            // Give up if we don't have a set of headers yet.
-            if (!headers_end)
-                return
+        // We check to send send patches each time we parse one.  But if there
+        // are zero to parse, we will never check to send them.
+        if (num_patches === 0)
+            return cb([])
 
-            // Now we know where things end
-            var first_newline = headers_end[1],
-                headers_length = headers_end.index + first_newline.length,
-                blank_line = headers_end[2]
+        req.on('data', function parse (chunk) {
 
-            // Now let's parse those headers.
-            var headers = require('parse-headers')(
-                buffer.substring(0, headers_length)
-            )
+            // Merge the latest chunk into our buffer
+            buffer = (buffer + chunk)
 
-            // We require `content-length` to declare the length of the patch.
-            if (!('content-length' in headers)) {
-                // Print a nice error if it's missing
-                console.error('No content-length in', JSON.stringify(headers))
-                process.exit(1)
+            while (patches.length < num_patches) {
+                // We might have extra newlines at the start, because patches
+                // can be separated by arbitrary numbers of newlines
+                buffer = buffer.trimStart()
+
+                // First parse the patch headers.  It ends with a double-newline.
+                // Let's see where that is.
+                var headers_end = buffer.match(/(\r?\n)(\r?\n)/)
+
+                // Give up if we don't have a set of headers yet.
+                if (!headers_end)
+                    return
+
+                // Now we know where things end
+                var first_newline = headers_end[1],
+                    headers_length = headers_end.index + first_newline.length,
+                    blank_line = headers_end[2]
+
+                // Now let's parse those headers.
+                var headers = require('parse-headers')(
+                    buffer.substring(0, headers_length)
+                )
+
+                // We require `content-length` to declare the length of the patch.
+                if (!('content-length' in headers)) {
+                    // Print a nice error if it's missing
+                    console.error('No content-length in', JSON.stringify(headers),
+                                  'from', {buffer, headers_length})
+                    process.exit(1)
+                }
+
+                var body_length = parseInt(headers['content-length'])
+
+                // Give up if we don't have the full patch yet.
+                if (buffer.length < headers_length + blank_line.length + body_length)
+                    return
+
+                // XX Todo: support custom patch types beyond content-range.
+
+                // Content-range is of the form '<unit> <range>' e.g. 'json .index'
+                var match = headers['content-range'].match(/(\S+) (.*)/)
+                if (!match) {
+                    console.error('Cannot parse Content-Range in', JSON.stringify(headers))
+                    process.exit(1)
+                }
+                var [unit, range] = match.slice(1)
+                var patch_content =
+                    buffer.substring(headers_length + blank_line.length,
+                                     headers_length + blank_line.length + body_length)
+
+                // We've got our patch!
+                patches.push({unit, range, content: patch_content})
+
+                buffer = buffer.substring(headers_length + blank_line.length + body_length)
             }
 
-            var body_length = parseInt(headers['content-length'])
-
-            // Give up if we don't have the full patch yet.
-            if (buffer.length < headers_length + blank_line.length + body_length)
-                return
-
-            // XX Todo: support custom patch types beyond content-range.
-
-            // Content-range is of the form '<unit> <range>' e.g. 'json .index'
-            var [unit, range] = headers['content-range'].match(/(\S+) (.*)/).slice(1)
-            var patch_content =
-                buffer.substring(headers_length + blank_line.length,
-                                 headers_length + blank_line.length + body_length)
-
-            // We've got our patch!
-            patches.push({unit, range, content: patch_content})
-
-            buffer = buffer.substring(headers_length + blank_line.length + body_length)
-        }
-
-        // We got all the patches!  Pause the stream and tell the callback!
-        stream.pause()
-        cb(patches)
-    })
-    stream.on('end', () => {
-        // If the stream ends before we get everything, then return what we
-        // did receive
-        console.error('Stream ended!')
-        if (patches.length !== num_patches)
-            console.error(`Got an incomplete PUT: ${patches.length}/${num_patches} patches were received`)
-    })
+            // We got all the patches!  Pause the stream and tell the callback!
+            req.pause()
+            cb(patches)
+        })
+        req.on('end', () => {
+            // If the stream ends before we get everything, then return what we
+            // did receive
+            console.error('Request stream ended!')
+            if (patches.length !== num_patches)
+                console.error(`Got an incomplete PUT: ${patches.length}/${num_patches} patches were received`)
+        })
+    }
 }
 
 function braidify (req, res, next) {
@@ -198,7 +266,7 @@ function send_version(res, data, url, peer) {
     }
     function write_body (body) {
         if (res.isSubscription)
-            res.write('\r\n' + body + '\r\n')
+            res.write('\r\n' + body)
         else
             res.write(body)
     }
@@ -211,16 +279,26 @@ function send_version(res, data, url, peer) {
         assert(typeof body === 'string')
     else {
         assert(patches !== undefined)
-        patches.forEach(p => assert(typeof p.content === 'string'))
+        assert(patches !== null)
+        assert(typeof patches === 'object')
+        if (Array.isArray(patches))
+            patches.forEach(p => assert(typeof p.content === 'string'))
     }
+    assert(body || patches, 'Missing body or patches')
+    assert(!(body && patches), 'Cannot send both body and patches')
 
     // Write the headers or virtual headers
     for (var [header, value] of Object.entries(data)) {
+        header = header.toLowerCase()
+
         // Version and Parents get output in the Structured Headers format
-        if (header === 'version')
+        if (header === 'version') {
+            header = 'Version'               // Capitalize for prettiness
             value = JSON.stringify(value)
-        else if (header === 'parents')
+        } else if (header === 'parents') {
+            header = 'Parents'               // Capitalize for prettiness
             value = parents.map(JSON.stringify).join(", ")
+        }
 
         // We don't output patches or body yet
         else if (header === 'patches' || header == 'body')
@@ -230,20 +308,16 @@ function send_version(res, data, url, peer) {
     }
 
     // Write the patches or body
-    if (Array.isArray(patches))
-        res.write(generate_patches(res, patches)) // adds its own newline
-    else if (typeof body === 'string') {
-        set_header('content-length', body.length)
+    if (typeof body === 'string') {
+        set_header('Content-Length', body.length)
         write_body(body)
-    } else {
-        console.trace("Missing body or patches")
-        process.exit()
-    }
+    } else
+        res.write(generate_patches(res, patches))
 
     // Add a newline to prepare for the next version
     // See also https://github.com/braid-org/braid-spec/issues/73
     if (res.isSubscription) {
-        var extra_newlines = 0
+        var extra_newlines = 1
         if (res.is_firefox)
             // Work around Firefox network buffering bug
             // See https://github.com/braid-org/braidjs/issues/15
