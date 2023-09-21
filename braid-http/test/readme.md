@@ -111,6 +111,9 @@ Read 2 {"version":"another!","body":"!"}!
 
 ### Debugging Advice
 
+If the client tests fail, plug them into https://glittle.org/diff to see
+what's wrong.
+
 You can capture a request in unix with `nc -l 9000 > test-request.txt` to listen to
 port 9000 while your browser initiates a request, and then capture a response
 with `nc localhost 9000 < test-request.txt` to read the request from disk and send
