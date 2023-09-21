@@ -49,7 +49,7 @@ content-length: 1
 ...and the connection should stay open until you hit `C-c`.
 
 
-### Test the client and server together
+### Test the client against the server
 
 Open a browser to:
 ```
