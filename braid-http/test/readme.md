@@ -36,13 +36,40 @@ You should see this:
 < Connection: keep-alive
 < Keep-Alive: timeout=5
 < 
-version: "test"
-content-length: 16
+Version: "test"
+Parents: "oldie"
+Content-Length: 16
 
 {"this":"stuff"}
 
-version: "another!"
-content-length: 1
+Version: "test1"
+Parents: "oldie", "goodie"
+Content-Length: 1
+Content-Range: json [1]
+
+1
+
+Version: "test2"
+Content-Length: 1
+Content-Range: json [2]
+
+2
+
+Version: "test3"
+Patches: 2
+
+Content-Length: 1
+Content-Range: json [3]
+
+3
+
+Content-Length: 1
+Content-Range: json [4]
+
+4
+
+Version: "another!"
+Content-Length: 1
 
 !
 ```
