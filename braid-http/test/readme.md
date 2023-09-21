@@ -56,19 +56,30 @@ Open a browser to:
 http://localhost:9000/
 ```
 
-You should see this in the browser:
-
-```
-We got 1 {"version":"test","body":"{\"this\":\"stuff\"}"}!
-We got 2 {"version":"test","body":"{\"this\":\"stuff\"}"}!
-We got 3 {"version":"test","body":"{\"this\":\"stuff\"}"}!
-We got 1 {"version":"another!","body":""}!
-We got 2 {"version":"another!","body":""}!
-We got 3 {"version":"another!","body":""}!
-```
+The page will run a series of GET+subscribe and PUT tests, and then turn green
+if they succeed, and red if they failed.
 
 If you kill and restart the server, the browser should wait a second,
-reconnect and then display this again.
+reconnect and then display a **Reconnection Results** section that looks like
+this:
+
+```
+Read 1 connection died
+Read 3 connection died
+Read 2 connection died
+Read 1 {"version":"test","parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
+Read 1 {"version":"test1","parents":["oldie","goodie"],"patches":[{"unit":"json","range":"[1]","content":"1"}]}!
+Read 1 {"version":"test2","patches":[{"unit":"json","range":"[2]","content":"2"}]}!
+Read 1 {"version":"test3","patches":[{"headers":{"content-length":"1","content-range":"json [3]"},"unit":"json","range":"[3]","content":"3"},{"headers":{"content-length":"1","content-range":"json [4]"},"unit":"json","range":"[4]","content":"4"}]}!
+Read 3 {"version":"test","parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
+Read 2 {"version":"test","parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
+Read 2 {"version":"test1","parents":["oldie","goodie"],"patches":[{"unit":"json","range":"[1]","content":"1"}]}!
+Read 2 {"version":"test2","patches":[{"unit":"json","range":"[2]","content":"2"}]}!
+Read 2 {"version":"test3","patches":[{"headers":{"content-length":"1","content-range":"json [3]"},"unit":"json","range":"[3]","content":"3"},{"headers":{"content-length":"1","content-range":"json [4]"},"unit":"json","range":"[4]","content":"4"}]}!
+Read 1 {"version":"another!","body":"!"}!
+Read 3 {"version":"another!","body":"!"}!
+Read 2 {"version":"another!","body":"!"}!
+```
 
 
 ### Debugging Advice
