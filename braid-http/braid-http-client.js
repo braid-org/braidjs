@@ -140,10 +140,12 @@ if (is_nodejs) {
 }
 
 async function braid_fetch (url, params = {}) {
+    params = {...params}  // Copy params, because we'll mutate it
+
     // Initialize the headers object
     if (!params.headers)
         params.headers = new Headers()
-    if (!(params.headers instanceof Headers))
+    else
         params.headers = new Headers(params.headers)
 
     // Always set the peer
