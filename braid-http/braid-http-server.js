@@ -249,7 +249,9 @@ function braidify (req, res, next) {
         }
 
     // Check the Useragent to work around Firefox bugs
-    if (req.headers['user-agent'].toLowerCase().indexOf('firefox') > -1)
+    if (req.headers['user-agent']
+        && typeof req.headers['user-agent'] === 'string'
+        && req.headers['user-agent'].toLowerCase().indexOf('firefox') > -1)
         res.is_firefox = true
 
     next && next()
