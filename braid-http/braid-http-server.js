@@ -203,6 +203,7 @@ function braidify (req, res, next) {
 
     // Add the braidly request/response helper methods
     res.sendVersion = (stuff) => send_version(res, stuff, req.url, peer)
+    res.sendUpdate = res.sendVersion
     req.patches = () => new Promise(
         (done, err) => parse_patches(req, (patches) => done(patches))
     )

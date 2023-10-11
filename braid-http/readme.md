@@ -130,7 +130,7 @@ Braidify adds these fields and methods to requests and responses:
 - `req.subscribe`
 - `req.startSubscription({onClose: cb})`
 - `await req.patches()`
-- `res.sendVersion()`
+- `res.sendUpdate()`
 
 Use it like this:
 
@@ -152,7 +152,7 @@ require('http').createServer(
             res.statusCode = 200
 
         // Send the current version
-        res.sendVersion({
+        res.sendUpdate({
             version: 'greg',
             body: JSON.stringify({greg: 'greg'})
         })
@@ -183,14 +183,14 @@ app.get('/', (req, res) => {
         res.statusCode = 200
 
     // Send the current version
-    res.sendVersion({
+    res.sendUpdate({
         version: 'greg',
         parents: ['gr','eg'],
         body: JSON.stringify({greg: 'greg'})
     })
 
     // Or you can send patches like this:
-    // res.sendVersion({
+    // res.sendUpdate({
     //     version: 'greg',
     //     parents: ['gr','eg'],
     //     patches: [{range: '.greg', unit: 'json', content: '"greg"'}]
