@@ -7,7 +7,7 @@ function apply_patch (obj, range, content) {
     var path = range,
         new_stuff = content
 
-    var path_segment = /^(\.([^\.\[]+))|(\[((-?\d+):)?(-?\d+)\])/
+    var path_segment = /^(\.?([^\.\[]+))|(\[((-?\d+):)?(-?\d+)\])|\[("(\\"|[^"])*")\]/
     var curr_obj = obj,
         last_obj = null
 
@@ -21,14 +21,14 @@ function apply_patch (obj, range, content) {
     // Now iterate through each segment of the range e.g. [3].a.b[3][9]
     while (true) {
         var match = path_segment.exec(path),
-            subpath = match[0],
-            field = match[2],
-            slice_start = match[5],
-            slice_end = match[6]
+            subpath = match ? match[0] : '',
+            field = match && match[2],
+            slice_start = match && match[5],
+            slice_end = match && match[6],
+            quoted_field = match && match[7]
 
-        // The field could be expressed as [nnn] instead of .nnn
-        if (subpath === '[' + match[6] + ']')
-            field = match[6]
+        // The field could be expressed as ["nnn"] instead of .nnn
+        if (quoted_field) field = JSON.parse(quoted_field)
 
         slice_start = slice_start && de_neg(slice_start)
         slice_end = slice_end && de_neg(slice_end)
@@ -37,9 +37,13 @@ function apply_patch (obj, range, content) {
 
         // If it's the final item, set it
         if (path.length === subpath.length) {
-            if (field)                               // Object
-                curr_obj[field] = new_stuff
-            else if (typeof curr_obj === 'string') {  // String
+            if (!subpath) return new_stuff
+            else if (field) {                           // Object
+                if (new_stuff === undefined)
+                    delete curr_obj[field]              // - Delete a field in object
+                else
+                    curr_obj[field] = new_stuff         // - Set a field in object
+            } else if (typeof curr_obj === 'string') {  // String
                 console.assert(typeof new_stuff === 'string')
                 if (!slice_start) {slice_start = slice_end; slice_end = slice_end+1}
                 if (last_obj) {
@@ -49,11 +53,11 @@ function apply_patch (obj, range, content) {
                                             + s.slice(slice_end))
                 } else
                     return obj.slice(0, slice_start) + new_stuff + obj.slice(slice_end)
-            } else                                   // Array
-                if (slice_start)                     //  - Array splice
+            } else                                     // Array
+                if (slice_start)                       //  - Array splice
                     [].splice.apply(curr_obj, [slice_start, slice_end-slice_start]
                                     .concat(new_stuff))
-            else {                                   //  - Array set
+            else {                                     //  - Array set
                 console.assert(slice_end >= 0, 'Index '+subpath+' is too small')
                 console.assert(slice_end <= curr_obj.length - 1,
                                'Index '+subpath+' is too big')
