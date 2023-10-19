@@ -499,7 +499,7 @@ function parse_headers (input) {
 }
 
 // Content-range is of the form '<unit> <range>' e.g. 'json .index'
-var content_range_regex = /(\S+) (.*)/
+var content_range_regex = /(\S+)( (.*))?/
 function parse_body (state) {
 
     // Parse Body Snapshot
@@ -529,7 +529,7 @@ function parse_body (state) {
                 }
             state.patches = [{
                 unit: match[1],
-                range: match[2],
+                range: match[3],
                 content: state.input.substring(0, content_length),
 
                 // Question: Perhaps we should include headers here, like we do for
@@ -618,7 +618,7 @@ function parse_body (state) {
                     }
 
                 last_patch.unit = match[1]
-                last_patch.range = match[2]
+                last_patch.range = match[3]
                 last_patch.content = state.input.substr(0, content_length)
 
                 // Consume the parsed input

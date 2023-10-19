@@ -74,12 +74,8 @@ function parse_patches (req, cb) {
         assert(req.headers['content-range'], 'No patches to parse: need `Patches: N` or `Content-Range:` header in ' + JSON.stringify(req.headers))
 
         // Parse the Content-Range header
-        var match = req.headers['content-range'].match(/(\S+) (.*)/)
-        if (!match) {
-            console.error('Cannot parse Content-Range in', JSON.stringify(headers))
-            process.exit(1)
-        }
-        var [unit, range] = match.slice(1)
+        // Content-range is of the form '<unit> <range>' e.g. 'json .index'
+        var [unit, range] = parse_content_range(req.headers['content-range'])
 
         // The contents of the patch is in the request body
         var buffer = ''
@@ -148,12 +144,7 @@ function parse_patches (req, cb) {
                 // XX Todo: support custom patch types beyond content-range.
 
                 // Content-range is of the form '<unit> <range>' e.g. 'json .index'
-                var match = headers['content-range'].match(/(\S+) (.*)/)
-                if (!match) {
-                    console.error('Cannot parse Content-Range in', JSON.stringify(headers))
-                    process.exit(1)
-                }
-                var [unit, range] = match.slice(1)
+                var [unit, range] = parse_content_range(headers['content-range'])
                 var patch_content =
                     buffer.substring(headers_length + blank_line.length,
                                      headers_length + blank_line.length + body_length)
@@ -176,6 +167,15 @@ function parse_patches (req, cb) {
                 console.error(`Got an incomplete PUT: ${patches.length}/${num_patches} patches were received`)
         })
     }
+}
+
+function parse_content_range (range_string) {
+    console.log('range string is', range_string)
+    var match = range_string.match(/(\S+)( (.*))?/)
+    console.log('##### match is', match)
+    if (!match) throw 'Cannot parse Content-Range in ' + string
+    var [unit, range] = [match[1], match[3]]
+    return [unit, range]
 }
 
 function braidify (req, res, next) {
