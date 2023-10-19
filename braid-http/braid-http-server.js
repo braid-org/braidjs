@@ -285,8 +285,9 @@ function send_version(res, data, url, peer) {
         if (Array.isArray(patches))
             patches.forEach(p => assert(typeof p.content === 'string'))
     }
-    assert(body || patches, 'Missing body or patches')
-    assert(!(body && patches), 'Cannot send both body and patches')
+    var body_exists = body || body === ''
+    assert(body_exists || patches, 'Missing body or patches')
+    assert(!(body_exists && patches), 'Cannot send both body and patches')
 
     // Write the headers or virtual headers
     for (var [header, value] of Object.entries(data)) {
