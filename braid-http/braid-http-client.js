@@ -499,7 +499,10 @@ function parse_headers (input) {
 }
 
 // Content-range is of the form '<unit> <range>' e.g. 'json .index'
-var content_range_regex = /(\S+)( (.*))?/
+function parse_content_range (range_string) {
+    var match = range_string.match(/(\S+)( (.*))?/)
+    return match && {unit: match[1], range: match[3] || ''}
+}
 function parse_body (state) {
 
     // Parse Body Snapshot
@@ -520,7 +523,7 @@ function parse_body (state) {
 
         // If we have a content-range, then this is a patch
         if (state.headers['content-range']) {
-            var match = state.headers['content-range'].match(content_range_regex)
+            var match = parse_content_range(state.headers['content-range'])
             if (!match)
                 return {
                     result: 'error',
@@ -528,8 +531,8 @@ function parse_body (state) {
                     range: state.headers['content-range']
                 }
             state.patches = [{
-                unit: match[1],
-                range: match[3],
+                unit: match.unit,
+                range: match.range,
                 content: state.input.substring(0, content_length),
 
                 // Question: Perhaps we should include headers here, like we do for
@@ -609,7 +612,7 @@ function parse_body (state) {
                     return state
                 }
 
-                var match = last_patch.headers['content-range'].match(content_range_regex)
+                var match = parse_content_range(last_patch.headers['content-range'])
                 if (!match)
                     return {
                         result: 'error',
@@ -617,8 +620,8 @@ function parse_body (state) {
                         patch: last_patch, input: state.input
                     }
 
-                last_patch.unit = match[1]
-                last_patch.range = match[3]
+                last_patch.unit = match.unit
+                last_patch.range = match.range
                 last_patch.content = state.input.substr(0, content_length)
 
                 // Consume the parsed input
