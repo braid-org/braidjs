@@ -66,8 +66,17 @@ ${patch.content}`
 function parse_patches (req, cb) {
     var num_patches = req.headers.patches
 
-    // Parse a single patch from the request body
-    if (num_patches === undefined) {
+    // Parse a request body as an "everything" patch
+    if (!num_patches && !req.headers['content-range']) {
+        var body = ''
+        req.on('data', chunk => {body += chunk.toString()})
+        req.on('end', () => {
+            cb([{unit: 'everything', range: '', content: body}])
+        })
+    }
+
+    // Parse a single patch, lacking Patches: N
+    else if (num_patches === undefined && req.headers['content-range']) {
 
         // We only support range patches right now, so there must be a
         // Content-Range header.
@@ -230,6 +239,9 @@ function braidify (req, res, next) {
             res.setHeader("subscribe", req.headers.subscribe)
             res.setHeader('cache-control', 'no-cache, no-transform')
             res.setHeader('transfer-encoding', '')
+
+            // Tell nginx not to buffer the subscription
+            res.setHeader('X-Accel-Buffering', 'no')
 
             var connected = true
             function disconnected (x) {
