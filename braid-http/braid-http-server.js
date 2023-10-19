@@ -172,7 +172,6 @@ function parse_patches (req, cb) {
 function parse_content_range (range_string) {
     console.log('range string is', range_string)
     var match = range_string.match(/(\S+)( (.*))?/)
-    console.log('##### match is', match)
     if (!match) throw 'Cannot parse Content-Range in ' + string
     var [unit, range] = [match[1], match[3]]
     return [unit, range]
