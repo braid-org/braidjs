@@ -6,6 +6,10 @@ require('http').createServer(
         // Braidifies our server
         braidify(req, res)
 
+        console.log('Request:', req.url, req.method,
+                    req.subscribe ? ('Subscribe: ' + req.subscribe)
+                    : 'no subscription')
+
         // We'll serve Braid at the /json route!
         if (req.url === '/json' && req.method === 'GET') {
 
@@ -20,36 +24,38 @@ require('http').createServer(
                 body: JSON.stringify({this: 'stuff'})
             })
 
-            // Send a patch
-            res.sendUpdate({
-                version: 'test1',
-                parents: ['oldie', 'goodie'],
-                patches: {unit: 'json', range: '[1]', content: '1'}
-            })
+            if (req.subscribe) {
+                // Send a patch
+                res.sendUpdate({
+                    version: 'test1',
+                    parents: ['oldie', 'goodie'],
+                    patches: {unit: 'json', range: '[1]', content: '1'}
+                })
 
-            // Send a patch as array
-            res.sendUpdate({
-                version: 'test2',
-                patches: [{unit: 'json', range: '[2]', content: '2'}]
-            })
+                // Send a patch as array
+                res.sendUpdate({
+                    version: 'test2',
+                    patches: [{unit: 'json', range: '[2]', content: '2'}]
+                })
 
-            // Send two patches as array
-            res.sendUpdate({
-                version: 'test3',
-                patches: [{unit: 'json', range: '[3]', content: '3'},
-                          {unit: 'json', range: '[4]', content: '4'}]
-            })
+                // Send two patches as array
+                res.sendUpdate({
+                    version: 'test3',
+                    patches: [{unit: 'json', range: '[3]', content: '3'},
+                              {unit: 'json', range: '[4]', content: '4'}]
+                })
 
-            // If this is a subscription, let's simulate an update
-            if (req.subscribe)
+                // Simulate an update after the fact
                 setTimeout(() => res.sendUpdate({version: 'another!', body: '!'}), 200)
+            }
 
             // End the response, if this isn't a subscription
             if (!req.subscribe) {
                 res.statusCode = 200
                 res.end()
             }
-        }        
+        }
+
 
         // We'll accept Braid at the /json PUTs!
         if (req.url === '/json' && req.method === 'PUT') {
