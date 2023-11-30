@@ -8,6 +8,6 @@
   "homepage": "https://braid.org/antimatter",
   "dependencies": {
     "@braidjs/antimatter": "^0.0.12",
-    "ws": "^8.14.1"
+    "ws": "^8.14.2"
   }
 }

@@ -21,6 +21,8 @@ var real_errorrr_happened = false
 window.onerror = function (e) {
     real_errorrr_happened = e
     document.body.style.border = '4px red solid'
+    t.disabled = true
+    t.style.backgroundColor = '#fee'
 }
 
 var output = document.createElement('div')
