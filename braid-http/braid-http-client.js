@@ -357,7 +357,7 @@ var subscription_parser = (cb) => ({
         this.state.input += input
 
         // Now loop through the input and parse until we hit a dead end
-        do {
+        while (this.state.input.trim() !== '') {
             this.state = parse_version (this.state)
 
             // Maybe we parsed a version!  That's cool!
@@ -380,7 +380,8 @@ var subscription_parser = (cb) => ({
             }
 
             // We stop once we've run out of parseable input.
-        } while (this.state.result !== 'waiting' && this.state.input.trim() !== '')
+            if (this.state.result == 'waiting') break
+        }
     }
 })
 
@@ -552,14 +553,14 @@ function parse_body (state) {
 
     // Parse Patches
 
-    else if (state.headers.patches) {
+    else if (state.headers.patches != null) {
         state.patches = state.patches || []
 
         var last_patch = state.patches[state.patches.length-1]
 
         // Parse patches until the final patch has its content filled
         while (!(state.patches.length === state.headers.patches
-                 && 'content' in last_patch)) {
+                 && (state.patches.length === 0 || 'content' in last_patch))) {
 
             state.input = state.input.trimStart()
 
