@@ -43,9 +43,8 @@ function generate_patches(res, patches) {
     // Build up the string as a result
     var result = ''
 
-    // Add `Patches: N` header if we have multiple patches
-    if (patches.length > 1)
-        result += `Patches: ${patches.length}\r\n\r\n`
+    // Add `Patches: N` header
+    result += `Patches: ${patches.length}\r\n\r\n`
 
     // Generate each patch
     patches.forEach((patch, i) => {
