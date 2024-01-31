@@ -366,7 +366,8 @@ var subscription_parser = (cb) => ({
                     version: this.state.version,
                     parents: this.state.parents,
                     body:    this.state.body,
-                    patches: this.state.patches
+                    patches: this.state.patches,
+                    headers: this.state.headers
                 })
 
                 // Reset the parser for the next version!
