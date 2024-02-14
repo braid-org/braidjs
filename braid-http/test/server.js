@@ -31,13 +31,13 @@ require('http').createServer(
                 res.sendUpdate({
                     version: 'test1',
                     parents: ['oldie', 'goodie'],
-                    patches: {unit: 'json', range: '[1]', content: '1'}
+                    patch: {unit: 'json', range: '[1]', content: '1'}
                 })
 
                 // Send a patch as array
                 res.sendUpdate({
                     version: 'test2',
-                    patches: [{unit: 'json', range: '[2]', content: '2'}]
+                    patch: {unit: 'json', range: '[2]', content: '2'}
                 })
 
                 // Send two patches as array

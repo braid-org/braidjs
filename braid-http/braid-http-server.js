@@ -26,28 +26,29 @@ var assert = require('assert')
 //       {"some": "json object"}
 //
 function generate_patches(res, patches) {
-
-    // `patches` must be an object or an array
-    assert(typeof patches === 'object')
-
-    // An array of one patch behaves like a single patch
-    if (!Array.isArray(patches))
-        var patches = [patches]
-
-    for (let patch of patches) {
-        assert(typeof patch.unit    === 'string')
-        assert(typeof patch.range   === 'string')
-        assert(typeof patch.content === 'string')
-    }
-
-    // Build up the string as a result
     var result = ''
 
-    // Add `Patches: N` header
-    result += `Patches: ${patches.length}\r\n\r\n`
+    // `patches` must be a patch object or an array of patch objects
+    //  - Object:  {unit, range, content}
+    //  - Array:  [{unit, range, content}, ...]
+
+    assert(typeof patches === 'object')  // An array is also an object
+
+    // An array of one patch behaves like a single patch
+    if (Array.isArray(patches)) {
+
+        // Add `Patches: N` header if array
+        result += `Patches: ${patches.length}\r\n\r\n`
+    } else
+        // Else, we'll out put a single patch
+        patches = [patches]
 
     // Generate each patch
     patches.forEach((patch, i) => {
+        assert(typeof patch.unit    === 'string')
+        assert(typeof patch.range   === 'string')
+        assert(typeof patch.content === 'string')
+
         if (i > 0)
             result += '\r\n\r\n'
 
@@ -271,7 +272,7 @@ function braidify (req, res, next) {
 }
 
 function send_version(res, data, url, peer) {
-    var {version, parents, patches, body} = data
+    var {version, parents, patches, patch, body} = data
 
     function set_header (key, val) {
         if (res.isSubscription)
@@ -293,12 +294,34 @@ function send_version(res, data, url, peer) {
     if (body !== undefined)
         assert(typeof body === 'string')
     else {
-        assert(patches !== undefined)
-        assert(patches !== null)
+        // Only one of patch or patches can be set
+        assert(!(patch && patches))
+        assert((patch || patches) !== undefined)
+        assert((patch || patches) !== null)
+
+        // Patches must be an array
+        if (patches)
+            assert(Array.isArray(patches))
+
+        // But if using `patch`, then we set `patches` to just that object
+        if (patch)
+            patches = patch
+
+        // Now `patches` will be an array of patches or a single patch object.
+        //
+        // This distinction is used in generate_patches() to determine whether
+        // to inline a single patch in the update body vs. writing out a
+        // Patches: N block.
         assert(typeof patches === 'object')
         if (Array.isArray(patches))
-            patches.forEach(p => assert(typeof p.content === 'string'))
+            patches.forEach(p => {
+                assert('unit' in p)
+                assert('range' in p)
+                assert('content' in p)
+                assert(typeof p.content === 'string')
+            })
     }
+
     var body_exists = body || body === ''
     assert(body_exists || patches, 'Missing body or patches')
     assert(!(body_exists && patches), 'Cannot send both body and patches')
