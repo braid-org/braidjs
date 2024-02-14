@@ -29,10 +29,12 @@ You should see this:
 < HTTP/1.1 209 unknown
 < Range-Request-Allow-Methods: PATCH, PUT
 < Range-Request-Allow-Units: json
+< content-type: application/json
 < subscribe: true
 < cache-control: no-cache, no-transform
 < transfer-encoding: 
-< Date: Mon, 18 Sep 2023 01:59:37 GMT
+< X-Accel-Buffering: no
+< Date: Wed, 14 Feb 2024 03:13:12 GMT
 < Connection: keep-alive
 < Keep-Alive: timeout=5
 < 
@@ -69,9 +71,10 @@ Content-Range: json [4]
 4
 
 Version: "another!"
-Content-Length: 1
+Content-Length: 3
 
-!
+"!"
+
 ```
 ...and the connection should stay open until you hit `C-c`.
 

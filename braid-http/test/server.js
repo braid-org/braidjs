@@ -13,7 +13,7 @@ require('http').createServer(
         // We'll serve Braid at the /json route!
         if (req.url === '/json' && req.method === 'GET') {
             res.setHeader('content-type', 'application/json')
-            res.setHeader('accept-subscribe', 'true')
+            // res.setHeader('accept-subscribe', 'true')
 
             // If the client requested a subscription, let's honor it!
             if (req.subscribe)

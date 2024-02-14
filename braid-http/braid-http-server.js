@@ -340,7 +340,7 @@ function send_version(res, data, url, peer) {
         }
 
         // We don't output patches or body yet
-        else if (header === 'patches' || header == 'body')
+        else if (header === 'patches' || header === 'body' || header === 'patch')
             continue
 
         set_header(header, value)
