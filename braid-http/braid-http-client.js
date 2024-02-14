@@ -49,6 +49,7 @@ function braidify_http (http) {
         options.headers.peer = options.headers.peer || peer
 
         // Wrap the callback to provide our new .on('version', ...) feature
+        // on nodejs servers
         var on_version,
             on_error,
             orig_cb = cb

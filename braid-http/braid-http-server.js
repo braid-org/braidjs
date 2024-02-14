@@ -237,7 +237,10 @@ function braidify (req, res, next) {
             res.statusCode = 209
             res.setHeader("subscribe", req.headers.subscribe)
             res.setHeader('cache-control', 'no-cache, no-transform')
-            if (req.httpVersionMajor == 1) res.setHeader('transfer-encoding', '')
+            if (req.httpVersionMajor == 1) {
+                // Explicitly disable transfer-encoding chunked for http 1
+                res.setHeader('transfer-encoding', '')
+            }
 
             // Tell nginx not to buffer the subscription
             res.setHeader('X-Accel-Buffering', 'no')
