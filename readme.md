@@ -14,8 +14,11 @@ This is not my code.  This is *our* code.
 Add yours today!
 
  - `antimatter`: [An implementation of the Antimatter Algorithm](https://github.com/braid-org/braidjs/tree/master/antimatter)
+ - `antimatter_wiki`: [An example Wiki using Antimatter](https://github.com/braid-org/braidjs/tree/master/antimatter_wiki)
  - `braid-http`: [A reference implementation of the Braid Protocol](https://github.com/braid-org/braidjs/tree/master/braid-http)
+ - `json-patch`: [Applies a Range-Patch to JSON](https://github.com/braid-org/braidjs/tree/master/json-patch)
  - `kernel`: [A prototype Braid Kernel](https://github.com/braid-org/braidjs/tree/master/kernel)
+ - `simpleton`: [A very simple and fast CRDT sync for light clients](https://github.com/braid-org/braidjs/tree/master/simpleton)
  - `sync9`: [A CRDT that supports pruning history](https://github.com/braid-org/braidjs/tree/master/sync9)
  - `util`: [A set of common utilities](https://github.com/braid-org/braidjs/tree/master/util)
 
