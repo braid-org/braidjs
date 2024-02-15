@@ -1,4 +1,4 @@
-console.log("simpleton.js: v90");
+console.log("simpleton.js: v91");
 
 var port = 61870;
 
@@ -11,6 +11,74 @@ require("child_process").execSync(`npm install diamond-types-node`, {
   stdio: "inherit",
 });
 const { Doc, Branch, OpLog } = require("diamond-types-node");
+
+if (false) {
+  //   doc.ins(0, "ab");
+  //   doc.ins(1, "x\u20ACy");
+  //   doc.mergeBytes(OpLog_create_bytes("server-5", ["server-4"], 0, "\u20AC"));
+  //   doc.ins(0, "__");
+
+  //   console.log("doc.getRemoteVersion(): " + doc.getRemoteVersion());
+  //   console.log("doc.get(): " + doc.get());
+  //   console.log(Object.getOwnPropertyNames(Doc.prototype));
+  //   console.log(doc.xfSince([]));
+  //   for (let i = 0; i < 4; i++) {
+  //     try {
+  //       console.log(`HI[${i}]::>`, doc.localToRemoteVersion([i]));
+  //     } catch (e) {
+  //       break;
+  //     }
+  //   }
+
+  // console.log(`------------------------------------!!!`)
+
+  // if (true) {
+  //     let doc = new Doc("server");
+  //     for (let op of ops) {
+  //         doc.mergeBytes(OpLog_create_bytes(op.version, op.parents, op.pos, op.ins))
+  //     }
+
+  //     let new_doc = new Doc('server')
+  //     new_doc.mergeBytes(doc.toBytes())
+  //     doc = new_doc
+
+  //     let v = ops.slice(-1)[0].version
+  //     console.log(v + ': ' + OpLog_get(doc, [v]))
+  //     console.log(doc.get())
+  // }
+  // if (true) {
+  //     let doc = new Doc("server");
+
+  //     ops.push(ops.splice(ops.length - 2, 1)[0])
+
+  //     for (let op of ops) {
+  //         doc.mergeBytes(OpLog_create_bytes(op.version, op.parents, op.pos, op.ins))
+  //     }
+
+  //     let new_doc = new Doc('server')
+  //     new_doc.mergeBytes(doc.toBytes())
+  //     doc = new_doc
+
+  //     let v = ops.slice(-2)[0].version
+  //     console.log(v + ': ' + OpLog_get(doc, [v]))
+  //     console.log(doc.get())
+  // }
+
+  // console.log(`------------------------------------?`)
+  //vxcybmsvmaxtmlhczaspwu
+
+  //    g3dvg7f314p-17
+
+  // doc.mergeBytes(OpLog_create_bytes('euywm7jnsgj-0', [], 0, 'a'))
+  // doc.mergeBytes(OpLog_create_bytes('euywm7jnsgj-0', ['euywm7jnsgj-0'], 0, 'a'))
+  // doc.mergeBytes(OpLog_create_bytes('euywm7jnsgj-0', [], 0, 'a'))
+
+  // console.log(`------------------------------------`)
+  // console.log(doc.get())
+  // console.log(`------------------------------------`)
+
+  throw "stop";
+}
 
 const fs = require("fs");
 
@@ -184,7 +252,7 @@ const server = require("http2").createSecureServer(
               }
         );
       }
-      return patches;
+      return relative_to_absolute_patches(patches);
     }
 
     if (req.method == "GET" && !req.subscribe) {
@@ -812,4 +880,84 @@ function decode_version(v) {
 function sha256(data) {
   const crypto = require("crypto");
   return crypto.createHash("sha256").update(data).digest("base64");
+}
+
+function relative_to_absolute_patches(patches) {
+  let parts = [{ size: Infinity }];
+
+  for (let p of patches) {
+    let [start, end] = p.range.match(/\d+/g).map((x) => 1 * x);
+
+    let new_p = { content: "", del: 0 };
+    let ins = [new_p];
+
+    let i = 0;
+    let offset = 0;
+    while (
+      offset + parts[i].size < start ||
+      (parts[i].content == null && offset + parts[i].size == start)
+    ) {
+      offset += parts[i].size;
+      i++;
+    }
+
+    let ii = start - offset;
+
+    let j = i;
+    while (
+      offset + parts[j].size < end ||
+      (parts[j].content == null && offset + parts[j].size == end)
+    ) {
+      offset += parts[j].size;
+      j++;
+    }
+
+    let jj = end - offset;
+
+    if (parts[i].content == null) {
+      if (ii) ins.unshift({ size: ii });
+      new_p.del += i == j ? -ii : parts[i].size - ii;
+    } else {
+      new_p.content += parts[i].content.slice(0, ii);
+      new_p.del += parts[i].del;
+    }
+
+    new_p.content += p.content;
+
+    if (parts[j].content == null) {
+      if (parts[j].size - jj) ins.push({ size: parts[j].size - jj });
+      new_p.del += jj;
+    } else {
+      new_p.content += parts[j].content.slice(jj);
+      new_p.del += parts[j].del;
+    }
+
+    new_p.size = new_p.content.length;
+
+    for (let k = i + 1; k < j; k++) {
+      if (parts[k].content == null) {
+        new_p.del += parts[k].size;
+      } else {
+        new_p.del += parts[k].del;
+      }
+    }
+
+    parts.splice(i, j - i + 1, ...ins);
+  }
+
+  let new_patches = [];
+  let offset = 0;
+  for (let part of parts) {
+    if (part.content == null) {
+      offset += part.size;
+    } else {
+      new_patches.push({
+        unit: patches[0].unit,
+        range: `[${offset}:${offset + part.del}]`,
+        content: part.content,
+      });
+      offset += part.del;
+    }
+  }
+  return new_patches;
 }
