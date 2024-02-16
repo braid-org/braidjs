@@ -96,7 +96,7 @@ function create_simpleton_client(url, on_change, on_network_activity) {
         ...(headers_promise ? { headers: await headers_promise } : {}),
       });
     },
-    get_connected: () => !!connection,
+    is_connected: () => !!connection,
   };
 }
 
