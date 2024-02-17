@@ -1,4 +1,4 @@
-console.log("simpleton.js: v91");
+console.log("simpleton.js: v97");
 
 var port = 61870;
 
@@ -90,7 +90,6 @@ function get_resource(url) {
 
   let resource = {};
   resource.doc = new Doc("server");
-  resource.waiting_messages = [];
   resource.clients = new Set();
   resource.last_sent_version = null;
 
@@ -321,7 +320,7 @@ const server = require("http2").createSecureServer(
 
       console.log(`patches = ${JSON.stringify(patches)}`);
 
-      resource.waiting_messages.push({
+      let m = {
         peer,
         version: req.version,
         parents: req.parents,
@@ -329,165 +328,168 @@ const server = require("http2").createSecureServer(
         hash: req.headers["snapshot-hash"],
         snapshot_value: req.headers["snapshot-value"],
 
-        snapshot_oldhash: req.headers["snapshot-oldhash"],
+        snapshot_oldhash: req.headers["snapshost-oldhash"],
         snapshot_old: req.headers["snapshot-old"],
-      });
+      };
 
-      let did_something_overall = false;
-      let did_something = true;
-      while (did_something) {
-        did_something = false;
-        for (let i = resource.waiting_messages.length - 1; i >= 0; i--) {
-          let m = resource.waiting_messages[i];
+      try {
+        // work here
+        console.time("all");
 
-          try {
-            let patches = m.patches;
+        let patches = m.patches;
 
-            let og_v = JSON.parse(m.version)[0];
+        let og_v = JSON.parse(m.version)[0];
 
-            // reduce the version sequence by the number of char-edits
-            let v = decode_version(og_v);
-            v = encode_version(
-              v[0],
-              v[1] +
-                1 -
-                patches.reduce(
-                  (a, b) =>
-                    a + Math.max(b.content.length, b.range[1] - b.range[0]),
-                  0
-                )
-            );
+        // reduce the version sequence by the number of char-edits
+        let v = decode_version(og_v);
+        v = encode_version(
+          v[0],
+          v[1] +
+            1 -
+            patches.reduce(
+              (a, b) => a + Math.max(b.content.length, b.range[1] - b.range[0]),
+              0
+            )
+        );
 
-            let ps = JSON.parse(m.parents[0]);
-            let og_ps = ps;
+        let ps = JSON.parse(m.parents[0]);
+        let og_ps = ps;
 
-            let v_before = resource.doc.getLocalVersion();
-            let parents = [
-              JSON.stringify(
-                resource.doc.getRemoteVersion().map((x) => encode_version(...x))
-              ),
-            ];
+        let v_before = resource.doc.getLocalVersion();
+        let parents = [
+          JSON.stringify(
+            resource.doc.getRemoteVersion().map((x) => encode_version(...x))
+          ),
+        ];
 
-            let offset = 0;
-            for (let p of patches) {
-              if (p.content) {
-                // insert
-                for (let i = 0; i < p.content.length; i++) {
-                  let c = p.content[i];
-                  resource.doc.mergeBytes(
-                    OpLog_create_bytes(v, ps, p.range[0] + offset, c)
-                  );
-                  offset++;
-                  ps = [v];
-                  v = decode_version(v);
-                  v = encode_version(v[0], v[1] + 1);
-                }
-              } else {
-                // delete
-                for (let i = p.range[0]; i < p.range[1]; i++) {
-                  resource.doc.mergeBytes(
-                    OpLog_create_bytes(v, ps, p.range[1] - 1 + offset, null)
-                  );
-                  offset--;
-                  ps = [v];
-                  v = decode_version(v);
-                  v = encode_version(v[0], v[1] + 1);
-                }
-              }
+        let offset = 0;
+        for (let p of patches) {
+          if (p.content) {
+            // insert
+            for (let i = 0; i < p.content.length; i++) {
+              let c = p.content[i];
+              resource.doc.mergeBytes(
+                OpLog_create_bytes(v, ps, p.range[0] + offset, c)
+              );
+              offset++;
+              ps = [v];
+              v = decode_version(v);
+              v = encode_version(v[0], v[1] + 1);
             }
-
-            resource.db_delta(resource.doc.getPatchSince(v_before));
-
-            // work here
-            // if (true) {
-            //     let x = resource.doc
-            //     resource.doc = new Doc('server')
-            //     resource.doc.mergeBytes(x.toBytes())
-            // }
-
-            patches = get_xf_patches(resource.doc, v_before);
-            console.log(JSON.stringify({ patches }));
-
-            let version = JSON.stringify(
-              resource.doc.getRemoteVersion().map((x) => encode_version(...x))
-            );
-
-            let body = resource.doc.get();
-            let hash = sha256(body);
-
-            // let's verify the hash..
-            if (m.hash) {
-              if (version == m.version) {
-                if (hash != m.hash) {
-                  console.log(`BAD HASH1!!: hash=${hash} m.hash=${m.hash}`);
-                  console.log(`SERVER TEXT: ${body}`);
-                  console.log(`CLIENT STUFF: ${JSON.stringify(m, null, 4)}`);
-                  process.exit(1);
-                } else {
-                  console.log("HASH PASSED 1!");
-                }
-              } else {
-                if (sha256(OpLog_get(resource.doc, [og_v])) != m.hash) {
-                  console.log(
-                    `BAD HASH2!!: hash=${sha256(
-                      OpLog_get(resource.doc, [og_v])
-                    )} m.hash=${m.hash}`
-                  );
-                  console.log(
-                    `SERVER TEXT: ${OpLog_get(resource.doc, [og_v])}`
-                  );
-                  console.log(`CLIENT STUFF: ${JSON.stringify(m, null, 4)}`);
-                  process.exit(1);
-                } else {
-                  console.log("HASH PASSED 2!");
-                }
-              }
+          } else {
+            // delete
+            for (let i = p.range[0]; i < p.range[1]; i++) {
+              resource.doc.mergeBytes(
+                OpLog_create_bytes(v, ps, p.range[1] - 1 + offset, null)
+              );
+              offset--;
+              ps = [v];
+              v = decode_version(v);
+              v = encode_version(v[0], v[1] + 1);
             }
-
-            for (let client of resource.clients) {
-              let x = {
-                version,
-                "Snapshot-Hash": hash,
-              };
-              if (client.my_peer == m.peer) {
-                x.parents = [m.version];
-                if (version != m.version) {
-                  console.log("rebasing..");
-                  x.patches = get_xf_patches(
-                    resource.doc,
-                    OpLog_remote_to_local(resource.doc, [og_v])
-                  );
-                } else x.patches = [];
-              } else {
-                x.parents = parents;
-                x.patches = patches;
-              }
-              console.log(`sending: ${JSON.stringify(x)}`);
-              client.sendVersion(x);
-            }
-
-            resource.waiting_messages.splice(i, 1);
-            did_something = true;
-            did_something_overall = true;
-          } catch (e) {
-            console.log(`e = ${e}, ${e.stack}`);
-            continue;
           }
         }
+
+        resource.db_delta(resource.doc.getPatchSince(v_before));
+
+        patches = get_xf_patches(resource.doc, v_before);
+        console.log(JSON.stringify({ patches }));
+
+        let version = JSON.stringify(
+          resource.doc.getRemoteVersion().map((x) => encode_version(...x))
+        );
+
+        let body = resource.doc.get();
+        let hash = sha256(body);
+
+        // let's verify the hash..
+        if (false && m.hash) {
+          if (version == m.version) {
+            if (hash != m.hash) {
+              console.log(`BAD HASH1!!: hash=${hash} m.hash=${m.hash}`);
+              console.log(`SERVER TEXT: ${body}`);
+              console.log(`CLIENT STUFF: ${JSON.stringify(m, null, 4)}`);
+              process.exit(1);
+            } else {
+              console.log("HASH PASSED 1!");
+            }
+          } else {
+            if (sha256(OpLog_get(resource.doc, [og_v])) != m.hash) {
+              console.log(
+                `BAD HASH2!!: hash=${sha256(
+                  OpLog_get(resource.doc, [og_v])
+                )} m.hash=${m.hash}`
+              );
+              console.log(`SERVER TEXT: ${OpLog_get(resource.doc, [og_v])}`);
+              console.log(`CLIENT STUFF: ${JSON.stringify(m, null, 4)}`);
+              process.exit(1);
+            } else {
+              console.log("HASH PASSED 2!");
+            }
+          }
+        }
+
+        for (let client of resource.clients) {
+          let x = {
+            version,
+            "Snapshot-Hash": hash,
+            "Snapshot-Body": body,
+          };
+          if (client.my_peer == m.peer) {
+            x.parents = [m.version];
+            if (version != m.version) {
+              console.log("rebasing..");
+              x.patches = get_xf_patches(
+                resource.doc,
+                OpLog_remote_to_local(resource.doc, [og_v])
+              );
+            } else x.patches = [];
+          } else {
+            x.parents = parents;
+            x.patches = patches;
+          }
+          console.log(`sending: ${JSON.stringify(x)}`);
+          client.sendVersion(x);
+        }
+
+        // work here
+        console.log(`THAT TOOK:`);
+        console.timeEnd("all");
+      } catch (e) {
+        // we couldn't apply the version, presumably because we're missing its parents.
+        // we want to send a 4XX error, so the client will resend this request later,
+        // hopefully after we've received the necessary parents.
+
+        // here are some 4XX error code options..
+        //
+        // - 425 Too Early
+        //     - pros: our message is too early
+        //     - cons: associated with some "Early-Data" http thing, which we're not using
+        // - 400 Bad Request
+        //     - pros: pretty generic
+        //     - cons: implies client shouldn't resend as-is
+        // - 409 Conflict
+        //     - pros: doesn't imply modifications needed
+        //     - cons: the message is not conflicting with anything
+        // - 412 Precondition Failed
+        //     - pros: kindof true.. the precondition of having another version has failed..
+        //     - cons: not strictly true, and this code is associated with http's If-Unmodified-Since stuff
+        // - 422 Unprocessable Content
+        //     - pros: it's true
+        //     - cons: implies client shouldn't resend as-is (at least, it says that here: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/422)
+        // - 428 Precondition Required
+        //     - pros: the name sounds right
+        //     - cons: typically implies that the request was missing an http conditional field like If-Match. that is to say, it implies that the request is missing a precondition, not that the server is missing a precondition
+
+        res.statusCode = 425;
+        return res.end(
+          JSON.stringify({
+            ok: false,
+            reason: "The server is missing the parents of this version.",
+          })
+        );
       }
 
-      //   if (did_something_overall) {
-      //     let fresh_doc = new Doc("server");
-      //     fresh_doc.mergeBytes(resource.doc.toBytes());
-      //     resource.doc = fresh_doc;
-      //   }
-
-      // work here
-      console.log(
-        `resource.waiting_messages= ${JSON.stringify(
-          resource.waiting_messages
-        )}`
-      );
       console.log("get: " + resource.doc.get());
 
       return res.end(JSON.stringify({ ok: true }));
@@ -929,7 +931,7 @@ function relative_to_absolute_patches(patches) {
       new_p.del += jj;
     } else {
       new_p.content += parts[j].content.slice(jj);
-      new_p.del += parts[j].del;
+      if (i != j) new_p.del += parts[j].del;
     }
 
     new_p.size = new_p.content.length;
