@@ -363,12 +363,19 @@ var subscription_parser = (cb) => ({
 
             // Maybe we parsed a version!  That's cool!
             if (this.state.result === 'success') {
+                let ignore_headers = {
+                    version: true,
+                    parents: true,
+                    patches: true,
+                    'content-length': true,
+                    'content-range': true,
+                }
                 this.cb({
                     version: this.state.version,
                     parents: this.state.parents,
                     body:    this.state.body,
                     patches: this.state.patches,
-                    headers: this.state.headers
+                    ...((x => Object.keys(x).length ? {extra_headers: x} : {})(Object.fromEntries(Object.entries(this.state.headers).filter(([k, v]) => !ignore_headers[k]))))
                 })
 
                 // Reset the parser for the next version!
@@ -626,6 +633,13 @@ function parse_body (state) {
                 last_patch.unit = match.unit
                 last_patch.range = match.range
                 last_patch.content = state.input.substr(0, content_length)
+
+                // instead of headers, we'll create an "extra_headers" field that ignore the headers we've used
+                last_patch.extra_headers = last_patch.headers
+                delete last_patch.headers
+                delete last_patch.extra_headers['content-length']
+                delete last_patch.extra_headers['content-range']
+                if (!Object.keys(last_patch.extra_headers).length) delete last_patch.extra_headers
 
                 // Consume the parsed input
                 state.input = state.input.substring(content_length)

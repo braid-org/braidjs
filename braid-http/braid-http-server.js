@@ -52,9 +52,11 @@ function generate_patches(res, patches) {
         if (i > 0)
             result += '\r\n\r\n'
 
+        let extra_headers = Object.fromEntries(Object.entries(patch).filter(([k, v]) => k != 'unit' && k != 'range' && k != 'content'))
+
         result += `Content-Length: ${patch.content.length}\r
 Content-Range: ${patch.unit} ${patch.range}\r
-\r
+${Object.entries(extra_headers).map(([k, v]) => `${k}: ${v}\r\n`).join('')}\r
 ${patch.content}`
     })
     return result
