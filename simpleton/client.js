@@ -39,7 +39,7 @@ function create_simpleton_client(url, on_change, on_network_activity) {
     parents,
     body,
     patches,
-    headers,
+    extra_headers,
   }) {
     if (version != "ping")
       console.log(
@@ -48,7 +48,7 @@ function create_simpleton_client(url, on_change, on_network_activity) {
           parents,
           body,
           patches,
-          headers,
+          extra_headers,
         })}`
       );
 
@@ -70,7 +70,7 @@ function create_simpleton_client(url, on_change, on_network_activity) {
 
     edited = false;
 
-    on_change(version, parents, body, patches, headers);
+    on_change(version, parents, body, patches, extra_headers);
   }
 
   return {
@@ -101,30 +101,52 @@ function create_simpleton_client(url, on_change, on_network_activity) {
 }
 
 async function fetchWithRetry(url, options) {
-  let maxWait = 3000; // 3 seconds
-  let waitTime = 100;
-  let i = 0;
+  if (!fetchWithRetry.messages) {
+    fetchWithRetry.seq = 0;
+    fetchWithRetry.epoch = 0;
+    fetchWithRetry.waitTime = 10;
+    fetchWithRetry.messages = [];
+  }
 
-  while (true) {
+  let m = { seq: fetchWithRetry.seq++, url, options };
+  fetchWithRetry.messages.push(m);
+  if (!fetchWithRetry.timeout) send(m);
+
+  async function send(m) {
+    let epoch = fetchWithRetry.epoch;
+
     try {
-      console.log(`sending PUT[${i++}]..`);
-      let x = await braid_fetch(url, { ...options });
+      let x = await braid_fetch(m.url, { ...m.options });
       if (x.status !== 200) throw "status not 200: " + x.status;
 
       console.log("got back: " + (await x.text()));
 
-      break;
+      // don't need to send it again..
+      let del = m.seq - fetchWithRetry.messages[0]?.seq + 1;
+      if (del > 0) fetchWithRetry.messages.splice(0, del);
+
+      // take this as a sign that network conditions are better
+      fetchWithRetry.waitTime = Math.max(fetchWithRetry.waitTime / 2, 10);
     } catch (e) {
       console.log(`got BAD!: ${e}`);
 
-      waitTime *= 2;
-      if (waitTime > maxWait) {
-        waitTime = maxWait;
+      // a message failed
+      if (epoch == fetchWithRetry.epoch) {
+        fetchWithRetry.epoch++;
+
+        console.log(
+          `Retrying in ${fetchWithRetry.waitTime / 1000} seconds...`
+        );
+        fetchWithRetry.timeout = setTimeout(async () => {
+          delete fetchWithRetry.timeout;
+          fetchWithRetry.waitTime = Math.min(
+            fetchWithRetry.waitTime * 2,
+            3000
+          );
+
+          for (let m of fetchWithRetry.messages) send(m);
+        }, fetchWithRetry.waitTime);
       }
-
-      console.log(`Retrying in ${waitTime / 1000} seconds...`);
-
-      await new Promise((done) => setTimeout(done, waitTime));
     }
   }
 }
