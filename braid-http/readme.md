@@ -1,6 +1,6 @@
 # Braid-HTTP
 
-This polyfill library implements the [Braid-HTTP v03 protocol](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-03.txt) in Javascript.  It gives browsers a `braid_fetch()` drop-in replacement for the `fetch()` API, and gives nodejs an `http` plugin, allowing them to speak Braid in a simple way.
+This polyfill library implements the [Braid-HTTP v04 protocol](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-04.txt) in Javascript.  It gives browsers a `braid_fetch()` drop-in replacement for the `fetch()` API, and gives nodejs an `http` plugin, allowing them to speak Braid in a simple way.
 
 Developed in [braid.org](https://braid.org).
 
