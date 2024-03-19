@@ -335,10 +335,10 @@ function send_version(res, data, url, peer) {
         // Version and Parents get output in the Structured Headers format
         if (header === 'version') {
             header = 'Version'               // Capitalize for prettiness
-            value = JSON.stringify(value)
+            value = value.map(JSON.stringify).join(", ")
         } else if (header === 'parents') {
             header = 'Parents'               // Capitalize for prettiness
-            value = parents.map(JSON.stringify).join(", ")
+            value = value.map(JSON.stringify).join(", ")
         }
 
         // We don't output patches or body yet
