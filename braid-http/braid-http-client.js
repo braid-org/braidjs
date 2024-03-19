@@ -154,7 +154,7 @@ async function braid_fetch (url, params = {}) {
 
     // We provide some shortcuts for Braid params
     if (params.version)
-        params.headers.set('version', JSON.stringify(params.version))
+        params.headers.set('version', params.version.map(JSON.stringify).join(', '))
     if (params.parents)
         params.headers.set('parents', params.parents.map(JSON.stringify).join(', '))
     if (params.subscribe)
@@ -487,7 +487,7 @@ function parse_headers (input) {
 
     // Success!  Let's parse special headers
     if ('version' in headers)
-        headers.version = JSON.parse(headers.version)
+        headers.version = JSON.parse('['+headers.version+']')
     if ('parents' in headers)
         headers.parents = JSON.parse('['+headers.parents+']')
     if ('patches' in headers)
