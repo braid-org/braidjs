@@ -195,7 +195,7 @@ function braidify (req, res, next) {
     res.setHeader('Range-Request-Allow-Units', 'json')
 
     // Extract braid info from headers
-    var version = req.headers.version && JSON.parse(req.headers.version),
+    var version = JSON.parse('['+(req.headers.version ?? '')+']'),
         parents = JSON.parse('['+(req.headers.parents ?? '')+']'),
         peer = req.headers['peer'],
         url = req.url.substr(1)
