@@ -196,7 +196,7 @@ function braidify (req, res, next) {
 
     // Extract braid info from headers
     var version = req.headers.version && JSON.parse(req.headers.version),
-        parents = req.headers.parents && JSON.parse('['+req.headers.parents+']'),
+        parents = JSON.parse('['+(req.headers.parents ?? '')+']'),
         peer = req.headers['peer'],
         url = req.url.substr(1)
 
@@ -338,6 +338,7 @@ function send_version(res, data, url, peer) {
             value = value.map(JSON.stringify).join(", ")
         } else if (header === 'parents') {
             header = 'Parents'               // Capitalize for prettiness
+            if (value.length == 0) continue  // we express no parents as not having the field at all
             value = value.map(JSON.stringify).join(", ")
         }
 
