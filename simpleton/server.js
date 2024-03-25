@@ -1,6 +1,4 @@
-console.log("simpleton.js: v154")
-
-var port = 61870
+console.log("simpleton.js: v161")
 
 let waiting_puts = 0
 let prev_put_p = null
@@ -15,101 +13,20 @@ require("child_process").execSync(`npm install diamond-types-node`, {
 })
 const { Doc, Branch, OpLog } = require("diamond-types-node")
 
-let cpu_usage = 0
-if (true) {
-    require("child_process").execSync(`npm install os-utils`, {
-        stdio: "inherit",
-    })
-
-    var os = require("os-utils")
-    os.cpuUsage((x) => (cpu_usage = x))
-    setInterval(() => {
-        os.cpuUsage((x) => (cpu_usage = x))
-    }, 1000)
-}
-
-if (false) {
-    //   doc.ins(0, "ab");
-    //   doc.ins(1, "x\u20ACy");
-    //   doc.mergeBytes(OpLog_create_bytes("server-5", ["server-4"], 0, "\u20AC"));
-    //   doc.ins(0, "__");
-
-    //   console.log("doc.getRemoteVersion(): " + doc.getRemoteVersion());
-    //   console.log("doc.get(): " + doc.get());
-    //   console.log(Object.getOwnPropertyNames(Doc.prototype));
-    //   console.log(doc.xfSince([]));
-    //   for (let i = 0; i < 4; i++) {
-    //     try {
-    //       console.log(`HI[${i}]::>`, doc.localToRemoteVersion([i]));
-    //     } catch (e) {
-    //       break;
-    //     }
-    //   }
-
-    // console.log(`------------------------------------!!!`)
-
-    // if (true) {
-    //     let doc = new Doc("server");
-    //     for (let op of ops) {
-    //         doc.mergeBytes(OpLog_create_bytes(op.version, op.parents, op.pos, op.ins))
-    //     }
-
-    //     let new_doc = new Doc('server')
-    //     new_doc.mergeBytes(doc.toBytes())
-    //     doc = new_doc
-
-    //     let v = ops.slice(-1)[0].version
-    //     console.log(v + ': ' + OpLog_get(doc, [v]))
-    //     console.log(doc.get())
-    // }
-    // if (true) {
-    //     let doc = new Doc("server");
-
-    //     ops.push(ops.splice(ops.length - 2, 1)[0])
-
-    //     for (let op of ops) {
-    //         doc.mergeBytes(OpLog_create_bytes(op.version, op.parents, op.pos, op.ins))
-    //     }
-
-    //     let new_doc = new Doc('server')
-    //     new_doc.mergeBytes(doc.toBytes())
-    //     doc = new_doc
-
-    //     let v = ops.slice(-2)[0].version
-    //     console.log(v + ': ' + OpLog_get(doc, [v]))
-    //     console.log(doc.get())
-    // }
-
-    // console.log(`------------------------------------?`)
-    //vxcybmsvmaxtmlhczaspwu
-
-    //    g3dvg7f314p-17
-
-    // doc.mergeBytes(OpLog_create_bytes('euywm7jnsgj-0', [], 0, 'a'))
-    // doc.mergeBytes(OpLog_create_bytes('euywm7jnsgj-0', ['euywm7jnsgj-0'], 0, 'a'))
-    // doc.mergeBytes(OpLog_create_bytes('euywm7jnsgj-0', [], 0, 'a'))
-
-    // console.log(`------------------------------------`)
-    // console.log(doc.get())
-    // console.log(`------------------------------------`)
-
-    throw "stop"
-}
-
 const fs = require("fs")
 
 if (!fs.existsSync("simpleton_db")) fs.mkdirSync("simpleton_db")
 
-function get_resource(url) {
+function get_resource(key) {
     let cache = get_resource.cache || (get_resource.cache = {})
-    if (cache[url]) return cache[url]
+    if (cache[key]) return cache[key]
 
     let resource = {}
     resource.doc = new Doc("server")
     resource.clients = new Set()
 
     resource.db_delta = file_sync(
-        encodeURIComponent(url),
+        encodeURIComponent(key),
         (bytes) => resource.doc.mergeBytes(bytes),
         () => resource.doc.toBytes()
     )
@@ -118,7 +35,7 @@ function get_resource(url) {
     fresh_doc.mergeBytes(resource.doc.toBytes())
     resource.doc = fresh_doc
 
-    return (cache[url] = resource)
+    return (cache[key] = resource)
 }
 
 function file_sync(filename_base, process_delta, get_init) {
@@ -215,531 +132,391 @@ function file_sync(filename_base, process_delta, get_init) {
     }
 }
 
-process.on("uncaughtException", (e) => console.log(e.stack))
-process.on("unhandledRejection", (e) => console.log(e.stack))
+async function handle(key, req, res) {
+    let start_time = Date.now()
 
-const server = require("http2").createSecureServer(
-    // const server = require("https").createServer(
-    {
-        key: require("fs").readFileSync("./privkey.pem"),
-        cert: require("fs").readFileSync("./fullchain.pem"),
-        // allowHTTP1: true,
-    },
+    let resource = get_resource(key)
 
-    async (req, res) => {
-        let start_time = Date.now()
-        let silent = req.url == "//time"
+    braidify(req, res)
+    let peer = req.headers["peer"]
 
-        if (!silent)
-            console.log(
-                `${req.method} ${req.url} v:${
-                    req.headers["Version"] || req.headers["version"] || ""
-                }`
+    function get_xf_patches(doc, v) {
+        let patches = []
+        for (let xf of doc.xfSince(v)) {
+            patches.push(
+                xf.kind == "Ins"
+                    ? {
+                          unit: "text",
+                          range: `[${xf.start}:${xf.start}]`,
+                          content: xf.content,
+                      }
+                    : {
+                          unit: "text",
+                          range: `[${xf.start}:${xf.end}]`,
+                          content: "",
+                      }
+            )
+        }
+        return relative_to_absolute_patches(patches)
+    }
+
+    if (req.method == "GET" && !req.subscribe) {
+        res.setHeader("Content-Type", "text/plain")
+        res.end(resource.doc.get())
+        return
+    }
+
+    if (req.method == "GET" && req.subscribe) {
+        res.setHeader("Merge-Type", "simpleton-client")
+        res.setHeader("Content-Type", "text/plain")
+        res.setHeader("Editable", "true")
+
+        res.startSubscription({
+            onClose: (_) => resource.clients.delete(res),
+        })
+
+        let version = resource.doc
+            .getRemoteVersion()
+            .map((x) => encode_version(...x))
+
+        let body = resource.doc.get()
+
+        let x = { version }
+
+        if (!req.parents.length) {
+            x.parents = []
+            x.body = body
+
+            res.sendVersion(x)
+        } else {
+            x.parents = req.parents
+            res.my_last_seen_version = x.parents
+
+            // only send them a version from these parents if we have these parents (otherwise we'll assume these parents are more recent, probably versions they created but haven't sent us yet, and we'll send them appropriate rebased updates when they send us these versions)
+            let local_version = OpLog_remote_to_local(resource.doc, x.parents)
+            if (local_version) {
+                x.patches = get_xf_patches(resource.doc, local_version)
+                res.sendVersion(x)
+            }
+        }
+
+        res.my_peer = peer
+        res.my_last_sent_version = version
+        resource.clients.add(res)
+
+        ping_loop()
+        async function ping_loop() {
+            if (!resource.clients.has(res)) return
+            res.sendVersion({
+                version: ["ping"],
+                parents: ["ping"],
+                body: "",
+            })
+            setTimeout(ping_loop, 1000 * 7)
+        }
+
+        return
+    }
+
+    if (req.method == "PUT" || req.method == "POST") {
+        console.log(
+            `PREV v:${req.headers["Version"] || req.headers["version"] || ""}`
+        )
+
+        let wait_time = 0
+
+        let time_a, time_b, time_c
+
+        if (waiting_puts >= 100) {
+            console.log(`The server is busy.`)
+            res.statusCode = 503
+            return res.end(
+                JSON.stringify({
+                    ok: false,
+                    reason: "The server is busy.",
+                })
+            )
+        }
+
+        waiting_puts++
+        console.log(`waiting_puts(after++) = ${waiting_puts}`)
+
+        let my_prev_put_p = prev_put_p
+        let done_my_turn = null
+        prev_put_p = new Promise(
+            (done) =>
+                (done_my_turn = (x) => {
+                    waiting_puts--
+                    console.log(`waiting_puts(after--) = ${waiting_puts}`)
+
+                    done()
+                    x.wait_time = wait_time
+                    x.server_time_taken = Date.now() - start_time
+
+                    console.log(
+                        `----->    wt: ${x.wait_time}, st: ${x.server_time_taken}`
+                    )
+
+                    if (x.server_time_taken > 65) {
+                        console.log(`a - b = ${time_b - time_a}`)
+                        console.log(`b - c = ${time_c - time_b}`)
+                        // process.exit()
+                    }
+
+                    res.end(JSON.stringify(x))
+                })
+        )
+
+        let patches = await req.patches()
+
+        // simulated latency
+        //await new Promise(done => setTimeout(done, 1000 * 10))
+
+        await my_prev_put_p
+
+        wait_time = Date.now() - start_time
+        start_time = Date.now()
+
+        console.log(
+            `POST v:${req.headers["Version"] || req.headers["version"] || ""}`
+        )
+
+        patches.forEach(
+            (p) => (p.range = p.range.match(/\d+/g).map((x) => parseInt(x)))
+        )
+
+        console.log(`patches = ${JSON.stringify(patches)}`)
+
+        let m = {
+            peer,
+            version: req.version,
+            parents: req.parents,
+            patches,
+            hash: req.headers["snapshot-hash"],
+
+            snapshot_oldhash: req.headers["snapshost-oldhash"],
+        }
+
+        try {
+            let patches = m.patches
+
+            let og_v = m.version[0]
+
+            // reduce the version sequence by the number of char-edits
+            let v = decode_version(og_v)
+            v = encode_version(
+                v[0],
+                v[1] +
+                    1 -
+                    patches.reduce(
+                        (a, b) =>
+                            a +
+                            Math.max(b.content.length, b.range[1] - b.range[0]),
+                        0
+                    )
             )
 
-        let resource = get_resource(req.url)
+            let ps = m.parents
 
-        braidify(req, res)
-        let peer = req.headers["peer"]
+            let v_before = resource.doc.getLocalVersion()
+            let parents = resource.doc
+                .getRemoteVersion()
+                .map((x) => encode_version(...x))
 
-        res.setHeader("Access-Control-Allow-Origin", "*")
-        res.setHeader("Access-Control-Allow-Methods", "*")
-        res.setHeader("Access-Control-Allow-Headers", "*")
-        res.statusCode = 200
+            time_a = Date.now()
 
-        if (!silent) console.log("req.headers: " + JSON.stringify(req.headers))
+            let bytes = []
 
-        if (req.method == "OPTIONS") {
-            return res.end("ok")
-        }
-
-        if (req.method == "GET" && req.url == `//time`) {
-            res.setHeader("Content-Type", "application/json")
-            return res.end(JSON.stringify({ time: Date.now(), cpu_usage }))
-        }
-
-        function get_throttle_state() {
-            let x = { clients: {} }
-            for (let r of Object.values(get_resource.cache)) {
-                for (let c of r.clients.values()) {
-                    if (c.my_peer)
-                        x.clients[c.my_peer] = {
-                            unused_version_count: c.my_unused_version_count,
-                        }
+            let offset = 0
+            for (let p of patches) {
+                if (p.content) {
+                    // insert
+                    for (let i = 0; i < p.content.length; i++) {
+                        let c = p.content[i]
+                        bytes.push(
+                            OpLog_create_bytes(v, ps, p.range[0] + offset, c)
+                        )
+                        offset++
+                        ps = [v]
+                        v = decode_version(v)
+                        v = encode_version(v[0], v[1] + 1)
+                    }
+                } else {
+                    // delete
+                    for (let i = p.range[0]; i < p.range[1]; i++) {
+                        bytes.push(
+                            OpLog_create_bytes(
+                                v,
+                                ps,
+                                p.range[1] - 1 + offset,
+                                null
+                            )
+                        )
+                        offset--
+                        ps = [v]
+                        v = decode_version(v)
+                        v = encode_version(v[0], v[1] + 1)
+                    }
                 }
             }
-            return x
-        }
 
-        if (req.method == "GET" && req.url == `//throttle_state`) {
-            res.setHeader("Merge-Type", "simpleton-client")
-            res.setHeader("Content-Type", "application/json")
-            res.setHeader("Editable", "true")
+            time_b = Date.now()
 
-            res.startSubscription({
-                onClose: (_) => resource.clients.delete(res),
-            })
-            res.sendVersion({
-                version: ["#1"],
-                parents: [],
-                body: JSON.stringify(get_throttle_state()),
-            })
-            resource.clients.add(res)
+            for (let b of bytes) resource.doc.mergeBytes(b)
 
-            return
-        }
+            time_c = Date.now()
 
-        function get_xf_patches(doc, v) {
-            let patches = []
-            for (let xf of doc.xfSince(v)) {
-                patches.push(
-                    xf.kind == "Ins"
-                        ? {
-                              unit: "text",
-                              range: `[${xf.start}:${xf.start}]`,
-                              content: xf.content,
-                          }
-                        : {
-                              unit: "text",
-                              range: `[${xf.start}:${xf.end}]`,
-                              content: "",
-                          }
-                )
+            let v_after = resource.doc.getLocalVersion()
+            if (JSON.stringify(v_before) === JSON.stringify(v_after)) {
+                console.log(`this happened. YUjBBwes23`)
+                return done_my_turn({ ok: true })
             }
-            return relative_to_absolute_patches(patches)
-        }
 
-        if (req.method == "GET" && !req.subscribe) {
-            res.setHeader("Content-Type", "text/plain")
-            res.end(resource.doc.get())
-            return
-        }
+            resource.db_delta(resource.doc.getPatchSince(v_before))
 
-        if (req.method == "GET" && req.subscribe) {
-            res.setHeader("Merge-Type", "simpleton-client")
-            res.setHeader("Content-Type", "text/plain")
-            res.setHeader("Editable", "true")
-
-            res.startSubscription({
-                onClose: (_) => resource.clients.delete(res),
-            })
+            patches = get_xf_patches(resource.doc, v_before)
+            console.log(JSON.stringify({ patches }))
 
             let version = resource.doc
                 .getRemoteVersion()
                 .map((x) => encode_version(...x))
 
             let body = resource.doc.get()
-            let hash = sha256(body)
 
-            let x = {
-                version,
-                // "Snapshot-Hash": hash,
-            }
-
-            if (!req.parents.length) {
-                x.parents = []
-                x.body = body
-
-                console.log(`sending1: ${JSON.stringify(x).slice(0, 1000)}`)
-                res.sendVersion(x)
-            } else {
-                x.parents = req.parents
-                res.my_last_seen_version = x.parents
-                let local_version = OpLog_remote_to_local(
-                    resource.doc,
-                    x.parents
-                )
-                // only send them a version from these parents if we have these parents (otherwise we'll assume these parents are more recent, probably versions they created but haven't sent us yet, and we'll send them appropriate rebased updates when they send us these versions)
-
-                if (local_version.length == x.parents.length) {
-                    x.patches = get_xf_patches(resource.doc, local_version)
-
-                    console.log(`sending2: ${JSON.stringify(x).slice(0, 1000)}`)
-                    res.sendVersion(x)
-                } else {
-                    console.log(`not sending3`)
+            for (let client of resource.clients) {
+                if (client.my_peer == m.peer) {
+                    client.my_last_seen_version = m.version
                 }
-            }
 
-            res.my_peer = peer
-            res.my_last_sent_version = version
-            resource.clients.add(res)
+                function set_timeout(time_override) {
+                    if (client.my_timeout) clearTimeout(client.my_timeout)
+                    client.my_timeout = setTimeout(() => {
+                        let version = resource.doc
+                            .getRemoteVersion()
+                            .map((x) => encode_version(...x))
+                        let body = resource.doc.get()
+                        // let hash = sha256(body)
+                        let x = {
+                            version,
+                            //   "Snapshot-Hash": hash,
+                        }
+                        x.parents = client.my_last_seen_version
 
-            ping_loop()
-            async function ping_loop() {
-                if (!resource.clients.has(res)) return
-                res.sendVersion({
-                    version: ["ping"],
-                    parents: ["ping"],
-                    body: "",
-                })
-                setTimeout(ping_loop, 1000 * 7)
-            }
-
-            return
-        }
-
-        if (req.method == "PUT" || req.method == "POST") {
-            console.log(
-                `PREV v:${
-                    req.headers["Version"] || req.headers["version"] || ""
-                }`
-            )
-
-            let wait_time = 0
-
-            let time_a, time_b, time_c
-
-            if (waiting_puts >= 100) {
-                console.log(`The server is busy.`)
-                res.statusCode = 503
-                return res.end(
-                    JSON.stringify({
-                        ok: false,
-                        reason: "The server is busy.",
-                    })
-                )
-            }
-
-            waiting_puts++
-            console.log(`waiting_puts(after++) = ${waiting_puts}`)
-
-            let my_prev_put_p = prev_put_p
-            let done_my_turn = null
-            prev_put_p = new Promise(
-                (done) =>
-                    (done_my_turn = (x) => {
-                        waiting_puts--
-                        console.log(`waiting_puts(after--) = ${waiting_puts}`)
-
-                        done()
-                        x.wait_time = wait_time
-                        x.server_time_taken = Date.now() - start_time
-
+                        console.log("rebasing after timeout.. ")
                         console.log(
-                            `----->    wt: ${x.wait_time}, st: ${x.server_time_taken}`
+                            "    client.my_unused_version_count = " +
+                                client.my_unused_version_count
                         )
-
-                        if (x.server_time_taken > 65) {
-                            console.log(`a - b = ${time_b - time_a}`)
-                            console.log(`b - c = ${time_c - time_b}`)
-                            // process.exit()
-                        }
-
-                        res.end(JSON.stringify(x))
-                    })
-            )
-
-            let patches = await req.patches()
-
-            // simulated latency
-            //await new Promise(done => setTimeout(done, 1000 * 10))
-
-            await my_prev_put_p
-
-            wait_time = Date.now() - start_time
-            start_time = Date.now()
-
-            console.log(
-                `POST v:${
-                    req.headers["Version"] || req.headers["version"] || ""
-                }`
-            )
-
-            patches.forEach(
-                (p) => (p.range = p.range.match(/\d+/g).map((x) => parseInt(x)))
-            )
-
-            console.log(`patches = ${JSON.stringify(patches)}`)
-
-            let m = {
-                peer,
-                version: req.version,
-                parents: req.parents,
-                patches,
-                hash: req.headers["snapshot-hash"],
-
-                snapshot_oldhash: req.headers["snapshost-oldhash"],
-            }
-
-            try {
-                let patches = m.patches
-
-                let og_v = m.version[0]
-
-                // reduce the version sequence by the number of char-edits
-                let v = decode_version(og_v)
-                v = encode_version(
-                    v[0],
-                    v[1] +
-                        1 -
-                        patches.reduce(
-                            (a, b) =>
-                                a +
-                                Math.max(
-                                    b.content.length,
-                                    b.range[1] - b.range[0]
-                                ),
-                            0
-                        )
-                )
-
-                let ps = m.parents
-
-                let v_before = resource.doc.getLocalVersion()
-                let parents = resource.doc
-                    .getRemoteVersion()
-                    .map((x) => encode_version(...x))
-
-                time_a = Date.now()
-
-                let bytes = []
-
-                let offset = 0
-                for (let p of patches) {
-                    if (p.content) {
-                        // insert
-                        for (let i = 0; i < p.content.length; i++) {
-                            let c = p.content[i]
-                            bytes.push(
-                                OpLog_create_bytes(
-                                    v,
-                                    ps,
-                                    p.range[0] + offset,
-                                    c
-                                )
-                            )
-                            offset++
-                            ps = [v]
-                            v = decode_version(v)
-                            v = encode_version(v[0], v[1] + 1)
-                        }
-                    } else {
-                        // delete
-                        for (let i = p.range[0]; i < p.range[1]; i++) {
-                            bytes.push(
-                                OpLog_create_bytes(
-                                    v,
-                                    ps,
-                                    p.range[1] - 1 + offset,
-                                    null
-                                )
-                            )
-                            offset--
-                            ps = [v]
-                            v = decode_version(v)
-                            v = encode_version(v[0], v[1] + 1)
-                        }
-                    }
-                }
-
-                time_b = Date.now()
-
-                for (let b of bytes) resource.doc.mergeBytes(b)
-
-                time_c = Date.now()
-
-                let v_after = resource.doc.getLocalVersion()
-                if (JSON.stringify(v_before) === JSON.stringify(v_after)) {
-                    console.log(`this happened. YUjBBwes23`)
-                    return done_my_turn({ ok: true })
-                }
-
-                resource.db_delta(resource.doc.getPatchSince(v_before))
-
-                patches = get_xf_patches(resource.doc, v_before)
-                console.log(JSON.stringify({ patches }))
-
-                let version = resource.doc
-                    .getRemoteVersion()
-                    .map((x) => encode_version(...x))
-
-                let body = resource.doc.get()
-                let hash = sha256(body)
-
-                // let's verify the hash..
-                if (m.hash) {
-                    if (v_eq(version, m.version)) {
-                        if (hash != m.hash) {
-                            console.log(
-                                `BAD HASH1!!: hash=${hash} m.hash=${m.hash}`
-                            )
-                            console.log(`SERVER TEXT: ${body}`)
-                            console.log(
-                                `CLIENT STUFF: ${JSON.stringify(m, null, 4)}`
-                            )
-                            process.exit(1)
-                        } else {
-                            console.log("HASH PASSED 1!")
-                        }
-                    } else if (false) {
-                        // this is disabled right now because OpLog_get is slow
-                        if (sha256(OpLog_get(resource.doc, [og_v])) != m.hash) {
-                            console.log(
-                                `BAD HASH2!!: hash=${sha256(
-                                    OpLog_get(resource.doc, [og_v])
-                                )} m.hash=${m.hash}`
-                            )
-                            console.log(
-                                `SERVER TEXT: ${OpLog_get(resource.doc, [
-                                    og_v,
-                                ])}`
-                            )
-                            console.log(
-                                `CLIENT STUFF: ${JSON.stringify(m, null, 4)}`
-                            )
-                            process.exit(1)
-                        } else {
-                            console.log("HASH PASSED 2!")
-                        }
-                    }
-                }
-
-                for (let client of resource.clients) {
-                    if (client.my_peer == m.peer) {
-                        client.my_last_seen_version = m.version
-                    }
-
-                    function set_timeout(time_override) {
-                        if (client.my_timeout) clearTimeout(client.my_timeout)
-                        client.my_timeout = setTimeout(() => {
-                            let version = resource.doc
-                                .getRemoteVersion()
-                                .map((x) => encode_version(...x))
-                            let body = resource.doc.get()
-                            // let hash = sha256(body)
-                            let x = {
-                                version,
-                                //   "Snapshot-Hash": hash,
-                            }
-                            x.parents = client.my_last_seen_version
-
-                            console.log("rebasing after timeout.. ")
-                            console.log("    client.my_unused_version_count = " + client.my_unused_version_count)
-                            x.patches = get_xf_patches(
+                        x.patches = get_xf_patches(
+                            resource.doc,
+                            OpLog_remote_to_local(
                                 resource.doc,
-                                OpLog_remote_to_local(resource.doc, [
-                                    client.my_last_seen_version[0],
-                                ])
+                                client.my_last_seen_version
                             )
+                        )
 
-                            console.log(`sending from rebase: ${JSON.stringify(x)}`)
-                            client.sendVersion(x)
-                            client.my_last_sent_version = x.version
+                        console.log(`sending from rebase: ${JSON.stringify(x)}`)
+                        client.sendVersion(x)
+                        client.my_last_sent_version = x.version
 
-                            delete client.my_timeout
+                        delete client.my_timeout
 
-                            // work here
-                            for (let c of get_resource(`//throttle_state`)
-                                .clients)
-                                c.sendVersion({
-                                    version: ["#2"],
-                                    parents: [],
-                                    body: JSON.stringify(get_throttle_state()),
-                                })
+                        // work here
+                        for (let c of get_resource(`//throttle_state`).clients)
+                            c.sendVersion({
+                                version: ["#2"],
+                                parents: [],
+                                body: JSON.stringify(get_throttle_state()),
+                            })
+                    }, time_override ?? Math.min(3000, 23 * Math.pow(1.5, client.my_unused_version_count - 1)))
+                }
 
-                        }, time_override ?? Math.min(
-                                    3000,
-                                    23 *
-                                        Math.pow(
-                                            1.5,
-                                            client.my_unused_version_count - 1
-                                        )
-                                ))
-                    }
-
-                    if (client.my_timeout) {
-                        if (client.my_peer == m.peer) {
-                            if (!v_eq(client.my_last_sent_version, m.parents)) {
-                                // note: we don't add to client.my_unused_version_count,
-                                // because we're already in a timeout;
-                                // we'll just extend it here..
-                                set_timeout()
-                            } else {
-                                // hm.. it appears we got a correctly parented version,
-                                // which suggests that maybe we can stop the timeout early
-                                set_timeout(0)
-                            }
-                        }
-                        continue
-                    }
-
-                    let x = {
-                        version,
-                        // "Snapshot-Hash": hash,
-                    }
+                if (client.my_timeout) {
                     if (client.my_peer == m.peer) {
                         if (!v_eq(client.my_last_sent_version, m.parents)) {
-                            client.my_unused_version_count =
-                                (client.my_unused_version_count ?? 0) + 1
+                            // note: we don't add to client.my_unused_version_count,
+                            // because we're already in a timeout;
+                            // we'll just extend it here..
                             set_timeout()
-                            continue
                         } else {
-                            delete client.my_unused_version_count
+                            // hm.. it appears we got a correctly parented version,
+                            // which suggests that maybe we can stop the timeout early
+                            set_timeout(0)
                         }
-
-                        x.parents = m.version
-                        if (!v_eq(version, m.version)) {
-                            console.log("rebasing..")
-                            x.patches = get_xf_patches(
-                                resource.doc,
-                                OpLog_remote_to_local(resource.doc, [og_v])
-                            )
-                        } else x.patches = []
-                    } else {
-                        x.parents = parents
-                        x.patches = patches
                     }
-                    console.log(`sending: ${JSON.stringify(x)}`)
-                    client.sendVersion(x)
-                    client.my_last_sent_version = x.version
+                    continue
                 }
-            } catch (e) {
-                console.log(`EEE= ${e}:${e.stack}`)
-                // we couldn't apply the version, presumably because we're missing its parents.
-                // we want to send a 4XX error, so the client will resend this request later,
-                // hopefully after we've received the necessary parents.
 
-                // here are some 4XX error code options..
-                //
-                // - 425 Too Early
-                //     - pros: our message is too early
-                //     - cons: associated with some "Early-Data" http thing, which we're not using
-                // - 400 Bad Request
-                //     - pros: pretty generic
-                //     - cons: implies client shouldn't resend as-is
-                // - 409 Conflict
-                //     - pros: doesn't imply modifications needed
-                //     - cons: the message is not conflicting with anything
-                // - 412 Precondition Failed
-                //     - pros: kindof true.. the precondition of having another version has failed..
-                //     - cons: not strictly true, and this code is associated with http's If-Unmodified-Since stuff
-                // - 422 Unprocessable Content
-                //     - pros: it's true
-                //     - cons: implies client shouldn't resend as-is (at least, it says that here: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/422)
-                // - 428 Precondition Required
-                //     - pros: the name sounds right
-                //     - cons: typically implies that the request was missing an http conditional field like If-Match. that is to say, it implies that the request is missing a precondition, not that the server is missing a precondition
+                let x = {
+                    version,
+                    // "Snapshot-Hash": hash,
+                }
+                if (client.my_peer == m.peer) {
+                    if (!v_eq(client.my_last_sent_version, m.parents)) {
+                        client.my_unused_version_count =
+                            (client.my_unused_version_count ?? 0) + 1
+                        set_timeout()
+                        continue
+                    } else {
+                        delete client.my_unused_version_count
+                    }
 
-                res.statusCode = 425
-                return done_my_turn({
-                    ok: false,
-                    reason: "The server is missing the parents of this version.",
-                })
+                    x.parents = m.version
+                    if (!v_eq(version, m.version)) {
+                        console.log("rebasing..")
+                        x.patches = get_xf_patches(
+                            resource.doc,
+                            OpLog_remote_to_local(resource.doc, [og_v])
+                        )
+                    } else x.patches = []
+                } else {
+                    x.parents = parents
+                    x.patches = patches
+                }
+                console.log(`sending: ${JSON.stringify(x)}`)
+                client.sendVersion(x)
+                client.my_last_sent_version = x.version
             }
+        } catch (e) {
+            console.log(`EEE= ${e}:${e.stack}`)
+            // we couldn't apply the version, presumably because we're missing its parents.
+            // we want to send a 4XX error, so the client will resend this request later,
+            // hopefully after we've received the necessary parents.
 
-            console.log("get: " + resource.doc.get())
-
-            return done_my_turn({ ok: true })
+            // here are some 4XX error code options..
+            //
+            // - 425 Too Early
+            //     - pros: our message is too early
+            //     - cons: associated with some "Early-Data" http thing, which we're not using
+            // - 400 Bad Request
+            //     - pros: pretty generic
+            //     - cons: implies client shouldn't resend as-is
+            // - 409 Conflict
+            //     - pros: doesn't imply modifications needed
+            //     - cons: the message is not conflicting with anything
+            // - 412 Precondition Failed
+            //     - pros: kindof true.. the precondition of having another version has failed..
+            //     - cons: not strictly true, and this code is associated with http's If-Unmodified-Since stuff
+            // - 422 Unprocessable Content
+            //     - pros: it's true
+            //     - cons: implies client shouldn't resend as-is (at least, it says that here: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/422)
+            // - 428 Precondition Required
+            //     - pros: the name sounds right
+            //     - cons: typically implies that the request was missing an http conditional field like If-Match. that is to say, it implies that the request is missing a precondition, not that the server is missing a precondition
+            res.statusCode = 425
+            return done_my_turn({
+                ok: false,
+                reason: "The server is missing the parents of this version.",
+            })
         }
 
-        throw new Error("unknown")
-    }
-)
+        console.log("get: " + resource.doc.get())
 
-server.listen(port, () => {
-    console.log(`server started on port ${port}`)
-})
+        return done_my_turn({ ok: true })
+    }
+
+    throw new Error("unknown")
+}
 
 function parseDT(byte_array) {
     if (
@@ -1091,19 +868,20 @@ function OpLog_get(doc, frontier) {
 }
 
 function OpLog_remote_to_local(doc, frontier) {
-    if (Array.isArray(frontier))
-        frontier = Object.fromEntries(frontier.map((x) => [x, true]))
+    let map = Object.fromEntries(frontier.map((x) => [x, true]))
 
     let local_version = []
     let [agents, versions, parentss] = parseDT([...doc.toBytes()])
-    let n = versions.length
-    for (let i = 0; i < n; i++) {
-        if (frontier[doc.localToRemoteVersion([i])[0].join("-")]) {
+    for (let i = 0; i < versions.length; i++) {
+        if (map[doc.localToRemoteVersion([i])[0].join("-")]) {
             local_version.push(i)
         }
     }
 
-    return new Uint32Array(local_version)
+    return (
+        frontier.length == local_version.length &&
+        new Uint32Array(local_version)
+    )
 }
 
 function encode_version(agent, seq) {
@@ -1118,11 +896,6 @@ function decode_version(v) {
 
 function v_eq(v1, v2) {
     return v1.length == v2.length && v1.every((x, i) => x == v2[i])
-}
-
-function sha256(data) {
-    const crypto = require("crypto")
-    return crypto.createHash("sha256").update(data).digest("base64")
 }
 
 function relative_to_absolute_patches(patches) {
@@ -1467,3 +1240,5 @@ function old_n2_relative_to_absolute_patches(patches) {
     }
     return new_patches
 }
+
+module.exports = { handle }
