@@ -51,7 +51,7 @@ fetch('https://braid.org/chat', {subscribe: true}).then(
         (new_version) => {
             console.log('We got a new version!', new_version)
             // {
-            //   version: "me",
+            //   version: ["me"],
             //   parents: ["mom", "dad"],
             //   patches: [{unit: "json", range: ".foo", content: "3"}]
             //   body:    "3"
@@ -153,7 +153,7 @@ require('http').createServer(
 
         // Send the current version
         res.sendUpdate({
-            version: 'greg',
+            version: ['greg'],
             body: JSON.stringify({greg: 'greg'})
         })
     }
@@ -184,14 +184,14 @@ app.get('/', (req, res) => {
 
     // Send the current version
     res.sendUpdate({
-        version: 'greg',
+        version: ['greg'],
         parents: ['gr','eg'],
         body: JSON.stringify({greg: 'greg'})
     })
 
     // Or you can send patches like this:
     // res.sendUpdate({
-    //     version: 'greg',
+    //     version: ['greg'],
     //     parents: ['gr','eg'],
     //     patches: [{range: '.greg', unit: 'json', content: '"greg"'}]
     // })
@@ -234,7 +234,7 @@ function connect () {
         (res) => {
             res.on('version', (version) => {
                 // {
-                //   version: "me",
+                //   version: ["me"],
                 //   parents: ["mom", "dad"],
                 //   patches: [{unit: "json", range: ".foo", content: "3"}]
                 //   body:    "3"
@@ -272,5 +272,3 @@ automatically reconnect.  (See
 [issue #980](https://github.com/node-fetch/node-fetch/issues/980) and
 [#753](https://github.com/node-fetch/node-fetch/issues/753).)  We recommend
 using the `http` library (below) for requests on nodejs instead.
-
-
