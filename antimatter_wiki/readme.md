@@ -1,4 +1,4 @@
-# antimatter wiki
+# Antimatter Wiki
 
 A collaborative wiki based on the [Antimatter Algorithm](https://braid.org/antimatter).
 
