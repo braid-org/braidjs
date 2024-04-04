@@ -1,13 +1,13 @@
 {
   "name": "@braidjs/antimatter_wiki",
-  "version": "0.0.1",
-  "description": "collaborative wiki based on antimatter",
+  "version": "0.0.2",
+  "description": "collaborative wiki using antimatter sync algorithm",
   "main": "server.js",
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
   "homepage": "https://braid.org/antimatter",
   "dependencies": {
     "@braidjs/antimatter": "^0.0.12",
-    "ws": "^8.14.2"
+    "ws": "^8.16.0"
   }
 }

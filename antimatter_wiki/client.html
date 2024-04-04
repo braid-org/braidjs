@@ -13,7 +13,7 @@
 
 console.log('0.0.22')
 
-let wiki_host = __WIKI_HOST__
+var wiki_host = "__WIKI_HOST__"
 
 document.title = window.location.pathname.substr(1)
 document.body.style.border = '3px solid transparent'
@@ -38,7 +38,7 @@ document.body.append(bottom_pad)
 var t_d = make_html(`<div style="position:fixed;bottom:0px;right:0px;display:none;background:white"></div>`)
 document.body.append(t_d)
 
-var t = make_html('<textarea style="position:absolute;left:0px;top:0px;width:100%;height:100%;background:rgba(0,0,0,0);font-size:15px;font-family:helvetica, monaco, lucida grande, avenir"></textarea>')
+var t = make_html('<textarea disabled=true style="position:absolute;left:0px;top:0px;width:100%;height:100%;background:rgba(0,0,0,0);font-size:15px;font-family:helvetica, monaco, lucida grande, avenir"></textarea>')
 t_d.append(t)
 
 var hud = make_html(`<pre style="position:absolute;right:20px;top:5px;background:rgba(255,255,255,.9);color:black;margin:0px;padding:4px;font-size: 10;">hi!</pre>`)
@@ -95,7 +95,7 @@ function update_hud() {
 }
 
 var is_safe = true
-var channel = window.location.pathname.slice(1) || 'default2'
+var channel = window.location.pathname.slice(1)
 
 console.log('channel: ' + channel)
 
@@ -129,6 +129,7 @@ async function create_antimatter_client(url, cb, on_receive) {
         ws.onopen = () => {
             console.log(`OPEN`)
             openned = true
+            t.disabled = false
             localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([Date.now(), Date.now()])
 
             a.get(ws.my_id)

@@ -1,30 +1,27 @@
+var default_fissure_lifetime = 1000 * 60 * 60 * 24 * 14  // 14 days
+var fs = require('fs')
+var fs_p = require('fs/promises')
 
-let fissure_lifetime = 1000 * 60 * 60 * 24 * 14
-
-process.on('uncaughtException', console.log)
-process.on('unhandledRejection', console.log)
-
-;(async () => {
+function serve({port, host, fissure_lifetime = default_fissure_lifetime}) {
     console.log('v28')
 
-    require('child_process').execSync(`npm install ws`, {stdio: 'inherit'})
-    require('child_process').execSync(`npm install @braidjs/antimatter@0.0.12`, {stdio: 'inherit'})
     let {antimatter} = require('@braidjs/antimatter')
 
-    let port = 60509
 
-    if (!require('fs').existsSync('./antimatter_wiki_db')) require('fs').mkdirSync('./antimatter_wiki_db')
+    if (!fs.existsSync('./db')) fs.mkdirSync('./db')
 
     let conns = {}
 
     let antimatters = {}
     async function ensure_antimatter(key) {
+        console.log('finding db at ', JSON.stringify(key))
         if (!antimatters[key]) antimatters[key] = new Promise(async done => {
-            let dir = `./antimatter_wiki_db/${encodeURIComponent(key)}`
-            if (!require('fs').existsSync(dir)) await require('fs/promises').mkdir(dir)
+            let dir = `./db/${encodeURIComponent(key)}`
+            if (!fs.existsSync(dir))
+                fs.mkdirSync(dir)
 
             let files = []
-            for (let filename of await require('fs/promises').readdir(dir)) {
+            for (let filename of await fs_p.readdir(dir)) {
                 let m = filename.match(/^([dw])(\d+)$/)
                 if (m) files.push({t: m[1], i: 1*m[2]})
             }
@@ -33,7 +30,7 @@ process.on('unhandledRejection', console.log)
         
             console.log('files: ', files)
         
-            await Promise.all(files.splice(0, files.reduce((a, b, i) => b.t == 'd' ? i : a, 0)).map(x => require('fs/promises').rm(`${dir}/${x.t}${x.i}`)))
+            await Promise.all(files.splice(0, files.reduce((a, b, i) => b.t == 'd' ? i : a, 0)).map(x => fs_p.rm(`${dir}/${x.t}${x.i}`)))
 
             let a
 
@@ -54,7 +51,7 @@ process.on('unhandledRejection', console.log)
             for (let file of files) {
                 console.log(`file: `, file)
         
-                let s = await require('fs/promises').readFile(`${dir}/${file.t}${file.i}`)
+                let s = await fs_p.readFile(`${dir}/${file.t}${file.i}`)
                 if (file.t == 'd') {
                     a = create_antimatter(JSON.parse(s))
                 } else {
@@ -82,9 +79,9 @@ process.on('unhandledRejection', console.log)
                 if (dirty) {
                     dirty = false
                     wol_filename = `${dir}/w${file_i + 2}`
-                    await require('fs/promises').writeFile(`${dir}/d${file_i + 1}`, JSON.stringify(a))
+                    await fs_p.writeFile(`${dir}/d${file_i + 1}`, JSON.stringify(a))
         
-                    await Promise.all(files.map(x => require('fs/promises').rm(`${dir}/${x.t}${x.i}`)))
+                    await Promise.all(files.map(x => fs_p.rm(`${dir}/${x.t}${x.i}`)))
                     files = [{t: 'd', i: file_i + 1}, {t: 'w', i: file_i + 2}]
                     file_i += 2
                 }
@@ -92,7 +89,7 @@ process.on('unhandledRejection', console.log)
             }
 
             a.write_to_log = (obj) => {
-                require('fs').appendFileSync(wol_filename, JSON.stringify(obj) + '\n')
+                fs.appendFileSync(wol_filename, JSON.stringify(obj) + '\n')
                 dirty = true
             }
 
@@ -101,23 +98,30 @@ process.on('unhandledRejection', console.log)
         return await antimatters[key]
     }
 
-    await client_html_loader()
-    async function client_html_loader() {
-        client_html = '' + await require('fs/promises').readFile('./client.html')
-        client_html = client_html.replace(/__WIKI_HOST__/, () => JSON.stringify(process.argv[2] ?? `ws://localhost:${port}`))
-
-        setTimeout(client_html_loader, 1000 * 60)
+    function respond_with_client (req, res) {
+        var client_html = fs.readFileSync('node_modules/@braidjs/antimatter_wiki/client.html')
+        client_html = '' + client_html
+        client_html = client_html.replace(/__WIKI_HOST__/, `ws://${host}:${port}`)
+        var etag = require('crypto').createHash('md5').update(client_html).digest('hex')
+        if (req.headers['if-none-match'] === etag) {
+            res.writeHead(304)
+            res.end()
+        } else {
+            res.writeHead(200, {
+                'Content-Type': 'text/html',
+                'Cache-Control': 'public, max-age=31536000',
+                'ETag': etag,
+            })
+            res.end(client_html)
+        }
     }
 
     var server = require('http').createServer(async function (req, res) {
-        console.log('!!! --- ', {method: req.method, url: req.url})
-        console.log(`client_html.length = ${client_html.length}`)
-
-        res.statusCode = 200
+        console.log('GET: ', {method: req.method, url: req.url})
         res.setHeader('Access-Control-Allow-Origin', '*')
         res.setHeader('Access-Control-Allow-Headers', '*')
         res.setHeader('Access-Control-Allow-Methods', '*')
-        res.end(client_html)
+        respond_with_client(req, res)
     })
 
     var wss = new (require('ws').Server)({server})
@@ -125,6 +129,8 @@ process.on('unhandledRejection', console.log)
         console.log(`new connection! ${req.url}`)
 
         let key = decodeURIComponent(req.url.slice(1))
+        if (key === '' || key[0] === '_')
+            key = '_' + key
         let a = await ensure_antimatter(key)
 
         let conn
@@ -169,4 +175,6 @@ process.on('unhandledRejection', console.log)
     server.listen(port)
     console.log(`listening on port ${port}`)
     
-})()
+}
+
+module.exports = {serve}
