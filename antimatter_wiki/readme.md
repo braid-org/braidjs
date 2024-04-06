@@ -11,10 +11,13 @@ npm install @braidjs/antimatter_wiki
 Then put this into an app.js:
 
 ```javascript
-var port = 60509,
-    domain = 'localhost:60509'
+var port = 60509, domain = 'localhost:60509', ws_scheme
 
-require('@braidjs/antimatter_wiki').serve({port, domain})
+require('@braidjs/antimatter_wiki').serve({
+    port: 60509,
+    domain: 'localhost:60509',
+    ws_prefix: 'wss://'          // Or 'ws://' for insecure websocket
+})
 ```
 
 And run it with `node app.js`.

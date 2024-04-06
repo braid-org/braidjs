@@ -2,7 +2,8 @@ var default_fissure_lifetime = 1000 * 60 * 60 * 24 * 14  // 14 days
 var fs = require('fs')
 var fs_p = require('fs/promises')
 
-function serve({port, domain, fissure_lifetime = default_fissure_lifetime}) {
+function serve({port, domain, ws_prefix = 'ws://',
+                fissure_lifetime = default_fissure_lifetime}) {
     console.log('v28')
 
     let {antimatter} = require('@braidjs/antimatter')
@@ -101,7 +102,7 @@ function serve({port, domain, fissure_lifetime = default_fissure_lifetime}) {
     function respond_with_client (req, res) {
         var client_html = fs.readFileSync('node_modules/@braidjs/antimatter_wiki/client.html')
         client_html = '' + client_html
-        client_html = client_html.replace(/__WIKI_HOST__/, `ws://${domain}`)
+        client_html = client_html.replace(/__WIKI_HOST__/, `${ws_prefix}${domain}`)
         var etag = require('crypto').createHash('md5').update(client_html).digest('hex')
         if (req.headers['if-none-match'] === etag) {
             res.writeHead(304)
