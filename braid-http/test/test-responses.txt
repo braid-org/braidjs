@@ -1,16 +1,16 @@
-Read 1 {"version":"test","parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
-Read 1 {"version":"test1","parents":["oldie","goodie"],"patches":[{"unit":"json","range":"[1]","content":"1"}],"extra_headers":{"hash":"42"}}!
-Read 1 {"version":"test2","patches":[{"unit":"json","range":"[2]","content":"2"}]}!
-Read 1 {"version":"test3","patches":[{"unit":"json","range":"[3]","content":"3","extra_headers":{"hash":"43"}},{"unit":"json","range":"[4]","content":"4"}]}!
-Read 2 {"version":"test","parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
-Read 2 {"version":"test1","parents":["oldie","goodie"],"patches":[{"unit":"json","range":"[1]","content":"1"}],"extra_headers":{"hash":"42"}}!
-Read 2 {"version":"test2","patches":[{"unit":"json","range":"[2]","content":"2"}]}!
-Read 2 {"version":"test3","patches":[{"unit":"json","range":"[3]","content":"3","extra_headers":{"hash":"43"}},{"unit":"json","range":"[4]","content":"4"}]}!
-Read 3 {"version":"test","parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
+Read 1 {"version":["test"],"parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
+Read 1 {"version":["test1"],"parents":["oldie","goodie"],"patches":[{"unit":"json","range":"[1]","content":"1"}],"extra_headers":{"hash":"42"}}!
+Read 1 {"version":["test2"],"patches":[{"unit":"json","range":"[2]","content":"2"}]}!
+Read 1 {"version":["test3"],"patches":[{"unit":"json","range":"[3]","content":"3","extra_headers":{"hash":"43"}},{"unit":"json","range":"[4]","content":"4"}]}!
+Read 2 {"version":["test"],"parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
+Read 2 {"version":["test1"],"parents":["oldie","goodie"],"patches":[{"unit":"json","range":"[1]","content":"1"}],"extra_headers":{"hash":"42"}}!
+Read 2 {"version":["test2"],"patches":[{"unit":"json","range":"[2]","content":"2"}]}!
+Read 2 {"version":["test3"],"patches":[{"unit":"json","range":"[3]","content":"3","extra_headers":{"hash":"43"}},{"unit":"json","range":"[4]","content":"4"}]}!
+Read 3 {"version":["test"],"parents":["oldie"],"body":"{\"this\":\"stuff\"}"}!
 Write test 1 returned 200
 Write test 2 returned 200
 Write test 3 returned 200
 Write test 4 returned 200
-Read 1 {"version":"another!","body":"\"!\""}!
-Read 2 {"version":"another!","body":"\"!\""}!
-Read 3 {"version":"another!","body":"\"!\""}!
+Read 1 {"version":["another!"],"body":"\"!\""}!
+Read 2 {"version":["another!"],"body":"\"!\""}!
+Read 3 {"version":["another!"],"body":"\"!\""}!
