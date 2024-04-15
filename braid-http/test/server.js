@@ -21,7 +21,7 @@ require('http').createServer(
 
             // Send the current version
             res.sendUpdate({
-                version: 'test',
+                version: ['test'],
                 parents: ['oldie'],
                 body: JSON.stringify({this: 'stuff'})
             })
@@ -29,27 +29,27 @@ require('http').createServer(
             if (req.subscribe) {
                 // Send a patch
                 res.sendUpdate({
-                    version: 'test1',
-                    parents: ['oldie', 'goodie'],
+                    VersiOn: ['test1'],             // Upper/lowercase is ignored
+                    ParEnts: ['oldie', 'goodie'],
                     patch: {unit: 'json', range: '[1]', content: '1'},
                     hash: '42'
                 })
 
                 // Send a patch as array
                 res.sendUpdate({
-                    version: 'test2',
+                    Version: ['test2'],
                     patch: {unit: 'json', range: '[2]', content: '2'}
                 })
 
                 // Send two patches as array
                 res.sendUpdate({
-                    version: 'test3',
+                    version: ['test3'],
                     patches: [{unit: 'json', range: '[3]', content: '3', hash: '43'},
                               {unit: 'json', range: '[4]', content: '4'}]
                 })
 
                 // Simulate an update after the fact
-                setTimeout(() => res.sendUpdate({version: 'another!', body: '"!"'}), 200)
+                setTimeout(() => res.sendUpdate({version: ['another!'], body: '"!"'}), 200)
             }
 
             // End the response, if this isn't a subscription

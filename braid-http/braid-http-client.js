@@ -48,25 +48,26 @@ function braidify_http (http) {
         // Always add the `peer` header
         options.headers.peer = options.headers.peer || peer
 
-        // Wrap the callback to provide our new .on('version', ...) feature
+        // Wrap the callback to provide our new .on('update', ...) feature
         // on nodejs servers
-        var on_version,
+        var on_update,
             on_error,
             orig_cb = cb
         cb = (res) => {
             res.orig_on = res.on
             res.on = (key, f) => {
 
-                // Define .on('version', cb)
-                if (key === 'version') {
+                // Define .on('update', cb)
+                if (key === 'update'
+                    || key === 'version' /* Deprecated API calls it 'version' */ ) {
 
-                    // If we have an 'version' handler, let's remember it
-                    on_version = f
+                    // If we have an 'update' handler, let's remember it
+                    on_update = f
 
                     // And set up a subscription parser
-                    var parser = subscription_parser((version, error) => {
+                    var parser = subscription_parser((update, error) => {
                         if (!error)
-                            on_version && on_version(version)
+                            on_update && on_update(update)
                         else
                             on_error && on_error(error)
                     })
@@ -149,13 +150,21 @@ async function braid_fetch (url, params = {}) {
     else
         params.headers = new Headers(params.headers)
 
+    // Sanity check inputs
+    if (params.version)
+        console.assert(Array.isArray(params.version),
+                       'fetch(): `version` must be an array')
+    if (params.parents)
+        console.assert(Array.isArray(params.parents),
+                       'fetch(): `parents` must be an array')
+
     // Always set the peer
     params.headers.set('peer', peer)
 
     // We provide some shortcuts for Braid params
     if (params.version)
         params.headers.set('version', params.version.map(JSON.stringify).join(', '))
-    if (params.parents?.length)
+    if (params.parents)
         params.headers.set('parents', params.parents.map(JSON.stringify).join(', '))
     if (params.subscribe)
         params.headers.set('subscribe', 'true')
@@ -342,7 +351,6 @@ async function handle_fetch_stream (stream, cb) {
 // Braid-HTTP Subscription Parser
 // ****************************
 
-
 var subscription_parser = (cb) => ({
     // A parser keeps some parse state
     state: {input: ''},
@@ -359,23 +367,18 @@ var subscription_parser = (cb) => ({
 
         // Now loop through the input and parse until we hit a dead end
         while (this.state.input.trim() !== '') {
-            this.state = parse_version (this.state)
+            this.state = parse_update (this.state)
 
             // Maybe we parsed a version!  That's cool!
             if (this.state.result === 'success') {
-                let ignore_headers = {
-                    version: true,
-                    parents: true,
-                    patches: true,
-                    'content-length': true,
-                    'content-range': true,
-                }
                 this.cb({
                     version: this.state.version,
                     parents: this.state.parents,
                     body:    this.state.body,
                     patches: this.state.patches,
-                    ...((x => Object.keys(x).length ? {extra_headers: x} : {})(Object.fromEntries(Object.entries(this.state.headers).filter(([k, v]) => !ignore_headers[k]))))
+
+                    // Output extra_headers if there are some
+                    extra_headers: extra_headers(this.state.headers)
                 })
 
                 // Reset the parser for the next version!
@@ -410,7 +413,7 @@ var subscription_parser = (cb) => ({
 //  => {result: 'error', ...}    If there is a syntax error in the input
 
 
-function parse_version (state) {
+function parse_update (state) {
     // If we don't have headers yet, let's try to parse some
     if (!state.headers) {
         var parsed = parse_headers(state.input)
@@ -488,7 +491,8 @@ function parse_headers (input) {
     // Success!  Let's parse special headers
     if ('version' in headers)
         headers.version = JSON.parse('['+headers.version+']')
-    headers.parents = JSON.parse('['+(headers.parents ?? '')+']')
+    if ('parents' in headers)
+        headers.parents = JSON.parse('['+headers.parents+']')
     if ('patches' in headers)
         headers.patches = JSON.parse(headers.patches)
 
@@ -632,13 +636,8 @@ function parse_body (state) {
                 last_patch.unit = match.unit
                 last_patch.range = match.range
                 last_patch.content = state.input.substr(0, content_length)
-
-                // instead of headers, we'll create an "extra_headers" field that ignore the headers we've used
-                last_patch.extra_headers = last_patch.headers
-                delete last_patch.headers
-                delete last_patch.extra_headers['content-length']
-                delete last_patch.extra_headers['content-range']
-                if (!Object.keys(last_patch.extra_headers).length) delete last_patch.extra_headers
+                last_patch.extra_headers = extra_headers(last_patch.headers)
+                delete last_patch.headers  // We only keep the extra headers ^^
 
                 // Consume the parsed input
                 state.input = state.input.substring(content_length)
@@ -655,6 +654,28 @@ function parse_body (state) {
     }
 }
 
+// The "extra_headers" field is returned to the client on any *update* or
+// *patch* to include any headers that we've received, but don't have braid
+// semantics for.
+//
+// This function creates that hash from a headers object, by filtering out all
+// known headers.
+function extra_headers (headers) {
+    // Clone headers
+    var result = Object.assign({}, headers)
+
+    // Remove the non-extra parts
+    var known_headers = ['version', 'parents', 'patches',
+                         'content-length', 'content-range']
+    for (var i = 0; i < known_headers.length; i++)
+        delete result[known_headers[i]]
+
+    // Return undefined if we deleted them all
+    if (Object.keys(result).length === 0)
+        return undefined
+
+    return result
+}
 
 // ****************************
 // Exports
@@ -665,7 +686,7 @@ if (typeof module !== 'undefined' && module.exports)
         fetch: braid_fetch,
         http: braidify_http,
         subscription_parser,
-        parse_version,
+        parse_update,
         parse_headers,
         parse_body
     }

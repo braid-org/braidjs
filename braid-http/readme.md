@@ -38,7 +38,7 @@ import {fetch, http_client, http_server} from 'braid-http'
 This library adds a `{subscribe: true}` option to `fetch()`, and lets you
 access the result of a subscription with two new fields on the fetch response:
 
-- `response.subscribe( new_version => ... )`
+- `response.subscribe( update => ... )`
 - `response.subscription`: an iterator that can be used with `for await`
 
 ### Example Subscription with Promises
@@ -48,8 +48,8 @@ Here is an example of subscribing to a Braid resource using promises:
 ```javascript
 fetch('https://braid.org/chat', {subscribe: true}).then(
     res => res.subscribe(
-        (new_version) => {
-            console.log('We got a new version!', new_version)
+        (update) => {
+            console.log('We got a new update!', update)
             // {
             //   version: ["me"],
             //   parents: ["mom", "dad"],
@@ -57,7 +57,7 @@ fetch('https://braid.org/chat', {subscribe: true}).then(
             //   body:    "3"
             // }
             //
-            // Note that new_version will contain either patches *or* body
+            // Note that `update` will contain either patches *or* body
         }
     )
 )
@@ -69,9 +69,9 @@ If you want automatic reconnections, add two error handlers like this:
 function connect() {
     fetch('https://braid.org/chat', {subscribe: true}).then(
         res => res.subscribe(
-            (new_version) => {
-                console.log('We got a new version!', new_version)
-                // Do something with the new_version
+            (update) => {
+                console.log('We got a new update!', update)
+                // Do something with the update
             },
             e => setTimeout(connect, 1000)
         )
@@ -86,8 +86,8 @@ connect()
 async function connect () {
     try {
         (await fetch('/chat', {subscribe: true})).subscribe(
-            (new_version) => {
-                // We got a new version!
+            (update) => {
+                // We got a new update!
             },
             () => setTimeout(connect, 1000)
         )
@@ -108,7 +108,7 @@ async function connect () {
             if (v.patches)
                 chat = apply_patches(v.patches, chat)
 
-            // Or complete versions:
+            // Or complete snapshots:
             else
                 // Beware the server doesn't send these yet.
                 chat = JSON.parse(v.body)
@@ -217,8 +217,8 @@ https.get(
    'https://braid.org/chat',
    {subscribe: true},
    (res) => {
-      res.on('version', (version) => {
-          console.log('well we got one', version)
+      res.on('update', (update) => {
+          console.log('well we got one', update)
       })
    }
 )
@@ -232,15 +232,15 @@ function connect () {
         'https://braid.org/chat',
         {subscribe: true},
         (res) => {
-            res.on('version', (version) => {
+            res.on('update', (update) => {
                 // {
                 //   version: ["me"],
                 //   parents: ["mom", "dad"],
                 //   patches: [{unit: "json", range: ".foo", content: "3"}]
                 //   body:    "3"
                 // }
-                //   // Version will contain either patches *or* body, but not both
-                console.log('We got a new version!', version)
+                //   // Update will contain either patches *or* body, but not both
+                console.log('We got a new update!', update)
             })
 
             res.on('end',   e => setTimeout(connect, 1000))

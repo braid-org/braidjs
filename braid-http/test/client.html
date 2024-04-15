@@ -74,7 +74,7 @@ setTimeout(read_test3, 20)
 // Writing data to the server
 function write_test1 () {
     fetch('/json', {
-        version: 'test1',
+        version: ['test1'],
         patches: {unit: 'json', range: '[0]', content: '"test1"'},
         method: 'PUT'
     }).then(async res => {
@@ -83,7 +83,7 @@ function write_test1 () {
 }
 function write_test2 () {
     fetch('/json', {
-        version: 'test2',
+        version: ['test2'],
         patches: [{unit: 'json', range: '[0]', content: '"test2"'}],
         method: 'PUT'
     }).then(async res => {
@@ -93,7 +93,7 @@ function write_test2 () {
 
 function write_test3 () {
     fetch('/json', {
-        version: 'test3',
+        version: ['test3'],
         patches: [
             {unit: 'jsonpath', range: '[0]', content: '"test3"'},
             {unit: 'jsonpath', range: '[1]', content: '"test3"'},
@@ -107,7 +107,7 @@ function write_test3 () {
 
 function write_test4 () {
     fetch('/json', {
-        version: 'test4',
+        version: ['test4'],
         patches: [],
         method: 'PUT'
     }).then(async res => {

@@ -195,8 +195,8 @@ function braidify (req, res, next) {
     res.setHeader('Range-Request-Allow-Units', 'json')
 
     // Extract braid info from headers
-    var version = JSON.parse('['+(req.headers.version ?? '')+']'),
-        parents = JSON.parse('['+(req.headers.parents ?? '')+']'),
+    var version = req.headers.version && JSON.parse('['+req.headers.version+']'),
+        parents = req.headers.parents && JSON.parse('['+req.headers.parents+']'),
         peer = req.headers['peer'],
         url = req.url.substr(1)
 
@@ -211,8 +211,8 @@ function braidify (req, res, next) {
     req.subscribe = subscribe
 
     // Add the braidly request/response helper methods
-    res.sendVersion = (stuff) => send_version(res, stuff, req.url, peer)
-    res.sendUpdate = res.sendVersion
+    res.sendUpdate = (stuff) => send_update(res, stuff, req.url, peer)
+    res.sendVersion = res.sendUpdate
     req.patches = () => new Promise(
         (done, err) => parse_patches(req, (patches) => done(patches))
     )
@@ -273,7 +273,7 @@ function braidify (req, res, next) {
     next && next()
 }
 
-function send_version(res, data, url, peer) {
+function send_update(res, data, url, peer) {
     var {version, parents, patches, patch, body} = data
 
     function set_header (key, val) {
@@ -332,13 +332,13 @@ function send_version(res, data, url, peer) {
     for (var [header, value] of Object.entries(data)) {
         header = header.toLowerCase()
 
-        // Version and Parents get output in the Structured Headers format
+        // Version and Parents get output in the Structured Headers format,
+        // so we convert `value` from array to comma-separated strings.
         if (header === 'version') {
             header = 'Version'               // Capitalize for prettiness
             value = value.map(JSON.stringify).join(", ")
         } else if (header === 'parents') {
             header = 'Parents'               // Capitalize for prettiness
-            if (value.length == 0) continue  // we express no parents as not having the field at all
             value = value.map(JSON.stringify).join(", ")
         }
 
