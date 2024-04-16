@@ -8,8 +8,14 @@ let fs = require("fs")
 let waiting_puts = 0
 let prev_put_p = null
 
-async function simple_d_ton(req, res, options = { db_folder: null }) {
-    let resource = await get_resource(req.url.split('?')[0], options?.db_folder)
+async function simple_d_ton(req, res, options = {}) {
+    options = {
+        db_folder: null,                 // Default db_folder
+        key: req.url.split('?')[0],      // Default key
+        ...options                       // Override with all options passed in
+    }
+    
+    let resource = await get_resource(options.key, options.db_folder)
 
     braidify(req, res)
 
