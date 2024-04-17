@@ -1,4 +1,4 @@
-console.log("v9")
+console.log("v10")
 
 let { Doc, Branch, OpLog } = require("diamond-types-node")
 let braidify = require("braid-http").http_server
@@ -53,12 +53,12 @@ async function simple_d_ton(req, res, options = {}) {
             let version = resource.doc.getRemoteVersion().map((x) => encode_version(...x))
             let x = { version }
 
-            if (!req.parents.length && !req.version.length) {
+            if (!req.parents && !req.version) {
                 x.parents = []
                 x.body = resource.doc.get()
                 res.sendVersion(x)
             } else {
-                x.parents = req.parents.length ? req.parents : req.version
+                x.parents = req.version ? req.version : req.parents
                 res.my_last_seen_version = x.parents
 
                 // only send them a version from these parents if we have these parents (otherwise we'll assume these parents are more recent, probably versions they created but haven't sent us yet, and we'll send them appropriate rebased updates when they send us these versions)
@@ -86,7 +86,7 @@ async function simple_d_ton(req, res, options = {}) {
                 resource.doc = defrag_dt(resource.doc)
             }
 
-            if (!req.parents.length && !req.version.length) {
+            if (!req.parents && !req.version) {
                 res.sendVersion({
                     version: ["root"],
                     parents: [],
@@ -96,7 +96,7 @@ async function simple_d_ton(req, res, options = {}) {
                 updates = OpLog_get_patches(resource.doc.toBytes(), resource.doc.getOpsSince([]))
             } else {
                 // Then start the subscription from the Parents in request
-                let parents = Object.fromEntries((req.parents.length ? req.parents : req.version).map((x) => [x, true]))
+                let parents = Object.fromEntries((req.parents ? req.parents : req.version).map((x) => [x, true]))
 
                 let local_version = []
                 let [agents, versions, parentss] = parseDT([...resource.doc.toBytes()])
@@ -135,10 +135,10 @@ async function simple_d_ton(req, res, options = {}) {
         res.setHeader("Accept-Subscribe", "true")
 
         let doc = null
-        if (req.version.length || req.parents.length) {
+        if (req.version || req.parents) {
             let frontier = {}
-            req.version.forEach((x) => (frontier[x] = true))
-            req.parents.forEach((x) => (frontier[x] = true))
+            req.version?.forEach((x) => (frontier[x] = true))
+            req.parents?.forEach((x) => (frontier[x] = true))
 
             let local_version = []
             let [agents, versions, parentss] = parseDT([...resource.doc.toBytes()])
@@ -254,7 +254,7 @@ async function simple_d_ton(req, res, options = {}) {
         v = encode_version(v[0], v[1] + 1 - patches.reduce((a, b) => a + b.content.length + (b.range[1] - b.range[0]), 0))
 
         let ps = req.parents
-        if (!ps.length) ps = ["root"]
+        if (!ps?.length) ps = ["root"]
 
         let v_before = resource.doc.getLocalVersion()
         let parents = resource.doc.getRemoteVersion().map((x) => encode_version(...x))

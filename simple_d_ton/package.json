@@ -1,6 +1,6 @@
 {
   "name": "simple_d_ton",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Serve diamond-types and simpleton requests.",
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
@@ -8,7 +8,7 @@
   "main": "./index.js",
   "dependencies": {
     "diamond-types-node": "^1.0.2",
-    "braid-http": "^0.3.2",
+    "braid-http": "^0.3.3",
     "@braid.org/json-patch": "^1.0.5"
   }
 }
