@@ -383,7 +383,13 @@ async function simple_d_ton(req, res, options = {}) {
                     if (!v_eq(version, req.version)) {
                         console.log("rebasing..")
                         x.patches = get_xf_patches(resource.doc, OpLog_remote_to_local(resource.doc, [og_v]))
-                    } else x.patches = []
+                    } else {
+                        // this client already has this version,
+                        // so let's pretend to send it back, but not
+                        console.log(`not reflecting back to simpleton`)
+                        client.my_last_sent_version = x.version
+                        continue
+                    }
                 } else {
                     x.parents = parents
                     x.patches = patches
