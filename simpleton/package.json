@@ -1,6 +1,6 @@
 {
   "name": "simpleton",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "An implementation of the simpleton protocol for Node.js and Browsers",
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
@@ -17,5 +17,7 @@
     "import": "./index.mjs"
   },
   "dependencies": {
+    "diamond-types-node": "^1.0.2",
+    "braid-http": "^0.3.3"
   }
 }
