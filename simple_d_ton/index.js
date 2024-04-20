@@ -459,11 +459,21 @@ async function file_sync(db_folder, filename_base, process_delta, get_init) {
     let currentSize = 0
     let threshold = 0
 
+    // Ensure the existence of db_folder
+    try {
+        await fs.promises.access(db_folder);
+    } catch (err) {
+        if (err.code === 'ENOENT') {
+            await fs.promises.mkdir(db_folder, { recursive: true });
+        } else {
+            throw err;
+        }
+    }
+
     // Read existing files and sort by numbers.
     async function get_sorted_files() {
         let re = new RegExp("^" + filename_base.replace(/[^a-zA-Z0-9]/g, "\\$&") + "\\.\\d+$")
-        return fs
-            .readdirSync(db_folder)
+        return (await fs.promises.readdir(db_folder))
             .filter((a) => re.test(a))
             .sort((a, b) => parseInt(a.match(/\d+$/)[0]) - parseInt(b.match(/\d+$/)[0]))
             .map((a) => `${db_folder}/${a}`)
