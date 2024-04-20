@@ -168,7 +168,7 @@ async function braid_fetch (url, params = {}) {
     if (params.subscribe)
         params.headers.set('subscribe', 'true')
     if (params.peer)
-        params.header.set('peer', params.peer)
+        params.headers.set('peer', params.peer)
 
     // Prevent browsers from going to disk cache
     params.cache = 'no-cache'
