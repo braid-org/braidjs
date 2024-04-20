@@ -324,25 +324,24 @@ async function handle_fetch_stream (stream, cb) {
     while (true) {
         var versions = []
 
+        // Read the next chunk of stream!
         try {
-            // Read the next chunk of stream!
             var {done, value} = await reader.read()
-
-            // Check if this connection has been closed!
-            if (done) {
-                console.debug("Connection closed.")
-                cb(null, 'Connection closed')
-                return
-            }
-
-            // Tell the parser to process some more stream
-            parser.read(decoder.decode(value))
         }
-
         catch (e) {
             cb(null, e)
             return
         }
+
+        // Check if this connection has been closed!
+        if (done) {
+            console.debug("Connection closed.")
+            cb(null, 'Connection closed')
+            return
+        }
+
+        // Tell the parser to process some more stream
+        parser.read(decoder.decode(value))
     }
 }
 
@@ -368,9 +367,16 @@ var subscription_parser = (cb) => ({
 
         // Now loop through the input and parse until we hit a dead end
         while (this.state.input.trim() !== '') {
-            this.state = parse_update (this.state)
 
-            // Maybe we parsed a version!  That's cool!
+            // Try to parse an update
+            try {
+                this.state = parse_update (this.state)
+            } catch (e) {
+                this.cb(null, e)
+                return
+            }
+
+            // Maybe we parsed an update!  That's cool!
             if (this.state.result === 'success') {
                 this.cb({
                     version: this.state.version,
