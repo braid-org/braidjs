@@ -1,4 +1,4 @@
-console.log("v10")
+console.log("v11")
 
 let { Doc, Branch, OpLog } = require("diamond-types-node")
 let braidify = require("braid-http").http_server
@@ -150,12 +150,8 @@ async function simple_d_ton(req, res, options = {}) {
             local_version = new Uint32Array(local_version)
 
             let after_versions = {}
-            if (true) {
-                let [agents, versions, parentss] = parseDT([...resource.doc.getPatchSince(local_version)])
-                for (let i = 0; i < versions.length; i++) {
-                    after_versions[versions[i].join("-")] = true
-                }
-            }
+            let [_, after_versions_array, __] = parseDT([...resource.doc.getPatchSince(local_version)])
+            for (let v of after_versions_array) after_versions[v.join("-")] = true
 
             let new_doc = new Doc()
             let op_runs = resource.doc.getOpsSince([])
@@ -821,57 +817,54 @@ function OpLog_create_bytes(version, parents, pos, ins) {
         patches.push(...inserted_content_bytes)
     }
 
-    if (true) {
-        let version_bytes = []
+    // write in the version
+    let version_bytes = []
 
-        let [agent, seq] = version
-        let agent_i = agent_to_i[agent]
-        let jump = seq
+    let [agent, seq] = version
+    let agent_i = agent_to_i[agent]
+    let jump = seq
 
-        write_varint(version_bytes, ((agent_i + 1) << 1) | (jump != 0 ? 1 : 0))
-        write_varint(version_bytes, 1)
-        if (jump) write_varint(version_bytes, jump << 1)
+    write_varint(version_bytes, ((agent_i + 1) << 1) | (jump != 0 ? 1 : 0))
+    write_varint(version_bytes, 1)
+    if (jump) write_varint(version_bytes, jump << 1)
 
-        patches.push(21)
-        write_varint(patches, version_bytes.length)
-        patches.push(...version_bytes)
-    }
+    patches.push(21)
+    write_varint(patches, version_bytes.length)
+    patches.push(...version_bytes)
 
-    if (true) {
-        let op_bytes = []
+    // write in "op" bytes (some encoding of position)
+    let op_bytes = []
 
-        write_varint(op_bytes, (pos << 4) | (pos ? 2 : 0) | (ins ? 0 : 4))
+    write_varint(op_bytes, (pos << 4) | (pos ? 2 : 0) | (ins ? 0 : 4))
 
-        patches.push(22)
-        write_varint(patches, op_bytes.length)
-        patches.push(...op_bytes)
-    }
+    patches.push(22)
+    write_varint(patches, op_bytes.length)
+    patches.push(...op_bytes)
 
-    if (true) {
-        let parents_bytes = []
+    // write in parents
+    let parents_bytes = []
 
-        write_varint(parents_bytes, 1)
+    write_varint(parents_bytes, 1)
 
-        if (parents[0].length > 1) {
-            for (let [i, [agent, seq]] of parents.entries()) {
-                let has_more = i < parents.length - 1
-                let agent_i = agent_to_i[agent]
-                write_varint(parents_bytes, ((agent_i + 1) << 2) | (has_more ? 2 : 0) | 1)
-                write_varint(parents_bytes, seq)
-            }
-        } else write_varint(parents_bytes, 1)
+    if (parents[0].length > 1) {
+        for (let [i, [agent, seq]] of parents.entries()) {
+            let has_more = i < parents.length - 1
+            let agent_i = agent_to_i[agent]
+            write_varint(parents_bytes, ((agent_i + 1) << 2) | (has_more ? 2 : 0) | 1)
+            write_varint(parents_bytes, seq)
+        }
+    } else write_varint(parents_bytes, 1)
 
-        patches.push(23)
-        write_varint(patches, parents_bytes.length)
-        patches.push(...parents_bytes)
-    }
+    patches.push(23)
+    write_varint(patches, parents_bytes.length)
+    patches.push(...parents_bytes)
 
+    // write in patches
     bytes.push(20)
     write_varint(bytes, patches.length)
     bytes.push(...patches)
 
     //   console.log(bytes);
-
     return bytes
 }
 
