@@ -1,4 +1,4 @@
-console.log("v9")
+console.log("v12")
 
 let { Doc, Branch, OpLog } = require("diamond-types-node")
 let braidify = require("braid-http").http_server
@@ -8,8 +8,14 @@ let fs = require("fs")
 let waiting_puts = 0
 let prev_put_p = null
 
-async function simple_d_ton(req, res, options = { db_folder: null }) {
-    let resource = await get_resource(req.url.split('?')[0], options?.db_folder)
+async function simple_d_ton(req, res, options = {}) {
+    options = {
+        db_folder: null,                 // Default db_folder
+        key: req.url.split('?')[0],      // Default key
+        ...options                       // Override with all options passed in
+    }
+    
+    let resource = await get_resource(options.key, options.db_folder)
 
     braidify(req, res)
 
@@ -22,14 +28,14 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
 
     function my_end(statusCode, x) {
         res.statusCode = statusCode
-        res.end(x)
+        res.end(x ?? '')
     }
 
     if (req.method == "OPTIONS") return my_end(200)
 
     if (req.method == "DELETE") {
         await resource.delete_me()
-        return my_end(200, "ok!")
+        return my_end(200)
     }
 
     if ((req.method == "GET" || req.method == "HEAD") && req.subscribe) {
@@ -47,12 +53,12 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
             let version = resource.doc.getRemoteVersion().map((x) => encode_version(...x))
             let x = { version }
 
-            if (!req.parents.length && !req.version.length) {
+            if (!req.parents && !req.version) {
                 x.parents = []
                 x.body = resource.doc.get()
                 res.sendVersion(x)
             } else {
-                x.parents = req.parents.length ? req.parents : req.version
+                x.parents = req.version ? req.version : req.parents
                 res.my_last_seen_version = x.parents
 
                 // only send them a version from these parents if we have these parents (otherwise we'll assume these parents are more recent, probably versions they created but haven't sent us yet, and we'll send them appropriate rebased updates when they send us these versions)
@@ -80,7 +86,7 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
                 resource.doc = defrag_dt(resource.doc)
             }
 
-            if (!req.parents.length && !req.version.length) {
+            if (!req.parents && !req.version) {
                 res.sendVersion({
                     version: ["root"],
                     parents: [],
@@ -90,7 +96,7 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
                 updates = OpLog_get_patches(resource.doc.toBytes(), resource.doc.getOpsSince([]))
             } else {
                 // Then start the subscription from the Parents in request
-                let parents = Object.fromEntries((req.parents.length ? req.parents : req.version).map((x) => [x, true]))
+                let parents = Object.fromEntries((req.parents ? req.parents : req.version).map((x) => [x, true]))
 
                 let local_version = []
                 let [agents, versions, parentss] = parseDT([...resource.doc.toBytes()])
@@ -129,10 +135,10 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
         res.setHeader("Accept-Subscribe", "true")
 
         let doc = null
-        if (req.version.length || req.parents.length) {
+        if (req.version || req.parents) {
             let frontier = {}
-            req.version.forEach((x) => (frontier[x] = true))
-            req.parents.forEach((x) => (frontier[x] = true))
+            req.version?.forEach((x) => (frontier[x] = true))
+            req.parents?.forEach((x) => (frontier[x] = true))
 
             let local_version = []
             let [agents, versions, parentss] = parseDT([...resource.doc.toBytes()])
@@ -144,12 +150,8 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
             local_version = new Uint32Array(local_version)
 
             let after_versions = {}
-            if (true) {
-                let [agents, versions, parentss] = parseDT([...resource.doc.getPatchSince(local_version)])
-                for (let i = 0; i < versions.length; i++) {
-                    after_versions[versions[i].join("-")] = true
-                }
-            }
+            let [_, after_versions_array, __] = parseDT([...resource.doc.getPatchSince(local_version)])
+            for (let v of after_versions_array) after_versions[v.join("-")] = true
 
             let new_doc = new Doc()
             let op_runs = resource.doc.getOpsSince([])
@@ -248,7 +250,7 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
         v = encode_version(v[0], v[1] + 1 - patches.reduce((a, b) => a + b.content.length + (b.range[1] - b.range[0]), 0))
 
         let ps = req.parents
-        if (!ps.length) ps = ["root"]
+        if (!ps?.length) ps = ["root"]
 
         let v_before = resource.doc.getLocalVersion()
         let parents = resource.doc.getRemoteVersion().map((x) => encode_version(...x))
@@ -312,7 +314,7 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
         let v_after = resource.doc.getLocalVersion()
         if (JSON.stringify(v_before) === JSON.stringify(v_after)) {
             console.log(`we got a version we already had: ${v_before}`)
-            return done_my_turn(200, "ok!")
+            return done_my_turn(200)
         }
 
         await resource.db_delta(resource.doc.getPatchSince(v_before))
@@ -377,7 +379,13 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
                     if (!v_eq(version, req.version)) {
                         console.log("rebasing..")
                         x.patches = get_xf_patches(resource.doc, OpLog_remote_to_local(resource.doc, [og_v]))
-                    } else x.patches = []
+                    } else {
+                        // this client already has this version,
+                        // so let's pretend to send it back, but not
+                        console.log(`not reflecting back to simpleton`)
+                        client.my_last_sent_version = x.version
+                        continue
+                    }
                 } else {
                     x.parents = parents
                     x.patches = patches
@@ -408,7 +416,7 @@ async function simple_d_ton(req, res, options = { db_folder: null }) {
             if (client.my_peer != peer) client.sendVersion(x)
         }
 
-        return done_my_turn(200, "ok!")
+        return done_my_turn(200)
     }
 
     throw new Error("unknown")
@@ -451,11 +459,21 @@ async function file_sync(db_folder, filename_base, process_delta, get_init) {
     let currentSize = 0
     let threshold = 0
 
+    // Ensure the existence of db_folder
+    try {
+        await fs.promises.access(db_folder);
+    } catch (err) {
+        if (err.code === 'ENOENT') {
+            await fs.promises.mkdir(db_folder, { recursive: true });
+        } else {
+            throw err;
+        }
+    }
+
     // Read existing files and sort by numbers.
     async function get_sorted_files() {
         let re = new RegExp("^" + filename_base.replace(/[^a-zA-Z0-9]/g, "\\$&") + "\\.\\d+$")
-        return fs
-            .readdirSync(db_folder)
+        return (await fs.promises.readdir(db_folder))
             .filter((a) => re.test(a))
             .sort((a, b) => parseInt(a.match(/\d+$/)[0]) - parseInt(b.match(/\d+$/)[0]))
             .map((a) => `${db_folder}/${a}`)
@@ -809,57 +827,54 @@ function OpLog_create_bytes(version, parents, pos, ins) {
         patches.push(...inserted_content_bytes)
     }
 
-    if (true) {
-        let version_bytes = []
+    // write in the version
+    let version_bytes = []
 
-        let [agent, seq] = version
-        let agent_i = agent_to_i[agent]
-        let jump = seq
+    let [agent, seq] = version
+    let agent_i = agent_to_i[agent]
+    let jump = seq
 
-        write_varint(version_bytes, ((agent_i + 1) << 1) | (jump != 0 ? 1 : 0))
-        write_varint(version_bytes, 1)
-        if (jump) write_varint(version_bytes, jump << 1)
+    write_varint(version_bytes, ((agent_i + 1) << 1) | (jump != 0 ? 1 : 0))
+    write_varint(version_bytes, 1)
+    if (jump) write_varint(version_bytes, jump << 1)
 
-        patches.push(21)
-        write_varint(patches, version_bytes.length)
-        patches.push(...version_bytes)
-    }
+    patches.push(21)
+    write_varint(patches, version_bytes.length)
+    patches.push(...version_bytes)
 
-    if (true) {
-        let op_bytes = []
+    // write in "op" bytes (some encoding of position)
+    let op_bytes = []
 
-        write_varint(op_bytes, (pos << 4) | (pos ? 2 : 0) | (ins ? 0 : 4))
+    write_varint(op_bytes, (pos << 4) | (pos ? 2 : 0) | (ins ? 0 : 4))
 
-        patches.push(22)
-        write_varint(patches, op_bytes.length)
-        patches.push(...op_bytes)
-    }
+    patches.push(22)
+    write_varint(patches, op_bytes.length)
+    patches.push(...op_bytes)
 
-    if (true) {
-        let parents_bytes = []
+    // write in parents
+    let parents_bytes = []
 
-        write_varint(parents_bytes, 1)
+    write_varint(parents_bytes, 1)
 
-        if (parents[0].length > 1) {
-            for (let [i, [agent, seq]] of parents.entries()) {
-                let has_more = i < parents.length - 1
-                let agent_i = agent_to_i[agent]
-                write_varint(parents_bytes, ((agent_i + 1) << 2) | (has_more ? 2 : 0) | 1)
-                write_varint(parents_bytes, seq)
-            }
-        } else write_varint(parents_bytes, 1)
+    if (parents[0].length > 1) {
+        for (let [i, [agent, seq]] of parents.entries()) {
+            let has_more = i < parents.length - 1
+            let agent_i = agent_to_i[agent]
+            write_varint(parents_bytes, ((agent_i + 1) << 2) | (has_more ? 2 : 0) | 1)
+            write_varint(parents_bytes, seq)
+        }
+    } else write_varint(parents_bytes, 1)
 
-        patches.push(23)
-        write_varint(patches, parents_bytes.length)
-        patches.push(...parents_bytes)
-    }
+    patches.push(23)
+    write_varint(patches, parents_bytes.length)
+    patches.push(...parents_bytes)
 
+    // write in patches
     bytes.push(20)
     write_varint(bytes, patches.length)
     bytes.push(...patches)
 
     //   console.log(bytes);
-
     return bytes
 }
 
