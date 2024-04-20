@@ -113,14 +113,14 @@ async function handle(req, res, options = {}) {
         let done_my_turn = null
         prev_put_p = new Promise(
             (done) =>
-                (done_my_turn = (statusCode, x) => {
-                    waiting_puts--
-                    console.log(`waiting_puts(after--) = ${waiting_puts}`)
-                    x.wait_time = wait_time
-                    x.server_time_taken = Date.now() - start_time
-                    my_end(statusCode, x)
-                    done()
-                })
+            (done_my_turn = (statusCode, x) => {
+                waiting_puts--
+                console.log(`waiting_puts(after--) = ${waiting_puts}`)
+                x.wait_time = wait_time
+                x.server_time_taken = Date.now() - start_time
+                my_end(statusCode, x)
+                done()
+            })
         )
         let patches = await req.patches()
         await my_prev_put_p
@@ -201,7 +201,7 @@ async function handle(req, res, options = {}) {
         }
 
         resource.need_defrag = true
-        
+
         let v_after = resource.doc.getLocalVersion()
         if (JSON.stringify(v_before) === JSON.stringify(v_after)) {
             console.log(`we got a version we already had: ${v_before}`)
@@ -223,7 +223,7 @@ async function handle(req, res, options = {}) {
             function set_timeout(time_override) {
                 if (client.my_timeout) clearTimeout(client.my_timeout)
                 client.my_timeout = setTimeout(() => {
-                    let version = resource.doc.getRemoteVersion().map((x) => encode_version(...x))                    
+                    let version = resource.doc.getRemoteVersion().map((x) => encode_version(...x))
                     let x = { version }
                     x.parents = client.my_last_seen_version
 
@@ -304,12 +304,12 @@ async function get_resource(key, db_folder) {
 
     let { change, delete_me } = db_folder
         ? await file_sync(
-              db_folder,
-              encodeURIComponent(key),
-              (bytes) => resource.doc.mergeBytes(bytes),
-              () => resource.doc.toBytes()
-          )
-        : { change: () => {}, delete_me: () => {} }
+            db_folder,
+            encodeURIComponent(key),
+            (bytes) => resource.doc.mergeBytes(bytes),
+            () => resource.doc.toBytes()
+        )
+        : { change: () => { }, delete_me: () => { } }
 
     resource.db_delta = change
 
@@ -409,7 +409,7 @@ async function file_sync(db_folder, filename_base, process_delta, get_init) {
                     threshold = currentSize * 10
                     try {
                         await fs.promises.unlink(filename)
-                    } catch (e) {}
+                    } catch (e) { }
                 } catch (e) {
                     console.log(`e = ${e.stack}`)
                 }
@@ -637,54 +637,52 @@ function OpLog_create_bytes(version, parents, pos, ins) {
         patches.push(...inserted_content_bytes)
     }
 
-    if (true) {
-        let version_bytes = []
+    // write in the version
+    let version_bytes = []
 
-        let [agent, seq] = version
-        let agent_i = agent_to_i[agent]
-        let jump = seq
+    let [agent, seq] = version
+    let agent_i = agent_to_i[agent]
+    let jump = seq
 
-        write_varint(version_bytes, ((agent_i + 1) << 1) | (jump != 0 ? 1 : 0))
-        write_varint(version_bytes, 1)
-        if (jump) write_varint(version_bytes, jump << 1)
+    write_varint(version_bytes, ((agent_i + 1) << 1) | (jump != 0 ? 1 : 0))
+    write_varint(version_bytes, 1)
+    if (jump) write_varint(version_bytes, jump << 1)
 
-        patches.push(21)
-        write_varint(patches, version_bytes.length)
-        patches.push(...version_bytes)
-    }
+    patches.push(21)
+    write_varint(patches, version_bytes.length)
+    patches.push(...version_bytes)
 
-    if (true) {
-        let op_bytes = []
+    // write in "op" bytes (some encoding of position)
+    let op_bytes = []
 
-        write_varint(op_bytes, (pos << 4) | (pos ? 2 : 0) | (ins ? 0 : 4))
+    write_varint(op_bytes, (pos << 4) | (pos ? 2 : 0) | (ins ? 0 : 4))
 
-        patches.push(22)
-        write_varint(patches, op_bytes.length)
-        patches.push(...op_bytes)
-    }
+    patches.push(22)
+    write_varint(patches, op_bytes.length)
+    patches.push(...op_bytes)
 
-    if (true) {
-        let parents_bytes = []
+    // write in parents
+    let parents_bytes = []
 
-        write_varint(parents_bytes, 1)
+    write_varint(parents_bytes, 1)
 
-        if (parents[0]?.length > 1) {
-            for (let [i, [agent, seq]] of parents.entries()) {
-                let has_more = i < parents.length - 1
-                let agent_i = agent_to_i[agent]
-                write_varint(
-                    parents_bytes,
-                    ((agent_i + 1) << 2) | (has_more ? 2 : 0) | 1
-                )
-                write_varint(parents_bytes, seq)
-            }
-        } else write_varint(parents_bytes, 1)
+    if (parents[0]?.length > 1) {
+        for (let [i, [agent, seq]] of parents.entries()) {
+            let has_more = i < parents.length - 1
+            let agent_i = agent_to_i[agent]
+            write_varint(
+                parents_bytes,
+                ((agent_i + 1) << 2) | (has_more ? 2 : 0) | 1
+            )
+            write_varint(parents_bytes, seq)
+        }
+    } else write_varint(parents_bytes, 1)
 
-        patches.push(23)
-        write_varint(patches, parents_bytes.length)
-        patches.push(...parents_bytes)
-    }
+    patches.push(23)
+    write_varint(patches, parents_bytes.length)
+    patches.push(...parents_bytes)
 
+    // write in patches
     bytes.push(20)
     write_varint(bytes, patches.length)
     bytes.push(...patches)
@@ -731,15 +729,15 @@ function get_xf_patches(doc, v) {
         patches.push(
             xf.kind == "Ins"
                 ? {
-                      unit: "text",
-                      range: `[${xf.start}:${xf.start}]`,
-                      content: xf.content,
-                  }
+                    unit: "text",
+                    range: `[${xf.start}:${xf.start}]`,
+                    content: xf.content,
+                }
                 : {
-                      unit: "text",
-                      range: `[${xf.start}:${xf.end}]`,
-                      content: "",
-                  }
+                    unit: "text",
+                    range: `[${xf.start}:${xf.end}]`,
+                    content: "",
+                }
         )
     }
     return relative_to_absolute_patches(patches)
