@@ -332,6 +332,10 @@ function send_update(res, data, url, peer) {
     for (var [header, value] of Object.entries(data)) {
         header = header.toLowerCase()
 
+        // A header set to undefined acts like it wasn't set
+        if (value === undefined)
+            continue
+
         // Version and Parents get output in the Structured Headers format,
         // so we convert `value` from array to comma-separated strings.
         if (header === 'version') {
