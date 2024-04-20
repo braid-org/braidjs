@@ -1,11 +1,10 @@
-var peer = Math.random().toString(36).substr(2)
+// var peer = Math.random().toString(36).substr(2)
 
 // ***************************
 // http
 // ***************************
 
 function braidify_http (http) {
-    // Todo:  Wrap .put to add `peer` header
     http.normal_get = http.get
     http.get = function braid_req (arg1, arg2, arg3) {
         var url, options, cb
@@ -45,8 +44,8 @@ function braidify_http (http) {
         if (options.subscribe)
             options.headers.subscribe = 'true'
 
-        // Always add the `peer` header
-        options.headers.peer = options.headers.peer || peer
+        // // Always add the `peer` header
+        // options.headers.peer = options.headers.peer || peer
 
         // Wrap the callback to provide our new .on('update', ...) feature
         // on nodejs servers
@@ -158,8 +157,8 @@ async function braid_fetch (url, params = {}) {
         console.assert(Array.isArray(params.parents),
                        'fetch(): `parents` must be an array')
 
-    // Always set the peer
-    params.headers.set('peer', peer)
+    // // Always set the peer
+    // params.headers.set('peer', peer)
 
     // We provide some shortcuts for Braid params
     if (params.version)
@@ -168,6 +167,8 @@ async function braid_fetch (url, params = {}) {
         params.headers.set('parents', params.parents.map(JSON.stringify).join(', '))
     if (params.subscribe)
         params.headers.set('subscribe', 'true')
+    if (params.peer)
+        params.header.set('peer', params.peer)
 
     // Prevent browsers from going to disk cache
     params.cache = 'no-cache'
