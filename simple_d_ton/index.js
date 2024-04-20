@@ -1,4 +1,4 @@
-console.log("v11")
+console.log("v12")
 
 let { Doc, Branch, OpLog } = require("diamond-types-node")
 let braidify = require("braid-http").http_server
@@ -28,14 +28,14 @@ async function simple_d_ton(req, res, options = {}) {
 
     function my_end(statusCode, x) {
         res.statusCode = statusCode
-        res.end(x)
+        res.end(x ?? '')
     }
 
     if (req.method == "OPTIONS") return my_end(200)
 
     if (req.method == "DELETE") {
         await resource.delete_me()
-        return my_end(200, "ok!")
+        return my_end(200)
     }
 
     if ((req.method == "GET" || req.method == "HEAD") && req.subscribe) {
@@ -314,7 +314,7 @@ async function simple_d_ton(req, res, options = {}) {
         let v_after = resource.doc.getLocalVersion()
         if (JSON.stringify(v_before) === JSON.stringify(v_after)) {
             console.log(`we got a version we already had: ${v_before}`)
-            return done_my_turn(200, "ok!")
+            return done_my_turn(200)
         }
 
         await resource.db_delta(resource.doc.getPatchSince(v_before))
@@ -416,7 +416,7 @@ async function simple_d_ton(req, res, options = {}) {
             if (client.my_peer != peer) client.sendVersion(x)
         }
 
-        return done_my_turn(200, "ok!")
+        return done_my_turn(200)
     }
 
     throw new Error("unknown")
