@@ -132,6 +132,8 @@ async function simple_d_ton(req, res, options = {}) {
     }
 
     if ((req.method == "GET" || req.method == "HEAD") && !req.subscribe) {
+        let desired_type = req.headers.accept?.split(',')[0]
+        res.setHeader("Content-Type", (desired_type == "text/html" && options.key.endsWith('.html')) ? "text/html" : "text/plain")
         res.setHeader("Accept-Subscribe", "true")
 
         let doc = null
@@ -197,7 +199,6 @@ async function simple_d_ton(req, res, options = {}) {
         } else doc = resource.doc
         const buffer = Buffer.from(doc.get(), "utf8")
 
-        res.setHeader("Content-Type", req.headers.accept?.split(',')[0] ?? "text/plain")
         res.setHeader("Content-Length", buffer.length)
 
         res.setHeader(
