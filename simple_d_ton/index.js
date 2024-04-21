@@ -41,7 +41,7 @@ async function simple_d_ton(req, res, options = {}) {
     if ((req.method == "GET" || req.method == "HEAD") && req.subscribe) {
         res.setHeader("Content-Type", "text/plain")
         res.setHeader("Editable", "true")
-        if (req.headers["merge-type"] == "simpleton") {
+        if (req.headers["merge-type"] != "dt") {
             res.setHeader("Merge-Type", "simpleton")
 
             if (req.method == "HEAD") return my_end(200)
