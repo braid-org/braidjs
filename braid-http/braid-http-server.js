@@ -355,7 +355,7 @@ function send_update(res, data, url, peer) {
 
     // Write the patches or body
     if (typeof body === 'string') {
-        set_header('Content-Length', body.length)
+        set_header('Content-Length', (new TextEncoder().encode(body)).length)
         write_body(body)
     } else
         res.write(generate_patches(res, patches))
