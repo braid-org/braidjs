@@ -351,7 +351,7 @@ async function simple_d_ton(req, res, options = {}) {
                 }
 
                 if (client.my_timeout) {
-                    if (client.my_peer == m.peer) {
+                    if (client.my_peer == peer) {
                         if (!v_eq(client.my_last_sent_version, req.parents)) {
                             // note: we don't add to client.my_unused_version_count,
                             // because we're already in a timeout;
