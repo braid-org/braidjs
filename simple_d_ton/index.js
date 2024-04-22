@@ -318,9 +318,7 @@ async function simple_d_ton(req, res, options = {}) {
             return done_my_turn(200)
         }
 
-        await resource.db_delta(resource.doc.getPatchSince(v_before))
-
-        if (req.headers["merge-type"] == "simpleton") {
+        if (req.headers["merge-type"] != "dt") {
             patches = get_xf_patches(resource.doc, v_before)
             console.log(JSON.stringify({ patches }))
 
@@ -416,6 +414,8 @@ async function simple_d_ton(req, res, options = {}) {
         for (let client of resource.clients) {
             if (client.my_peer != peer) client.sendVersion(x)
         }
+
+        await resource.db_delta(resource.doc.getPatchSince(v_before))
 
         return done_my_turn(200)
     }
