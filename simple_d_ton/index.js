@@ -22,6 +22,8 @@ async function simple_d_ton(req, res, options = {}) {
     let peer = req.headers["peer"]
     res.my_peer = peer
 
+    let desired_type = req.headers.accept?.split(',')[0]
+
     res.setHeader("Access-Control-Allow-Origin", "*")
     res.setHeader("Access-Control-Allow-Methods", "*")
     res.setHeader("Access-Control-Allow-Headers", "*")
@@ -38,8 +40,8 @@ async function simple_d_ton(req, res, options = {}) {
         return my_end(200)
     }
 
-    if ((req.method == "GET" || req.method == "HEAD") && req.subscribe) {
-        res.setHeader("Content-Type", "text/plain")
+    if ((req.method == "GET" || req.method == "HEAD") && (desired_type == "text/plain") && req.subscribe) {
+        res.setHeader("Content-Type", desired_type)
         res.setHeader("Editable", "true")
         if (req.headers["merge-type"] != "dt") {
             res.setHeader("Merge-Type", "simpleton")
@@ -132,7 +134,6 @@ async function simple_d_ton(req, res, options = {}) {
     }
 
     if ((req.method == "GET" || req.method == "HEAD") && !req.subscribe) {
-        let desired_type = req.headers.accept?.split(',')[0]
         res.setHeader("Content-Type", (desired_type == "text/html" && options.key.endsWith('.html')) ? "text/html" : "text/plain")
         res.setHeader("Accept-Subscribe", "true")
 
