@@ -133,7 +133,7 @@ async function simple_d_ton(req, res, options = {}) {
         return
     }
 
-    if ((req.method == "GET" || req.method == "HEAD") && !req.subscribe) {
+    if (req.method == "GET" || req.method == "HEAD") {
         res.setHeader("Content-Type", (desired_type == "text/html" && options.key.endsWith('.html')) ? "text/html" : "text/plain")
         res.setHeader("Accept-Subscribe", "true")
 
