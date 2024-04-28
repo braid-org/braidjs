@@ -1,6 +1,6 @@
 {
   "name": "@braid.org/json-patch",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Patch JSON",
   "main": "apply-patch.js",
   "scripts": {

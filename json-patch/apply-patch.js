@@ -70,8 +70,8 @@ function apply_patch (obj, range, content) {
         // Otherwise, descend down the path
         console.assert(!slice_start, 'No splices allowed in middle of path')
         last_obj = curr_obj
-        last_field = field
-        curr_obj = curr_obj[field || slice_end]
+        last_field = field || slice_end
+        curr_obj = curr_obj[last_field]
         path = path.substr(subpath.length)
     }
 }
