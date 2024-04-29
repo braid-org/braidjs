@@ -1,8 +1,7 @@
-console.log("v12")
+console.log("v13")
 
 let { Doc, Branch, OpLog } = require("diamond-types-node")
 let braidify = require("braid-http").http_server
-let apply_patch = require("@braid.org/json-patch")
 let fs = require("fs")
 
 let waiting_puts = 0
@@ -27,6 +26,7 @@ async function simple_d_ton(req, res, options = {}) {
     res.setHeader("Access-Control-Allow-Origin", "*")
     res.setHeader("Access-Control-Allow-Methods", "*")
     res.setHeader("Access-Control-Allow-Headers", "*")
+    res.setHeader("Access-Control-Expose-Headers", "*")
 
     function my_end(statusCode, x) {
         res.statusCode = statusCode
