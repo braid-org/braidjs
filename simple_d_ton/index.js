@@ -40,7 +40,7 @@ async function simple_d_ton(req, res, options = {}) {
         return my_end(200)
     }
 
-    if ((req.method == "GET" || req.method == "HEAD") && (desired_type == "text/plain") && req.subscribe) {
+    if ((req.method == "GET" || req.method == "HEAD") && (desired_type != "text/html") && req.subscribe) {
         res.setHeader("Content-Type", desired_type)
         res.setHeader("Editable", "true")
         if (req.headers["merge-type"] != "dt") {
@@ -134,7 +134,7 @@ async function simple_d_ton(req, res, options = {}) {
     }
 
     if (req.method == "GET" || req.method == "HEAD") {
-        res.setHeader("Content-Type", (desired_type == "text/html" && options.key.endsWith('.html')) ? "text/html" : "text/plain")
+        res.setHeader("Content-Type", desired_type)
         res.setHeader("Accept-Subscribe", "true")
 
         let doc = null
@@ -734,7 +734,7 @@ function parseDT(byte_array) {
 }
 
 function OpLog_create_bytes(version, parents, pos, ins) {
-    console.log(`args = ${JSON.stringify({ version, parents, pos, ins }, null, 4)}`)
+    // console.log(`args = ${JSON.stringify({ version, parents, pos, ins }, null, 4)}`)
 
     function write_varint(bytes, value) {
         while (value >= 0x80) {
