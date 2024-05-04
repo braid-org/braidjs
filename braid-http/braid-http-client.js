@@ -131,7 +131,7 @@ if (is_nodejs) {
     normal_fetch = require('node-fetch')
     AbortController = require('abort-controller')
     Headers = normal_fetch.Headers
-    var to_whatwg_stream = require('node-web-streams').toWebReadableStream
+    var to_whatwg_stream = require('web-streams-node').toWebReadableStream
 } else {
     // Web Browser
     normal_fetch = window.fetch

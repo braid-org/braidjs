@@ -1,6 +1,6 @@
 {
   "name": "braid-http",
-  "version": "0.3.8",
+  "version": "0.3.11",
   "description": "An implementation of Braid-HTTP for Node.js and Browsers",
   "scripts": {
     "test": "node test/server.js"
@@ -27,7 +27,7 @@
   "dependencies": {
     "abort-controller": "^3.0.0",
     "node-fetch": "^2.6.1",
-    "node-web-streams": "^0.2.2",
-    "parse-headers": "^2.0.3"
+    "parse-headers": "^2.0.3",
+    "web-streams-node": "^0.4.0"
   }
 }

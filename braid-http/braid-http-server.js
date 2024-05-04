@@ -233,8 +233,9 @@ function braidify (req, res, next) {
 
             res.isSubscription = true
 
-            // Let's disable the timeouts
-            req.socket.server.timeout = 0.0
+            // Let's disable the timeouts (if it exists)
+            if (req.socket.server)
+                req.socket.server.timeout = 0.0
 
             // We have a subscription!
             res.statusCode = 209
