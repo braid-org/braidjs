@@ -11,7 +11,7 @@
 
 <script>
 
-console.log('0.0.22')
+console.log('0.0.24')
 
 var wiki_host = "__WIKI_HOST__"
 
@@ -179,7 +179,7 @@ async function create_antimatter_client(url, cb, on_receive) {
             if (ws.readyState > 1) return clearInterval(interval)
             if (!openned) return
             console.log('INTERVAL')
-            localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`])[1], Date.now()])
+            localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] ?? 'null')?.[1] ?? Date.now(), Date.now()])
         }, interval_ms)
 
         ws.onclose = () => {
