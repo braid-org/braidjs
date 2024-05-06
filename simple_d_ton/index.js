@@ -243,6 +243,7 @@ async function simple_d_ton(req, res, options = {}) {
         patches = patches.map((p) => ({
             ...p,
             range: p.range.match(/\d+/g).map((x) => parseInt(x)),
+            ...(p.content ? {content: [...p.content]} : {}),
         }))
 
         let og_v = req.version[0] || `${Math.random().toString(36).slice(2, 7)}-0`
