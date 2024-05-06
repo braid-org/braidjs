@@ -604,6 +604,7 @@ function OpLog_get_patches(bytes, op_runs) {
         let parents = parentss[i].map((x) => x.join("-"))
         let start = op_run.start
         let end = start + 1
+        if (op_run.content) op_run.content = [...op_run.content]
         let content = op_run.content?.[0]
         let len = op_run.end - op_run.start
         for (let j = 1; j <= len; j++) {
