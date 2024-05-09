@@ -54,7 +54,7 @@ function generate_patches(res, patches) {
 
         let extra_headers = Object.fromEntries(Object.entries(patch).filter(([k, v]) => k != 'unit' && k != 'range' && k != 'content'))
 
-        result += `Content-Length: ${patch.content.length}\r
+        result += `Content-Length: ${(new TextEncoder().encode(patch.content)).length}\r
 Content-Range: ${patch.unit} ${patch.range}\r
 ${Object.entries(extra_headers).map(([k, v]) => `${k}: ${v}\r\n`).join('')}\r
 ${patch.content}`
@@ -89,12 +89,12 @@ function parse_patches (req, cb) {
         var [unit, range] = parse_content_range(req.headers['content-range'])
 
         // The contents of the patch is in the request body
-        var buffer = ''
+        var buffer = []
         // Read the body one chunk at a time
-        req.on('data', chunk => buffer = buffer + chunk)
+        req.on('data', chunk => buffer.push(chunk))
         // Then return it
         req.on('end', () => {
-            patches = [{unit, range, content: buffer}]
+            patches = [{unit, range, content: Buffer.concat(buffer).toString('utf8')}]
             cb(patches)
         })
     }
@@ -103,7 +103,7 @@ function parse_patches (req, cb) {
     else {
         num_patches = parseInt(num_patches)
         let patches = []
-        let buffer = ""
+        let buffer = []
 
         // We check to send send patches each time we parse one.  But if there
         // are zero to parse, we will never check to send them.
@@ -113,57 +113,39 @@ function parse_patches (req, cb) {
         req.on('data', function parse (chunk) {
 
             // Merge the latest chunk into our buffer
-            buffer = (buffer + chunk)
+            buffer.push(...chunk)
 
             while (patches.length < num_patches) {
-                // We might have extra newlines at the start, because patches
-                // can be separated by arbitrary numbers of newlines
-                buffer = buffer.trimStart()
-
-                // First parse the patch headers.  It ends with a double-newline.
-                // Let's see where that is.
-                var headers_end = buffer.match(/(\r?\n)(\r?\n)/)
-
-                // Give up if we don't have a set of headers yet.
-                if (!headers_end)
-                    return
-
-                // Now we know where things end
-                var first_newline = headers_end[1],
-                    headers_length = headers_end.index + first_newline.length,
-                    blank_line = headers_end[2]
+                let h = extractHeader(buffer)
+                if (!h) return
 
                 // Now let's parse those headers.
-                var headers = require('parse-headers')(
-                    buffer.substring(0, headers_length)
-                )
+                var headers = require('parse-headers')(h.header_string)
 
                 // We require `content-length` to declare the length of the patch.
                 if (!('content-length' in headers)) {
                     // Print a nice error if it's missing
                     console.error('No content-length in', JSON.stringify(headers),
-                                  'from', {buffer, headers_length})
+                                  'from', {buffer})
                     process.exit(1)
                 }
 
                 var body_length = parseInt(headers['content-length'])
 
                 // Give up if we don't have the full patch yet.
-                if (buffer.length < headers_length + blank_line.length + body_length)
+                if (h.remaining_bytes.length < body_length)
                     return
 
                 // XX Todo: support custom patch types beyond content-range.
 
                 // Content-range is of the form '<unit> <range>' e.g. 'json .index'
                 var [unit, range] = parse_content_range(headers['content-range'])
-                var patch_content =
-                    buffer.substring(headers_length + blank_line.length,
-                                     headers_length + blank_line.length + body_length)
+                var patch_content = new TextDecoder('utf-8').decode(new Uint8Array(h.remaining_bytes.slice(0, body_length)))
 
                 // We've got our patch!
                 patches.push({unit, range, content: patch_content})
 
-                buffer = buffer.substring(headers_length + blank_line.length + body_length)
+                buffer = h.remaining_bytes.slice(body_length)
             }
 
             // We got all the patches!  Pause the stream and tell the callback!
@@ -375,5 +357,58 @@ function send_update(res, data, url, peer) {
     }
 }
 
+// a parsing utility function that will inspect a byte array of incoming data
+// to see if there is header information at the beginning,
+// namely some non-newline characters followed by two newlines
+function extractHeader(input) {
+    // Find the start of the headers
+    let begin_headers_i = 0;
+    while (input[begin_headers_i] === 13 || input[begin_headers_i] === 10) {
+        begin_headers_i++;
+    }
+    if (begin_headers_i === input.length) {
+        return null; // Incomplete headers
+    }
+
+    // Look for the double-newline at the end of the headers
+    let end_headers_i = begin_headers_i;
+    let size_of_tail = 0;
+    while (end_headers_i < input.length) {
+        if (input[end_headers_i] === 10 && input[end_headers_i + 1] === 10) {
+            size_of_tail = 2;
+            break;
+        }
+        if (input[end_headers_i] === 10 && input[end_headers_i + 1] === 13 && input[end_headers_i + 2] === 10) {
+            size_of_tail = 3;
+            break;
+        }
+        if (input[end_headers_i] === 13 && input[end_headers_i + 1] === 10 && input[end_headers_i + 2] === 10) {
+            size_of_tail = 3;
+            break;
+        }
+        if (input[end_headers_i] === 13 && input[end_headers_i + 1] === 10 && input[end_headers_i + 2] === 13 && input[end_headers_i + 3] === 10) {
+            size_of_tail = 4;
+            break;
+        }
+
+        end_headers_i++;
+    }
+
+    // If no double-newline is found, wait for more input
+    if (end_headers_i === input.length) {
+        return null; // Incomplete headers
+    }
+
+    // Extract the header string
+    const headerBytes = input.slice(begin_headers_i, end_headers_i);
+    const headerString = new TextDecoder('utf-8').decode(new Uint8Array(headerBytes));
+
+    // Return the remaining bytes and the header string
+    const remainingBytes = input.slice(end_headers_i + size_of_tail);
+    return {
+        remaining_bytes: remainingBytes,
+        header_string: headerString
+    };
+}
 
 module.exports = braidify
