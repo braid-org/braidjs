@@ -979,11 +979,11 @@ function relative_to_absolute_patches(patches) {
                 }
                 let x = { size: 0, left_size: 0, content: p.content, del }
                 avl.add(node, "left", x)
-                resize(x, x.content.length)
+                resize(x, count_code_points(x.content))
                 resize(node, node.size - (start + del))
             } else {
-                node.content = node.content.slice(0, start) + p.content + node.content.slice(start + del)
-                resize(node, node.content.length)
+                node.content = node.content.slice(0, codePoints_to_index(node.content, start)) + p.content + node.content.slice(codePoints_to_index(node.content, start + del))
+                resize(node, count_code_points(node.content))
             }
         } else {
             let next
@@ -1000,7 +1000,7 @@ function relative_to_absolute_patches(patches) {
                     if (start == 0) {
                         node.content = p.content
                         node.del = node.size + middle_del + remaining
-                        resize(node, node.content.length)
+                        resize(node, count_code_points(node.content))
                     } else {
                         let x = {
                             size: 0,
@@ -1010,26 +1010,26 @@ function relative_to_absolute_patches(patches) {
                         }
                         resize(node, start)
                         avl.add(node, "right", x)
-                        resize(x, x.content.length)
+                        resize(x, count_code_points(x.content))
                     }
                     resize(next, next.size - remaining)
                 } else {
                     next.del += node.size - start + middle_del
-                    next.content = p.content + next.content.slice(remaining)
+                    next.content = p.content + next.content.slice(codePoints_to_index(next.content, remaining))
                     resize(node, start)
                     if (node.size == 0) avl.del(node)
-                    resize(next, next.content.length)
+                    resize(next, count_code_points(next.content))
                 }
             } else {
                 if (next.content == null) {
                     node.del += middle_del + remaining
-                    node.content = node.content.slice(0, start) + p.content
-                    resize(node, node.content.length)
+                    node.content = node.content.slice(0, codePoints_to_index(node.content, start)) + p.content
+                    resize(node, count_code_points(node.content))
                     resize(next, next.size - remaining)
                 } else {
                     node.del += middle_del + next.del
-                    node.content = node.content.slice(0, start) + p.content + next.content.slice(remaining)
-                    resize(node, node.content.length)
+                    node.content = node.content.slice(0, codePoints_to_index(node.content, start)) + p.content + next.content.slice(codePoints_to_index(next.content, remaining))
+                    resize(node, count_code_points(node.content))
                     resize(next, 0)
                     avl.del(next)
                 }
@@ -1169,6 +1169,37 @@ function create_avl_tree(on_rotate) {
     }
 
     return self
+}
+
+function count_code_points(str) {
+  let code_points = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str.charCodeAt(i) >= 0xD800 && str.charCodeAt(i) <= 0xDBFF) i++;
+    code_points++;
+  }
+  return code_points;
+}
+
+function index_to_codePoints(str, index) {
+  let i = 0
+  let c = 0
+  while (i < index && i < str.length) {
+    const charCode = str.charCodeAt(i)
+    i += (charCode >= 0xd800 && charCode <= 0xdbff) ? 2 : 1
+    c++
+  }
+  return c
+}
+
+function codePoints_to_index(str, codePoints) {
+  let i = 0
+  let c = 0
+  while (c < codePoints && i < str.length) {
+    const charCode = str.charCodeAt(i)
+    i += (charCode >= 0xd800 && charCode <= 0xdbff) ? 2 : 1
+    c++
+  }
+  return i
 }
 
 module.exports = { simple_d_ton }
