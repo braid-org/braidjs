@@ -1,6 +1,6 @@
 {
   "name": "simple_d_ton",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "description": "Serve diamond-types and simpleton requests.",
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",

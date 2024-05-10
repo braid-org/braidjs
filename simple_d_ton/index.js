@@ -41,7 +41,7 @@ async function simple_d_ton(req, res, options = {}) {
     }
 
     if ((req.method == "GET" || req.method == "HEAD") && (desired_type != "text/html") && req.subscribe) {
-        res.setHeader("Content-Type", desired_type)
+        res.setHeader("Content-Type", desired_type + '; charset=utf-8')
         res.setHeader("Editable", "true")
         if (req.headers["merge-type"] != "dt") {
             res.setHeader("Merge-Type", "simpleton")
@@ -134,7 +134,7 @@ async function simple_d_ton(req, res, options = {}) {
     }
 
     if (req.method == "GET" || req.method == "HEAD") {
-        res.setHeader("Content-Type", desired_type)
+        res.setHeader("Content-Type", desired_type + '; charset=utf-8')
         res.setHeader("Accept-Subscribe", "true")
 
         let doc = null
