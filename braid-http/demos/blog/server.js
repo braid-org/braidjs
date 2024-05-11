@@ -103,7 +103,7 @@ app.put('/post/:id', async (req, res) => {
 
 // Now serve the HTML and client files
 sendfile = (f) => (req, res) => res.sendFile(f, {root:'../..'})
-app.get('/',                     sendfile('demos/blog3/client.html'));
+app.get('/',                     sendfile('demos/blog/client.html'));
 app.get('/braid-http-client.js', sendfile('braid-http-client.js'))
 app.use('/statebus', require('express').static('statebus'))
 
