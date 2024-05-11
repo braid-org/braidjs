@@ -1,6 +1,6 @@
 {
   "name": "simpleton_braid",
-  "version": "0.1.5",
+  "version": "0.2.1",
   "description": "An implementation of the simpleton protocol for Node.js and Browsers",
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
