@@ -62,8 +62,8 @@ require('http').createServer(
 
         // We'll accept Braid at the /json PUTs!
         if (req.url === '/json' && req.method === 'PUT') {
-            req.patches().then(patches => {
-                console.log('We got PUT', req.version, 'patches', patches)
+            req.parseUpdate().then(update => {
+                console.log('We got PUT', req.version, 'update', update)
                 res.statusCode = 200
                 res.end()
             })

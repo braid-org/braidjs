@@ -63,17 +63,27 @@ ${patch.content}`
 }
 
 
-// This function reads num_patches in pseudoheader format from a
-// ReadableStream and then fires a callback when they're finished.
+// Deprecated method for legacy support
 function parse_patches (req, cb) {
+    parse_update(req, update => {
+        if (update.body)
+            // Return body as an "everything" patch
+            cb([{unit: 'everything', range: '', content: update.body}])
+        else
+            cb(update.patches)
+    })
+}
+
+// This function reads an update (either a set of patches, or a body) from a
+// ReadableStream and then fires a callback when finished.
+function parse_update (req, cb) {
     var num_patches = req.headers.patches
 
-    // Parse a request body as an "everything" patch
     if (!num_patches && !req.headers['content-range']) {
         var body = ''
         req.on('data', chunk => {body += chunk.toString()})
         req.on('end', () => {
-            cb([{unit: 'everything', range: '', content: body}])
+            cb({ body, patches: undefined })
         })
     }
 
@@ -95,7 +105,7 @@ function parse_patches (req, cb) {
         // Then return it
         req.on('end', () => {
             patches = [{unit, range, content: Buffer.concat(buffer).toString('utf8')}]
-            cb(patches)
+            cb({ patches, body: undefined })
         })
     }
 
@@ -108,7 +118,7 @@ function parse_patches (req, cb) {
         // We check to send send patches each time we parse one.  But if there
         // are zero to parse, we will never check to send them.
         if (num_patches === 0)
-            return cb([])
+            return cb({ patches: [], body: undefined })
 
         req.on('data', function parse (chunk) {
 
@@ -150,7 +160,7 @@ function parse_patches (req, cb) {
 
             // We got all the patches!  Pause the stream and tell the callback!
             req.pause()
-            cb(patches)
+            cb({ patches, body: undefined })
         })
         req.on('end', () => {
             // If the stream ends before we get everything, then return what we
@@ -195,6 +205,9 @@ function braidify (req, res, next) {
     // Add the braidly request/response helper methods
     res.sendUpdate = (stuff) => send_update(res, stuff, req.url, peer)
     res.sendVersion = res.sendUpdate
+    req.parseUpdate = () => new Promise(
+        (done, err) => parse_update(req, (update) => done(update))
+    )
     req.patches = () => new Promise(
         (done, err) => parse_patches(req, (patches) => done(patches))
     )

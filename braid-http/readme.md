@@ -129,7 +129,7 @@ async function connect () {
 Braidify adds these fields and methods to requests and responses:
 - `req.subscribe`
 - `req.startSubscription({onClose: cb})`
-- `await req.patches()`
+- `await req.parseUpdate()`
 - `res.sendUpdate()`
 
 Use it like this:
