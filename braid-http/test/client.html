@@ -133,8 +133,8 @@ function evaluate_tests () {
             document.body.style.backgroundColor = '#fee'
             document.writeln('<h1 id=passfail>Failed! :(</h1>')
         }
-        document.writeln('<h2>Our Results</h2><pre>' + test_results + '</pre>')
-        document.writeln('<h2>Known Results</h2><pre>' + known_results + '</pre>')
+        document.writeln("<h2>Your Server's Responses</h2><pre>" + test_results + '</pre>')
+        document.writeln("<h2>Known Server Responses</h2><pre>" + known_results + '</pre>')
     })
 }
 setTimeout(evaluate_tests, 300)
