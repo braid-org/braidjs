@@ -105,7 +105,6 @@ app.put('/post/:id', async (req, res) => {
 sendfile = (f) => (req, res) => res.sendFile(f, {root:'../..'})
 app.get('/',                     sendfile('demos/blog/client.html'));
 app.get('/braid-http-client.js', sendfile('braid-http-client.js'))
-app.use('/statebus', require('express').static('statebus'))
 
 // Free the CORS!
 function free_the_cors (req, res, next) {
