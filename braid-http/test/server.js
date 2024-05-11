@@ -32,7 +32,8 @@ require('http').createServer(
                     VersiOn: ['test1'],             // Upper/lowercase is ignored
                     ParEnts: ['oldie', 'goodie'],
                     patch: {unit: 'json', range: '[1]', content: '1'},
-                    hash: '42'
+                    hash: '42',
+                    ':status': '115'
                 })
 
                 // Send a patch as array

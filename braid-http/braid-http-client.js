@@ -455,7 +455,7 @@ function parse_headers (input) {
     
     // Let's parse them!  First define some variables:
     var headers = {},
-        header_regex = /([\w-_]+):\s?(.*)\r?\n?/gy,  // Parses one line a time
+        header_regex = /(:?[\w-_]+):\s?(.*)\r?\n?/gy,  // Parses one line a time
         match,
         found_last_match = false
 
