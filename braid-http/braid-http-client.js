@@ -377,7 +377,7 @@ var subscription_parser = (cb) => ({
 
             // Maybe we parsed an update!  That's cool!
             if (this.state.result === 'success') {
-                this.cb({
+                var update = {
                     version: this.state.version,
                     parents: this.state.parents,
                     body:    this.state.body,
@@ -385,7 +385,10 @@ var subscription_parser = (cb) => ({
 
                     // Output extra_headers if there are some
                     extra_headers: extra_headers(this.state.headers)
-                })
+                }
+                for (var k in update)
+                    if (update[k] === undefined) delete update[k]
+                this.cb(update)
 
                 // Reset the parser for the next version!
                 this.state = {input: this.state.input}
