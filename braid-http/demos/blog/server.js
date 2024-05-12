@@ -27,6 +27,7 @@ var braidify = require('../../index.js').http_server
 var app = require('http2-express-bridge')(require('express'))
 
 // Middleware
+app.use(log_request)
 app.use(free_the_cors)
 app.use(braidify)
 
@@ -61,10 +62,9 @@ app.get('/post/:id', getter)
 app.put('/blog', async (req, res) => {
     var patches = (await req.parseUpdate()).patches
 
+    console.log('Extending /blog with!', patches)
     // assert(patches.length === 1)
     // assert(patches[0].range === '[-0:-0]')
-
-    console.log('PUT new blog post!', {patches})
 
     resources['/blog'].push(JSON.parse(patches[0].content))
 
@@ -83,8 +83,7 @@ app.put('/blog', async (req, res) => {
 app.put('/post/:id', async (req, res) => {
     var update = await req.parseUpdate()
 
-    console.log('PUT new post with', {update})
-
+    console.log('Setting', req.url, 'with', update)
     assert(typeof update.body === 'string')
 
     resources[req.url] = JSON.parse(update.body)
@@ -106,9 +105,13 @@ sendfile = (f) => (req, res) => res.sendFile(f, {root:'../..'})
 app.get('/',                     sendfile('demos/blog/client.html'));
 app.get('/braid-http-client.js', sendfile('braid-http-client.js'))
 
-// Free the CORS!
+
+// Define Middleware
+function log_request (req, res, next) {
+    console.log(req.method, req.url)
+    next()
+}
 function free_the_cors (req, res, next) {
-    console.log('free the cors!', req.method, req.url)
     res.setHeader('Range-Request-Allow-Methods', 'PATCH, PUT')
     res.setHeader('Range-Request-Allow-Units', 'json')
     res.setHeader("Patches", "OK")
@@ -124,6 +127,7 @@ function free_the_cors (req, res, next) {
     } else
         next()
 }
+
 
 // Launch the https server
 var server = require('http2').createSecureServer(
