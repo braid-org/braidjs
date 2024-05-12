@@ -17,7 +17,6 @@ dom.BODY = ->
 
     # Add it to the blog
     blog = state['/blog']
-    console.log('Gonna push onto', blog, 'which is', blog?.push)
     blog.push({link: '/post/' + post_id})
 
   DIV
@@ -100,34 +99,34 @@ var curr_version = {}
 window.statebus_ready = [() => {
     // This is how we fetch the /blog state
     bus('/*').getter = (key, old, t) => {
-      var url = new URL(key, base_url)
-      function subscribe () {
-        // console.log('Subscribing to', {key, url},
-        //             'exists?', bus.gets_out[key].length)
-        // if (!bus.gets_out[key]) return
-        braid_fetch(url, {subscribe: true, peer: peerid}).then(
-          response => response.subscribe(
-            update => {
-              console.log('We got an update!', update)
-              console.assert(
-                !curr_version[key] || (parseInt(curr_version[key][0]) + 1
-                                       === parseInt(response.version[0])),
-                'Bad versions:' + JSON.stringify(
-                  {curr_version, res_ver:response.version}
-                )
-              )
+        var url = new URL(key, base_url)
+        function subscribe () {
+            // console.log('Subscribing to', {key, url},
+            //             'exists?', bus.gets_out[key].length)
+            // if (!bus.gets_out[key]) return
+            braid_fetch(url, {subscribe: true, peer: peerid}).then(
+                response => response.subscribe(
+                    update => {
+                        console.log('We got an update!', update)
+                        console.assert(
+                            !curr_version[key] || (parseInt(curr_version[key][0]) + 1
+                                                   === parseInt(response.version[0])),
+                            'Bad versions:' + JSON.stringify(
+                                {curr_version, res_ver:response.version}
+                            )
+                        )
 
-              curr_version[key] = response.version
-              if (update.patches)
-                t.return(apply_patches(update.patches, old))
-              else
-                t.return({key: key, val: bus.escape_to_nelson(JSON.parse(update.body))})
-            },
-            e => setTimeout(subscribe, 1000)
-          )
-        ).catch(e => setTimeout(subscribe, 1000))
-      }
-      subscribe()
+                        curr_version[key] = response.version
+                        if (update.patches)
+                            t.return(apply_patches(update.patches, old))
+                        else
+                            t.return({key: key, val: bus.escape_to_nelson(JSON.parse(update.body))})
+                    },
+                    e => setTimeout(subscribe, 1000)
+                )
+            ).catch(e => setTimeout(subscribe, 1000))
+        }
+        subscribe()
     }
 
     // This is how we save the /blog state
