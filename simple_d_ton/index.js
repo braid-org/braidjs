@@ -21,7 +21,7 @@ async function simple_d_ton(req, res, options = {}) {
     let peer = req.headers["peer"]
     res.my_peer = peer
 
-    let desired_type = req.headers.accept?.split(',')[0]
+    let desired_type = options.type ?? req.headers.accept?.split(',')[0]
 
     res.setHeader("Access-Control-Allow-Origin", "*")
     res.setHeader("Access-Control-Allow-Methods", "*")
