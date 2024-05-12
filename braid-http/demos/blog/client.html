@@ -89,8 +89,6 @@ resizebox = (target) ->
 
 </script>
 <script>
-//var base_url = 'https://invisible.college:3099/'
-var base_url = 'https://localhost:3009/'
 var peerid = Math.random().toString(36).substr(3)
 
 // Connect the Braid Blog as a state backend to Statebus
@@ -99,12 +97,11 @@ var curr_version = {}
 window.statebus_ready = [() => {
     // This is how we fetch the /blog state
     bus('/*').getter = (key, old, t) => {
-        var url = new URL(key, base_url)
         function subscribe () {
             // console.log('Subscribing to', {key, url},
             //             'exists?', bus.gets_out[key].length)
             // if (!bus.gets_out[key]) return
-            braid_fetch(url, {subscribe: true, peer: peerid}).then(
+            braid_fetch(key, {subscribe: true, peer: peerid}).then(
                 response => response.subscribe(
                     update => {
                         console.log('We got an update!', update)
@@ -130,24 +127,23 @@ window.statebus_ready = [() => {
     }
 
     // This is how we save the /blog state
-    bus('/*').setter = (o, t) => {
+    bus('/*').setter = (obj, t) => {
         curr_version++
-        if (o.key === '/blog') {
+        if (obj.key === '/blog') {
             var patches = [{
                 unit: 'json',
                 range: '[-0:-0]',
                 content: JSON.stringify(
-                  bus.unescape_from_nelson(bus.unescape_from_bus(o.val[o.val.length-1]))
+                  bus.unescape_from_nelson(bus.unescape_from_bus(obj.val[obj.val.length-1]))
                 )
             }]
             var body = undefined
         }
         else {
             var patches = undefined
-            var body = JSON.stringify(o.val)
+            var body = JSON.stringify(obj.val)
         }
-        var url = new URL(o.key, base_url)
-        braid_fetch(url, {
+        braid_fetch(obj.key, {
             method: 'PUT',
             peer: peerid,
             headers: {'Content-Type': 'application/json'},
@@ -165,7 +161,6 @@ window.statebus_ready = [() => {
 
 // This is how we apply a braid patch to our blog state
 function apply_patches (patches, object) {
-    console.log('applying patches', {patches, object})
     for (patch of patches)
         // There are only two types of patches we could receive
         if (patch.range === '')
