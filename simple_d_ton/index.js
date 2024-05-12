@@ -239,6 +239,11 @@ async function simple_d_ton(req, res, options = {}) {
         let patches = await req.patches()
         await my_prev_put_p
 
+        if (patches[0]?.unit === 'everything') {
+            patches[0].unit = 'text'
+            patches[0].range = `[0:${count_code_points(resource.doc.get())}]`
+        }
+
         let og_patches = patches
         patches = patches.map((p) => ({
             ...p,
@@ -246,17 +251,20 @@ async function simple_d_ton(req, res, options = {}) {
             ...(p.content ? {content: [...p.content]} : {}),
         }))
 
-        let og_v = req.version[0] || `${Math.random().toString(36).slice(2, 7)}-0`
+        let change_count = patches.reduce((a, b) => a + b.content.length + (b.range[1] - b.range[0]), 0)
+
+        let og_v = req.version[0] || `${Math.random().toString(36).slice(2, 7)}-${change_count - 1}`
 
         // reduce the version sequence by the number of char-edits
         let v = decode_version(og_v)
-        v = encode_version(v[0], v[1] + 1 - patches.reduce((a, b) => a + b.content.length + (b.range[1] - b.range[0]), 0))
+        v = encode_version(v[0], v[1] + 1 - change_count)
 
-        let ps = req.parents
-        if (!ps?.length) ps = ["root"]
+        let parents = resource.doc.getRemoteVersion().map((x) => encode_version(...x))
+        let og_parents = req.parents || parents
+        let ps = og_parents
+        if (!ps.length) ps = ["root"]
 
         let v_before = resource.doc.getLocalVersion()
-        let parents = resource.doc.getRemoteVersion().map((x) => encode_version(...x))
 
         let bytes = []
 
@@ -352,7 +360,7 @@ async function simple_d_ton(req, res, options = {}) {
 
                 if (client.my_timeout) {
                     if (client.my_peer == peer) {
-                        if (!v_eq(client.my_last_sent_version, req.parents)) {
+                        if (!v_eq(client.my_last_sent_version, og_parents)) {
                             // note: we don't add to client.my_unused_version_count,
                             // because we're already in a timeout;
                             // we'll just extend it here..
@@ -368,7 +376,7 @@ async function simple_d_ton(req, res, options = {}) {
 
                 let x = { version }
                 if (client.my_peer == peer) {
-                    if (!v_eq(client.my_last_sent_version, req.parents)) {
+                    if (!v_eq(client.my_last_sent_version, og_parents)) {
                         client.my_unused_version_count = (client.my_unused_version_count ?? 0) + 1
                         set_timeout()
                         continue
@@ -410,7 +418,7 @@ async function simple_d_ton(req, res, options = {}) {
 
         let x = {
             version: [og_v],
-            parents: req.parents,
+            parents: og_parents,
             patches: og_patches,
         }
         for (let client of resource.clients) {
