@@ -129,7 +129,7 @@ window.statebus_ready = [() => {
     // This is how we save the /blog state
     bus('/*').setter = (obj, t) => {
         curr_version++
-        if (obj.key === '/blog') {
+        if (obj.key === '/blog')
             var patches = [{
                 unit: 'json',
                 range: '[-0:-0]',
@@ -137,12 +137,9 @@ window.statebus_ready = [() => {
                   bus.unescape_from_nelson(bus.unescape_from_bus(obj.val[obj.val.length-1]))
                 )
             }]
-            var body = undefined
-        }
-        else {
-            var patches = undefined
+        else
             var body = JSON.stringify(obj.val)
-        }
+
         braid_fetch(obj.key, {
             method: 'PUT',
             peer: peerid,
