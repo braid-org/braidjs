@@ -123,7 +123,7 @@ function parse_update (req, cb) {
         req.on('data', function parse (chunk) {
 
             // Merge the latest chunk into our buffer
-            buffer.push(...chunk)
+            for (let x of chunk) buffer.push(x)
 
             while (patches.length < num_patches) {
                 let h = extractHeader(buffer)
