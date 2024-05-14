@@ -1,6 +1,6 @@
 {
   "name": "braid-http",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "description": "An implementation of Braid-HTTP for Node.js and Browsers",
   "scripts": {
     "test": "node test/server.js"
