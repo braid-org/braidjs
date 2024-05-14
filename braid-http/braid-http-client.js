@@ -229,8 +229,8 @@ async function braid_fetch (url, params = {}) {
 
     // Now we define the subscription function we just used:
     function start_subscription (cb, error) {
-        if (!res.ok)
-            throw new Error('Request returned not ok', res)
+        if (!res.ok) {
+            throw new Error('Request returned not ok status:', res.status)
 
         if (res.bodyUsed)
             // TODO: check if this needs a return
