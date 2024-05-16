@@ -427,6 +427,8 @@ async function simple_d_ton(req, res, options = {}) {
 
         await resource.db_delta(resource.doc.getPatchSince(v_before))
 
+        options.put_cb?.(options.key, resource.doc.get())
+
         return done_my_turn(200)
     }
 
