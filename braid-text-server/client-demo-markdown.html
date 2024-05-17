@@ -1,0 +1,321 @@
+<html lang="en">
+<script type="statebus">
+dom.BODY = -> DIV(WIKI())
+</script>
+<meta name="viewport" content="width=device-width,initial-scale=.62"/>
+
+<script src="https://stateb.us/client6.js"></script>
+<script src="https://invisible.college/js/marked.min.js"></script>
+
+<script src="https://braid.org/code/myers-diff1.js"></script>
+<script>
+    window.statebus_fetch = window.fetch
+    window.fetch = window.og_fetch
+</script>
+<script src="https://unpkg.com/braid-http@~0.3/braid-http-client.js"></script>
+<script>
+    window.fetch = window.statebus_fetch
+</script>
+<script src="https://unpkg.com/simpleton_braid/client.js"></script>
+
+<script>
+
+var apply_patches_and_update_selection, diff, first_time, i, j, render_delay, scroll, simpleton, simpleton_key, t, timer, ting, toggle_editor, update_markdown, update_markdown_later;
+
+simpleton_key = '/' + location.search.slice(1);
+
+t = function() {
+  return document.getElementById('the editor');
+};
+
+simpleton = simpleton_client(simpleton_key, {
+  apply_remote_update: function(x) {
+    if (x.state !== void 0) {
+      t().value = x.state;
+    } else {
+      apply_patches_and_update_selection(t(), x.patches);
+    }
+    state.source = t().value;
+    update_markdown_later();
+    return t().value;
+  },
+  generate_local_diff_update: function(prev_state) {
+    var patches;
+    patches = diff(prev_state, t().value);
+    if (patches.length === 0) {
+      return null;
+    }
+    return {
+      patches: patches,
+      state: t().value
+    };
+  }
+});
+
+window.statebus_ready || (window.statebus_ready = []);
+
+window.statebus_ready.push(function() {
+  state.vert = true;
+  state.editing = false;
+  state.source = '';
+  // Toggle the editor with keyboard or edit button
+  document.body.onkeydown = function(e) {
+    if (e.keyCode === 27) { // Escape key
+      e.stopPropagation();
+      toggle_editor();
+    }
+  };
+  // Switch to vertical layout when you resize
+  window.onresize = function() {
+    return state.vert = window.innerWidth < 1200;
+  };
+  return onresize();
+});
+
+// Diffing and Patching Utilities
+diff = function(before, after) {
+  var d, diff2, j, len, offset, p, patches;
+  diff2 = diff_main(before, after);
+  // Now we just need to reformat the output from diff_main into some
+  // nice json objects
+  patches = [];
+  offset = 0;
+  for (j = 0, len = diff2.length; j < len; j++) {
+    d = diff2[j];
+    p = null;
+    if (d[0] === 1) {
+      p = {
+        range: [offset, offset],
+        content: d[1]
+      };
+    } else if (d[0] === -1) {
+      p = {
+        range: [offset, offset + d[1].length],
+        content: ''
+      };
+      offset += d[1].length;
+    } else {
+      offset += d[1].length;
+    }
+    if (p) {
+      patches.push(p);
+    }
+  }
+  return patches;
+};
+
+apply_patches_and_update_selection = function(textarea, patches) {
+  var i, j, k, l, len, len1, m, offset, original, p, range, ref, ref1, sel;
+  // convert from absolute to relative coordinates
+  offset = 0;
+  for (j = 0, len = patches.length; j < len; j++) {
+    p = patches[j];
+    p.range[0] += offset;
+    p.range[1] += offset;
+    offset -= p.range[1] - p.range[0];
+    offset += p.content.length;
+  }
+  original = textarea.value;
+  sel = [
+    textarea.selectionStart,
+    textarea.selectionEnd // Current cursor & selection
+  ];
+  for (k = 0, len1 = patches.length; k < len1; k++) {
+    p = patches[k];
+    range = p.range;
+// Update the cursor locations
+    for (i = l = 0, ref = sel.length; (0 <= ref ? l < ref : l > ref); i = 0 <= ref ? ++l : --l) {
+      if (sel[i] > range[0]) {
+        if (sel[i] > range[1]) {
+          sel[i] -= range[1] - range[0];
+        } else {
+          sel[i] = range[0];
+        }
+      }
+    }
+    for (i = m = 0, ref1 = sel.length; (0 <= ref1 ? m < ref1 : m > ref1); i = 0 <= ref1 ? ++m : --m) {
+      if (sel[i] > range[0]) {
+        sel[i] += p.content.length;
+      }
+    }
+    // Update the text with the new value
+    original = original.substring(0, range[0]) + p.content + original.substring(range[1]);
+  }
+  textarea.value = original;
+  textarea.selectionStart = sel[0];
+  return textarea.selectionEnd = sel[1];
+};
+
+// Render everything
+dom.WIKI = function() {
+  var o;
+  // output
+  return DIV({}, DIV({
+    className: 'pad',
+    maxWidth: 750,
+    width: state.editing && !state.vert ? '55vw' : void 0
+  }, (function() {
+    var j, len, ref, results;
+    ref = state.outputs || [];
+    results = [];
+    for (j = 0, len = ref.length; j < len; j++) {
+      o = ref[j];
+      results.push(DIV({
+        dangerouslySetInnerHTML: {
+          __html: o
+        }
+      }));
+    }
+    return results;
+  // bottom pad  
+  })()), DIV({
+    height: '50vh',
+    display: !state.editing || !state.vert ? 'none' : void 0
+  }), TEXTAREA({
+    position: 'fixed',
+    hyphens: 'none',
+    bottom: 0,
+    right: 0,
+    width: state.vert ? '100%' : '45vw',
+    height: state.vert ? '50vh' : '100%',
+    display: !state.editing ? 'none' : void 0,
+    fontSize: 15,
+    fontFamily: 'helvetica, arial, avenir, lucida grande',
+    id: 'the editor',
+    onChange: function(e) {
+      if (!e.target.value && e.target.value !== '') {
+        return;
+      }
+      // Bail on edits that try to wipe us out
+      state.source = e.target.value;
+      simpleton.changed();
+      return update_markdown_later();
+    },
+    defaultValue: state.source
+  }), DIV({
+    position: 'fixed',
+    bottom: 0,
+    right: 0,
+    padding: 30,
+    cursor: 'pointer',
+    textDecoration: 'none',
+    backgroundColor: 'rgba(250, 250, 250, .5)',
+    onClick: toggle_editor
+  }, 'edit'));
+};
+
+// Render markdown after a delay
+timer = null;
+
+render_delay = 100;
+
+update_markdown_later = function() {
+  if (timer) {
+    clearTimeout(timer);
+  }
+  return timer = setTimeout(update_markdown, render_delay);
+};
+
+update_markdown = function() {
+  var e, i, j, len, parse_markdown, ref, results, s, sources;
+  parse_markdown = function() {
+    var match, matches;
+    matches = (function() {
+      var results;
+      results = [];
+      while (match = /\n\|{3,}([^\n]*)\n/g.exec(state.source)) {
+        results.push(match[1]);
+      }
+      return results;
+    })();
+    return matches;
+  };
+  try {
+    if (!state.source) {
+      return;
+    }
+    sources = state.source.split(/\n\|{3,}[^\n]*\n/g);
+    timer = null;
+    if (!state.sources || sources.length !== state.sources.length) {
+      state.sources = sources.splice();
+      state.outputs = (function() {
+        var j, len, results;
+        results = [];
+        for (j = 0, len = sources.length; j < len; j++) {
+          s = sources[j];
+          results.push(marked(s, {
+            sanitize: false
+          }));
+        }
+        return results;
+      })();
+      return document.body.className = 'nopad';
+    } else {
+      ref = state.sources;
+      // But most of the time we just redo one section
+      results = [];
+      for (i = j = 0, len = ref.length; j < len; i = ++j) {
+        s = ref[i];
+        if (s !== sources[i]) {
+          state.sources[i] = sources[i];
+          results.push(state.outputs[i] = marked(s, {
+            sanitize: false
+          }));
+        } else {
+          results.push(void 0);
+        }
+      }
+      return results;
+    }
+  } catch (error) {
+    e = error;
+    return console.error('parse failure with', e);
+  }
+};
+
+update_markdown();
+
+first_time = true;
+
+toggle_editor = function() {
+  state.editing = !state.editing;
+  if (state.editing) {
+    t().focus();
+  }
+  if (state.editing && first_time) {
+    first_time = false;
+    t().setSelectionRange(0, 0);
+    t().scrollTop = 0;
+  }
+  return update_markdown();
+};
+
+// Support #hashtag scrolling into view
+ting = null;
+
+scroll = function() {
+  // We only scroll to the ting once -- if it's fresh
+  if (ting || location.hash.length === 0) {
+    return;
+  }
+  ting = document.getElementById(location.hash.substr(1));
+  return ting && ting.scrollIntoView();
+};
+
+for (i = j = 0; j <= 50; i = ++j) {
+  setTimeout(scroll, i / 5.0 * 1000);
+}
+
+</script>
+
+<link rel="stylesheet" href="https://invisible.college/css/github-markdown.css">
+<style>
+  body{-ms-hyphens: auto;-webkit-hyphens: auto;hyphens: auto;}
+  h1,h2,h3,h4 {text-align: left; -ms-hyphens: none; -webkit-hyphens: none; hyphens: none;}
+  note {position: absolute; left: 720px; width: 270px; background-color: #F8F3B7; padding: 10px; box-shadow: -2px 2px 2px #ccc; border-radius: 2px; text-align: left;}
+</style>
+<body></body>
+<script>
+console.log('hi!!')
+document.body.style.background = 'blue'
+</script>

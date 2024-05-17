@@ -1,0 +1,12 @@
+{
+  "name": "braid-text-server",
+  "version": "0.0.1",
+  "description": "Library for serving collaborative text over http using braid.",
+  "author": "Braid Working Group",
+  "repository": "braid-org/braidjs",
+  "homepage": "https://braid.org",
+  "dependencies": {
+    "diamond-types-node": "^1.0.2",
+    "braid-http": "^0.3.18"
+  }
+}
