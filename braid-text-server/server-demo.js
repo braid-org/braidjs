@@ -62,9 +62,8 @@ var server = require("http").createServer(async (req, res) => {
         }
     }
 
-    handle_request(req, res, { type: req.url.endsWith('html') ? '' : 'text/plain', db_folder })
-}
-)
+    handle_request(req, res, { db_folder })
+})
 
 server.listen(port, () => {
     console.log(`server started on port ${port}`)
