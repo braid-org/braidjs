@@ -10,15 +10,11 @@ Install it in your project:
 npm install braid-text-server
 ```
 
-Import the request handler into your code:
+Import the request handler into your code, and use it to handle HTTP requests wherever you want:
 
 ```javascript
 var serve_braid_text = require("braid-text-server")
-```
 
-Use it to handle requests in your HTTP server:
-
-```javascript
 server.on("request", (req, res) => {
   // Your server logic...
 
