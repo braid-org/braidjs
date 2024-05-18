@@ -11,11 +11,13 @@
 //     this is to generate outgoing changes,
 //     and if there are changes, returns { patches, state }
 //
+// content_type: overrides the Accept and Content-Type headers
+//
 // returns { changed(): (diff_function) => {...} }
 //     this is for outgoing changes;
 //     diff_function = () => ({patches, new_version}).
 //
-function simpleton_client(url, { apply_remote_update, generate_local_diff_update }) {
+function simpleton_client(url, { apply_remote_update, generate_local_diff_update, content_type }) {
     var peer = Math.random().toString(36).substr(2)
     var current_version = []
     var prev_state = ""
@@ -24,7 +26,8 @@ function simpleton_client(url, { apply_remote_update, generate_local_diff_update
     var max_outstanding_changes = 10
 
     braid_fetch_wrapper(url, {
-        headers: { "Merge-Type": "simpleton" },
+        headers: { "Merge-Type": "simpleton",
+            ...(content_type ? {Accept: content_type} : {}) },
         subscribe: true,
         retry: true,
         parents: () => current_version.length ? current_version : null,
@@ -104,7 +107,8 @@ function simpleton_client(url, { apply_remote_update, generate_local_diff_update
 
             outstanding_changes++
             await braid_fetch_wrapper(url, {
-                headers: { "Merge-Type": "simpleton" },
+                headers: { "Merge-Type": "simpleton",
+                    ...(content_type ? {"Content-Type": content_type} : {}) },
                 method: "PUT",
                 retry: true,
                 version, parents, patches,
