@@ -3,11 +3,12 @@
 This library provides a simple http route handler, enabling fast text synchronization over a standard protocol.
 
 - Supports [Braid-HTTP](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-04.txt) protocol
-- Uses [Simpleton merge algorithm](https://braid.org/meeting-76/simpleton)
-  - Enables light clients (as little as 50 lines of code!)
-  - No history requirement for clients
+- Supports [Simpleton merge algorithm](https://braid.org/meeting-76/simpleton)
+  - Enables light clients
+    - As little as 50 lines of code!
+    - With zero history overhead on client
   - Supports backpressure to run smoothly on constrained servers
-- Which itself uses [Diamond Types CRDT](https://github.com/josephg/diamond-types)
+- Supports [Diamond Types CRDT](https://github.com/josephg/diamond-types)
   - Fast / Robust / Extensively fuzz-tested 
 - Developed in [braid.org](https://braid.org)
 
@@ -35,8 +36,8 @@ The `serve_braid_text` function takes the following arguments:
 - `req`: The incoming HTTP request object.
 - `res`: The HTTP response object to send the response.
 - `options`: An object containing additional options:
-  - `key`: Resource key; defaults to `req.url`
-  - `content_type`: The content type of the text being collaborated on. Defaults to 'text/plain' if not specified.
+  - `key`: ID of text resource to sync with.  Defaults to `req.url`.
+  - `content_type`: The content type to tell the browser.  Defaults to 'text/plain'.
   - `db_folder`: The folder where the Diamond-Types history files will be stored for each resource.
     - This folder will be created if it doesn't exist.
     - The files for a resource will all be prefixed with a url-encoding of `key` within this folder.
