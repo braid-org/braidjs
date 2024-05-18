@@ -22,7 +22,7 @@ dom.BODY = -> DIV(WIKI())
 
 var apply_patches_and_update_selection, diff, first_time, i, j, render_delay, scroll, simpleton, simpleton_key, t, timer, ting, toggle_editor, update_markdown, update_markdown_later;
 
-simpleton_key = '/' + location.search.slice(1);
+simpleton_key = location.pathname;
 
 t = function() {
   return document.getElementById('the editor');

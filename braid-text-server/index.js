@@ -11,10 +11,11 @@ async function handle_request(req, res, options = {}) {
     options = {
         db_folder: null,                 // Default db_folder
         key: req.url.split('?')[0],      // Default key
+        default_text: '',                // Initial text for this document
         ...options                       // Override with all options passed in
     }
     
-    let resource = await get_resource(options.key, options.db_folder)
+    let resource = await get_resource(options.key, options.db_folder, options.default_text)
 
     braidify(req, res)
 
@@ -435,7 +436,7 @@ async function handle_request(req, res, options = {}) {
     throw new Error("unknown")
 }
 
-async function get_resource(key, db_folder) {
+async function get_resource(key, db_folder, default_text) {
     let cache = get_resource.cache || (get_resource.cache = {})
     if (cache[key]) return cache[key]
 
@@ -453,6 +454,10 @@ async function get_resource(key, db_folder) {
               () => resource.doc.toBytes()
           )
         : { change: () => {}, delete_me: () => {} }
+
+    // if doc has nothing, put in default text
+    if (default_text && resource.doc.getLocalVersion().length === 0)
+        resource.doc.ins(0, default_text)
 
     resource.db_delta = change
 
@@ -1212,4 +1217,4 @@ function codePoints_to_index(str, codePoints) {
   return i
 }
 
-module.exports = { handle_request }
+module.exports = handle_request
