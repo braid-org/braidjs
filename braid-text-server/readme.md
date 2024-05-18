@@ -1,4 +1,4 @@
-# Library for serving collaborative text over HTTP using Braid
+# Serve collaborative text on Braid-HTTP
 
 - Uses [Braid-HTTP](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-04.txt)
 - Developed in [braid.org](https://braid.org)
@@ -18,6 +18,7 @@ var serve_braid_text = require("braid-text-server")
 
 Use it to handle requests in your HTTP server:
 
+```javascript
 server.on("request", (req, res) => {
   // Your server logic...
 
