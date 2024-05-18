@@ -1,6 +1,6 @@
-# Serve collaborative text on Braid-HTTP
+# Serve collaborative text over Braid-HTTP
 
-- Uses [Braid-HTTP](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-04.txt)
+- Supports [Braid-HTTP](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-04.txt) protocol
 - Developed in [braid.org](https://braid.org)
 
 ## Use the Library
@@ -10,7 +10,7 @@ Install it in your project:
 npm install braid-text-server
 ```
 
-Import the request handler:
+Import the request handler into your code:
 
 ```javascript
 var serve_braid_text = require("braid-text-server")
@@ -22,7 +22,7 @@ Use it to handle requests in your HTTP server:
 server.on("request", (req, res) => {
   // Your server logic...
 
-  // Whenever ready, serve braid text for this request/response:
+  // Whenever desired, serve braid text for this request/response:
   serve_braid_text(req, res, { db_folder: './your-db-folder' })
 })
 ```
@@ -50,3 +50,5 @@ Now you can open these URLs in browser:
   - http://localhost:60402/markdown-editor (to edit it as markdown)
 
 Or try opening the URL in [Braid-Chrome](https://github.com/braid-org/braid-chrome), or another Braid client, to edit it directly!
+
+Check out the `server-demo.js` file to see examples for how to add access control, and **X, and Y... [fill this in]**
