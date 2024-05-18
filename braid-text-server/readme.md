@@ -32,7 +32,9 @@ The `serve_braid_text` function takes the following arguments:
 - `res`: The HTTP response object to send the response.
 - `options`: An object containing additional options:
   - `content_type`: The content type of the text being collaborated on. Defaults to 'text/plain' if not specified.
-  - `db_folder`: The folder where the collaborative text data will be stored. (This folder will be created if it doesn't exist.)
+  - `db_folder`: The folder where the Diamond-Types history files will be stored for each resource.
+    - This folder will be created if it doesn't exist.
+    - The files will be stored as **greg fill this in with a rough outline of what the files are** within this folder
 
 
 ## Run the Demo
