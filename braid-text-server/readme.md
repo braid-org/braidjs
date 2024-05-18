@@ -3,12 +3,12 @@
 This library provides a simple http route handler, enabling fast text synchronization over a standard protocol.
 
 - Supports [Braid-HTTP](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-04.txt) protocol
-- Supports [Simpleton merge algorithm](https://braid.org/meeting-76/simpleton)
+- Supports [Simpleton](https://braid.org/meeting-76/simpleton) merge-type
   - Enables light clients
     - As little as 50 lines of code!
     - With zero history overhead on client
   - Supports backpressure to run smoothly on constrained servers
-- Supports [Diamond Types CRDT](https://github.com/josephg/diamond-types)
+- Supports [Diamond Types](https://github.com/josephg/diamond-types) merge-type
   - Fast / Robust / Extensively fuzz-tested 
 - Developed in [braid.org](https://braid.org)
 
