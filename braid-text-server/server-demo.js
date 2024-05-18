@@ -1,5 +1,4 @@
-
-//var admin_pass = "xyz"
+//var admin_pass = "fake_password"
 var db_folder = './braid-text-server'
 var port = 8888
 
@@ -60,7 +59,8 @@ var server = require("http").createServer(async (req, res) => {
     //     }
     // }
 
-    serve_braid_text(req, res, { content_type: 'text/plain', db_folder, default_text: 'This is a fresh blank document, ready for you to edit.' })
+    // Now serve the collaborative text!
+    serve_braid_text(req, res, {db_folder})
 })
 
 server.listen(port, () => {
