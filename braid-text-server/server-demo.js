@@ -2,7 +2,8 @@
 var db_folder = './braid-text-server'
 var port = 8888
 
-var serve_braid_text = require("./index.js")
+var braid_text = require("./index.js")
+braid_text.config({db_folder})
 
 var server = require("http").createServer(async (req, res) => {
     console.log(`${req.method} ${req.url}`)
@@ -59,8 +60,13 @@ var server = require("http").createServer(async (req, res) => {
     //     }
     // }
 
+    // Create some initial text for new documents
+    if (await braid_text.get(req.url) === undefined) {
+        await braid_text.put(req.url, {body: 'This is a fresh blank document, ready for you to edit.' })
+    }
+
     // Now serve the collaborative text!
-    serve_braid_text(req, res, {db_folder})
+    braid_text.serve(req, res)
 })
 
 server.listen(port, () => {
