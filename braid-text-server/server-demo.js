@@ -19,7 +19,7 @@ var server = require("http").createServer(async (req, res) => {
 
     if (req.url.endsWith("?markdown-editor")) {
         res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-cache" })
-        require("fs").createReadStream("./editor-markdown.html").pipe(res)
+        require("fs").createReadStream("./markdown-editor.html").pipe(res)
         return
     }
 
