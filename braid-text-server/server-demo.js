@@ -1,9 +1,9 @@
 //var admin_pass = "fake_password"
-var db_folder = './braid-text-server'
+var db_folder = './db_folder'
 var port = 8888
 
 var braid_text = require("./index.js")
-braid_text.config({db_folder})
+braid_text.db_folder = db_folder
 
 var server = require("http").createServer(async (req, res) => {
     console.log(`${req.method} ${req.url}`)

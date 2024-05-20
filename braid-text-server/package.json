@@ -1,6 +1,6 @@
 {
   "name": "braid-text-server",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Library for serving collaborative text over http using braid.",
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",

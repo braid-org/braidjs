@@ -3,18 +3,14 @@ let { Doc } = require("diamond-types-node")
 let braidify = require("braid-http").http_server
 let fs = require("fs")
 
-let settings = {
+let braid_text = {
     db_folder: null
 }
 
 let waiting_puts = 0
 let prev_put_p = null
 
-function config(new_settings) {
-    Object.assign(settings, new_settings)
-}
-
-async function serve(req, res, options = {}) {
+braid_text.serve = async (req, res, options = {}) => {
     options = {
         key: req.url.split('?')[0], // Default key
         put_cb: (key, val) => { },  // Default callback when a PUT changes a key
@@ -67,7 +63,7 @@ async function serve(req, res, options = {}) {
         if (!req.subscribe) {
             res.setHeader("Accept-Subscribe", "true")
 
-            let x = await get(resource, { version: req.version, parents: req.parents })
+            let x = await braid_text.get(resource, { version: req.version, parents: req.parents })
 
             res.setHeader("Version", x.version.map((x) => JSON.stringify(x)).join(", "))
 
@@ -98,7 +94,7 @@ async function serve(req, res, options = {}) {
                 }
             })
 
-            return get(resource, options)
+            return braid_text.get(resource, options)
         }
     }
 
@@ -132,7 +128,7 @@ async function serve(req, res, options = {}) {
         }
 
         try {
-            await put(resource, { peer, version: req.version, parents: req.parents, patches, body, merge_type: req.headers["merge-type"] })
+            await braid_text.put(resource, { peer, version: req.version, parents: req.parents, patches, body, merge_type: req.headers["merge-type"] })
         } catch (e) {
             console.log(`EEE= ${e}:${e.stack}`)
             // we couldn't apply the version, presumably because we're missing its parents.
@@ -170,7 +166,7 @@ async function serve(req, res, options = {}) {
     throw new Error("unknown")
 }
 
-async function get(key, options) {
+braid_text.get = async (key, options) => {
     if (!options) return get_resource.cache?.[key]?.doc.get()
 
     let resource = (typeof key == 'string') ? await get_resource(key) : key
@@ -319,7 +315,7 @@ async function get(key, options) {
     }
 }
 
-async function put(key, options) {
+braid_text.put = async (key, options) => {
     let { version, patches, body } = options
 
     let resource = (typeof key == 'string') ? await get_resource(key) : key
@@ -497,9 +493,9 @@ async function get_resource(key) {
 
     resource.doc = new Doc("server")
 
-    let { change, delete_me } = settings.db_folder
+    let { change, delete_me } = braid_text.db_folder
         ? await file_sync(
-            settings.db_folder,
+            braid_text.db_folder,
             encodeURIComponent(key),
             (bytes) => resource.doc.mergeBytes(bytes),
             () => resource.doc.toBytes()
@@ -1264,4 +1260,4 @@ function codePoints_to_index(str, codePoints) {
     return i
 }
 
-module.exports = { config, serve, get, put }
+module.exports = braid_text
