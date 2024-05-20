@@ -34,7 +34,7 @@ server.on("request", (req, res) => {
 
 ## Run the Demo
 
-We made a handy demo in this repo for you to follow along with, too.
+This demo will run a collaboratively-editable wiki:
 
 ```shell
 npm install
