@@ -50,7 +50,7 @@ Or try opening the URL in [Braid-Chrome](https://github.com/braid-org/braid-chro
 
 Check out the `server-demo.js` file to see examples for how to add access control, and a `/pages` endpoint to show all the edited pages.
 
-## API
+## Full Library API
 
 `braid_text.db_folder = './braid-text-server-db' // <-- this is the default`
   - This is where the Diamond-Types history files will be stored for each resource.
