@@ -1,9 +1,12 @@
-//var admin_pass = "fake_password"
-var db_folder = './db_folder'
+
 var port = 8888
 
 var braid_text = require("./index.js")
-braid_text.db_folder = db_folder
+
+// TODO: set a custom database folder
+// (the default is ./braid-text-server-db)
+//
+// braid_text.db_folder = './custom_db_folder'
 
 var server = require("http").createServer(async (req, res) => {
     console.log(`${req.method} ${req.url}`)
@@ -43,6 +46,8 @@ var server = require("http").createServer(async (req, res) => {
     // TODO: uncomment and change admin_pass above,
     // and uncomment out the code below to add basic access control
     // 
+    // var admin_pass = "fake_password"
+    //
     // if (req.url === '/login_' + admin_pass) {
     //     res.writeHead(200, {
     //         "Content-Type": "text/plain",
