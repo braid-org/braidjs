@@ -74,7 +74,7 @@ Check out the `server-demo.js` file to see examples for how to add access contro
   - `options`: An object containing additional options, like http headers:
     - `version`:  <small style="color:lightgrey">[optional]</small> The version to get.
     - `parents`:  <small style="color:lightgrey">[optional]</small> Array of parents — can also be used to define a version we want
-    - `subscribe`:  <small style="color:lightgrey">[optional]</small> Supplying a function tells the `get` to subscribe. The function should look like `({version, parents, body, patches}) => {...}`, and will be called for each incoming update.
+    - `subscribe: cb`:  <small style="color:lightgrey">[optional]</small> Transforms `get` into a subscription that calls `cb` witch each update. The function `cb` is called with the argument `{version, parents, body, patches}` with each update to the text.
     - `merge_type`: <small style="color:lightgrey">[optional]</small> When subscribing, identifies the synchronization protocol. Defaults to `simpleton`, but can be set to `dt`.
     - `peer`: <small style="color:lightgrey">[optional]</small> When subscribing, identifies this peer, so `PUT`s are not mirrored back.
   - If we are NOT subscribing, returns `{version, body}`, with the `version` being returned, and the text as `body`. If we are subscribing, this returns nothing.
