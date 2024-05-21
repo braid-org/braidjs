@@ -84,7 +84,7 @@ Check out the `server-demo.js` file to see examples for how to add access contro
   - `key`: ID of text resource.
   - `options`: An object containing additional options, like http headers:
     - `version`:  <small style="color:lightgrey">[optional]</small> The version being supplied. Will be randomly generated if not supplied.
-    - `parents`:  <small style="color:lightgrey">[optional]</small> Array of versions this update depends on. Defaults to whatever the most recent version is.
+    - `parents`:  <small style="color:lightgrey">[optional]</small> Array of versions this update depends on. Defaults to the server’s current version.
     - `body`: <small style="color:lightgrey">[optional]</small> Use this to completely replace the existing text with this new text.
     - `patches`: <small style="color:lightgrey">[optional]</small> Array of patches, each of the form `{unit: 'text', range: '[1:3]', content: 'hi'}`, which would replace the second and third unicode code-points in the text with `hi`.
     - `peer`: <small style="color:lightgrey">[optional]</small> Identifies this peer. This mutation will not be echoed back to `get` subscriptions that use this same `peer` header.
