@@ -62,7 +62,6 @@ Check out the `server-demo.js` file to see examples for how to add access contro
   - `res`: The HTTP response object to send the response.
   - `options`: <small style="color:lightgrey">[optional]</small> An object containing additional options:
     - `key`:  <small style="color:lightgrey">[optional]</small> ID of text resource to sync with.  Defaults to `req.url`.
-    - `content_type`:  <small style="color:lightgrey">[optional]</small> The content type to tell the browser.  Defaults to 'text/plain'.
   - This is the main method of this library, and does all the work to handle Braid-HTTP `GET` and `PUT` requests concerned with a specific text resource.
 
 `await braid_text.get(key)`
