@@ -63,7 +63,7 @@ Check out the `server-demo.js` file to see examples for how to add access contro
   - `options`: <small style="color:lightgrey">[optional]</small> An object containing additional options:
     - `key`:  <small style="color:lightgrey">[optional]</small> ID of text resource to sync with.  Defaults to `req.url`.
     - `content_type`:  <small style="color:lightgrey">[optional]</small> The content type to tell the browser.  Defaults to 'text/plain'.
-  - This is the main method of this library, and does all the work to handle Braid-HTTP `GET` and `PUT` requests concerned which a specific text resource.
+  - This is the main method of this library, and does all the work to handle Braid-HTTP `GET` and `PUT` requests concerned with a specific text resource.
 
 `await braid_text.get(key)`
   - `key`: ID of text resource.
@@ -73,10 +73,11 @@ Check out the `server-demo.js` file to see examples for how to add access contro
   - `key`: ID of text resource.
   - `options`: An object containing additional options, like http headers:
     - `version`:  <small style="color:lightgrey">[optional]</small> The version to get.
-    - `parents`:  <small style="color:lightgrey">[optional]</small> Array of parents — can also be used to define a version we want
-    - `subscribe: cb`:  <small style="color:lightgrey">[optional]</small> Transforms `get` into a subscription that calls `cb` witch each update. The function `cb` is called with the argument `{version, parents, body, patches}` with each update to the text.
+    - `subscribe: cb`:  <small style="color:lightgrey">[optional]</small> Transforms `get` into a subscription that calls `cb` with each update. The function `cb` is called with the argument `{version, parents, body, patches}` with each update to the text.
+    - `parents`:  <small style="color:lightgrey">[optional]</small> Array of parents — the subscription will only send newer updates than these.
     - `merge_type`: <small style="color:lightgrey">[optional]</small> When subscribing, identifies the synchronization protocol. Defaults to `simpleton`, but can be set to `dt`.
-    - `peer`: <small style="color:lightgrey">[optional]</small> When subscribing, identifies this peer, so `PUT`s are not mirrored back.
+    - `peer`: <small style="color:lightgrey">[optional]</small> When subscribing, identifies this peer. Mutations will not be echoed back to the same peer that puts them, if that put also sets the same `peer` header.
+
   - If we are NOT subscribing, returns `{version, body}`, with the `version` being returned, and the text as `body`. If we are subscribing, this returns nothing.
 
 `await braid_text.put(key, options)`
@@ -86,3 +87,4 @@ Check out the `server-demo.js` file to see examples for how to add access contro
     - `parents`:  <small style="color:lightgrey">[optional]</small> Array of versions this update depends on. Defaults to whatever the most recent version is.
     - `body`: <small style="color:lightgrey">[optional]</small> Use this to completely replace the existing text with this new text.
     - `patches`: <small style="color:lightgrey">[optional]</small> Array of patches, each of the form `{unit: 'text', range: '[1:3]', content: 'hi'}`, which would replace the second and third unicode code-points in the text with `hi`.
+    - `peer`: <small style="color:lightgrey">[optional]</small> Identifies this peer. This mutation will not be echoed back to `get` subscriptions that use this same `peer` header.
