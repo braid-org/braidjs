@@ -4,7 +4,7 @@ let braidify = require("braid-http").http_server
 let fs = require("fs")
 
 let braid_text = {
-    db_folder: './braid-text-server-db'
+    db_folder: './braid-text-db'
 }
 
 let waiting_puts = 0
