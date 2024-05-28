@@ -236,10 +236,22 @@ function braidify (req, res, next) {
             res.statusCode = 209
             res.setHeader("subscribe", req.headers.subscribe)
             res.setHeader('cache-control', 'no-cache, no-transform')
-            if (req.httpVersionMajor == 1) {
-                // Explicitly disable transfer-encoding chunked for http 1
-                res.setHeader('transfer-encoding', '')
-            }
+
+
+            // Note: I used to explicitly disable transfer-encoding chunked
+            // here by setting the header to empty string.  This is the only
+            // way I know to disable it in nodejs.  We don't need chunked
+            // encoding in subscriptions, because chunked encoding is used to
+            // signal the end of a response, and subscriptions don't end.  I
+            // disabled them to make responses cleaner.  However, it turns out
+            // the Caddy proxy throws an error if it receives a response with
+            // transfer-encoding: set to the empty string.  So I'm disabling
+            // it now.
+
+            // if (req.httpVersionMajor == 1) {
+            //     // Explicitly disable transfer-encoding chunked for http 1
+            //     res.setHeader('transfer-encoding', '')
+            // }
 
             // Tell nginx not to buffer the subscription
             res.setHeader('X-Accel-Buffering', 'no')
