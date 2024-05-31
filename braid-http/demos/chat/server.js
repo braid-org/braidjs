@@ -8,7 +8,7 @@ var resources = {
         {text: 'This is a post-modern!'}
     ]
 }
-var chat_version = () => resources['/chat'].length.toString()
+var chat_version = () => [resources['/chat'].length.toString()]
 var post_versions = {}
 
 // Subscription data
@@ -16,8 +16,9 @@ var subscriptions = {}
 var subscription_hash = (req) => JSON.stringify([req.headers.peer, req.url])
 
 // Create our HTTP bindings!
-var braidify = require('../../braidify-server')
-var app = require('express')()
+//var braidify = require('../../braid-http-server')
+var braidify = require('../../index.js').http_server
+var app = require('http2-express-bridge')(require('express'))
 
 // Middleware
 app.use(free_the_cors)
@@ -35,7 +36,7 @@ app.get('/chat', (req, res) => {
     }
 
     // Send the current version
-    res.sendVersion({
+    res.sendUpdate({
         version: chat_version(),
         body: JSON.stringify(resources['/chat'])
     })
@@ -60,7 +61,7 @@ app.put('/chat', async (req, res) => {
         if (url === req.url  // Send only to subscribers of this URL
             && peer !== req.headers.peer)  // Skip the peer that sent this PUT
 
-            subscriptions[k].sendVersion({
+            subscriptions[k].sendUpdate({
                 version: chat_version(),
                 patches
             })
@@ -73,7 +74,7 @@ app.put('/chat', async (req, res) => {
 // Now serve the HTML and client files
 var sendfile = (f) => (req, res) => res.sendFile(require('path').join(__dirname, f))
 app.get('/',                   sendfile('client.html'));
-app.get('/braidify-client.js', sendfile('../../braidify-client.js'))
+app.get('/braid-http-client.js', sendfile('../../braid-http-client.js'))
 
 // Free the CORS!
 function free_the_cors (req, res, next) {
@@ -100,15 +101,14 @@ function free_the_cors (req, res, next) {
 }
 
 // Launch the https server
-var server = require('spdy') // This lets us get HTTP2 with the same API as HTTP1
-    .createServer(
-        {
-            cert:       require('fs').readFileSync('./certificate'),
-            key:        require('fs').readFileSync('./private-key'),
-            allowHTTP1: true
-        },
-        app
-    )
+var server = require('http2').createSecureServer(
+    {
+        cert:       require('fs').readFileSync('./certificate'),
+        key:        require('fs').readFileSync('./private-key'),
+        allowHTTP1: true
+    },
+    app
+)
 // server.setTimeout(0, x => console.log('Server timeout!', x))
 // console.log('Server timeouts:', server.timeout, server.keepAliveTimeout)
 server.listen(3009, _=> console.log('listening on port 3009...'))

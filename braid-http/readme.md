@@ -103,15 +103,15 @@ async function connect () {
 async function connect () {
     try {
         var subscription_iterator = fetch('/chat', {subscribe: true}).subscription
-        for await (var v of subscription_iterator) {
+        for await (var update of subscription_iterator) {
             // Updates might come in the form of patches:
-            if (v.patches)
-                chat = apply_patches(v.patches, chat)
+            if (update.patches)
+                chat = apply_patches(update.patches, chat)
 
             // Or complete snapshots:
             else
                 // Beware the server doesn't send these yet.
-                chat = JSON.parse(v.body)
+                chat = JSON.parse(update.body)
 
             render_stuff()
         }
