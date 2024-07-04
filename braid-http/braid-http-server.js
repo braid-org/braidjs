@@ -66,7 +66,7 @@ ${patch.content}`
 // Deprecated method for legacy support
 function parse_patches (req, cb) {
     parse_update(req, update => {
-        if (update.body)
+        if (typeof update.body === 'string')
             // Return body as an "everything" patch
             cb([{unit: 'everything', range: '', content: update.body}])
         else
