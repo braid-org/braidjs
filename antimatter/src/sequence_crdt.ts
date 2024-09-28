@@ -1,10 +1,19 @@
+type Version = string
+
 type Node = {
-  version: string,
+  /// globally unique string
+  version: Version,
+  /// a string or array representing actual data elements of the underlying sequence
   elems: string | any[],
-  end_cap: any,
-  sort_key: any,
+  /// this is useful for dealing with replace operations
+  end_cap: any | undefined,
+  /// version to pretend this is for the purposes of sorting
+  sort_key: any | undefined,
+  /// if this node gets deleted, we'll mark it here
   deleted_by: Record<string, any>,
+  /// array of nodes following this one
   nexts: any[],
+  /// final node following this one (after all the nexts)
   next: null | any,
 }
 
@@ -12,20 +21,9 @@ type Node = {
 ///
 /// Creates a node for a `sequence_crdt` sequence CRDT with the given properties. The resulting node will look like this:
 ///
-/// ``` js
-/// {
-///   version, // globally unique string
-///   elems, // a string or array representing actual data elements of the underlying sequence
-///   end_cap, // this is useful for dealing with replace operations
-///   sort_key, // version to pretend this is for the purposes of sorting
-///   deleted_by : {}, // if this node gets deleted, we'll mark it here
-///   nexts : [], // array of nodes following this one
-///   next : null // final node following this one (after all the nexts)
-/// } 
-///
 /// var sequence_node = sequence_crdt_create_node('alice1', 'hello')
 /// ```
-const sequence_crdt_create_node = (version: string, elems: string | any[], end_cap: any, sort_key: any): Node => ({
+const sequence_crdt_create_node = (version: Version, elems: string | any[], end_cap: any = undefined, sort_key: any = undefined): Node => ({
   version,
   elems,
   end_cap,
@@ -43,7 +41,7 @@ const sequence_crdt_create_node = (version: string, elems: string | any[], end_c
 /// var root_node = sequence_crdt_create_node('alice1', 'hello')
 /// console.log(sequence_crdt_generate_braid(root_node, 'alice1', x => false)) // outputs [0, 0, "hello"]
 /// ```
-const sequence_crdt_generate_braid = (S, version, is_anc, read_array_elements) => {
+const sequence_crdt_generate_braid = (S: Node, version: Version, is_anc, read_array_elements) => {
   if (!read_array_elements) read_array_elements = (x) => x;
   var splices = [];
 
