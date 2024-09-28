@@ -2,7 +2,7 @@
 /// The software is architected into three objects:
 ///
 /// ``` js
-/// var {create_antimatter_crdt, create_json_crdt, sequence_crdt} = require('@braidjs/antimatter') 
+/// let {create_antimatter_crdt, create_json_crdt, sequence_crdt} = require('@braidjs/antimatter') 
 /// ```
 
 import { create_json_crdt } from "./json_crdt.ts";
@@ -10,7 +10,7 @@ import { create_json_crdt } from "./json_crdt.ts";
 // v522
 
 /// - *antimatter_crdt*: created using `create_antimatter_crdt`, this object is a json_crdt with antimatter algorithm methods added to it so that it can communicate with other peers to learn which history can be pruned, and tells the underlying json_crdt object to prune it.
-export var create_antimatter_crdt;
+export let create_antimatter_crdt;
 
 /// # create_antimatter_crdt(send[, init])
 ///
@@ -26,7 +26,7 @@ export var create_antimatter_crdt;
 /// * `clear_timeout`: function that takes a timeout identifier an cancels it (e.g. wrapping the javascript clearTimeout)
 /// * `init`: (optional) An antimatter_crdt object to start with, which we'll add any properties to that it doesn't have, and we'll add all the antimatter_crdt methods to it. This option exists so you can serialize an antimatter_crdt instance as JSON, and then restore it later. 
 /// ``` js
-/// var antimatter_crdt = create_antimatter_crdt(msg => {
+/// let antimatter_crdt = create_antimatter_crdt(msg => {
 ///     websockets[msg.conn].send(JSON.stringify(msg))
 ///   },
 ///   () => Date.now(),
@@ -415,7 +415,7 @@ create_antimatter_crdt = (
     let _T = {};
     let added_versions = [];
     if (cmd == "welcome") {
-      var versions_to_add = {};
+      let versions_to_add = {};
       let vs = Object.values(versions);
       vs.forEach((v) => (versions_to_add[v.version] = v.parents));
       vs.forEach((v) => {
@@ -436,7 +436,7 @@ create_antimatter_crdt = (
 
       for (let v of vs) _T[v.version] = v.parents;
 
-      l1: for (var v of vs) {
+      l1: for (let v of vs) {
         if (versions_to_add[v.version]) {
           let ps = Object.keys(v.parents);
 
@@ -457,7 +457,7 @@ create_antimatter_crdt = (
       let fissures_back = Object.values(self.fissures);
 
       if (cmd == "welcome") {
-        var leaves = { ..._T };
+        let leaves = { ..._T };
         Object.keys(_T).forEach((v) => {
           Object.keys(_T[v]).forEach((p) => delete leaves[p]);
         });
@@ -800,7 +800,7 @@ create_antimatter_crdt = (
   /// })
   /// ```
   self.set = (...patches) => {
-    var version = `${self.next_seq++}@${self.id}`;
+    let version = `${self.next_seq++}@${self.id}`;
     self.receive({
       cmd: "set",
       version,
@@ -848,8 +848,8 @@ create_antimatter_crdt = (
     let unfissured = {};
 
     Object.entries(self.fissures).forEach(([fk, f]) => {
-      var other_key = f.b + ":" + f.a + ":" + f.conn;
-      var other = self.fissures[other_key];
+      let other_key = f.b + ":" + f.a + ":" + f.conn;
+      let other = self.fissures[other_key];
       if (other) {
         if (Object.keys(f.versions).length) {
           for (let v of Object.keys(f.versions)) unfissured[v] = true;
@@ -879,8 +879,8 @@ create_antimatter_crdt = (
     let fissures = just_checking ? { ...self.fissures } : self.fissures;
 
     Object.entries(fissures).forEach((x) => {
-      var other_key = x[1].b + ":" + x[1].a + ":" + x[1].conn;
-      var other = fissures[other_key];
+      let other_key = x[1].b + ":" + x[1].a + ":" + x[1].conn;
+      let other = fissures[other_key];
       if (other && x[1].t <= t && other.t <= t) {
         delete fissures[x[0]];
         delete fissures[other_key];
@@ -888,7 +888,7 @@ create_antimatter_crdt = (
     });
 
     if (self.fissure_lifetime != null) {
-      var now = get_time();
+      let now = get_time();
       Object.entries(fissures).forEach(([k, f]) => {
         if (f.time == null) f.time = now;
         if (f.time <= now - self.fissure_lifetime) {
@@ -904,14 +904,14 @@ create_antimatter_crdt = (
     )
       return true;
 
-    var restricted = {};
+    let restricted = {};
 
     Object.values(fissures).forEach((f) => {
       Object.keys(f.versions).forEach((v) => (restricted[v] = true));
     });
 
     if (!just_checking) {
-      var acked = self.ancestors(self.acked_boundary);
+      let acked = self.ancestors(self.acked_boundary);
       Object.keys(self.T).forEach((x) => {
         if (!acked[x]) restricted[x] = true;
       });

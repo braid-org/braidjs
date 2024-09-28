@@ -1,4 +1,4 @@
-type Version = string
+type Version = string;
 
 type Node = {
   /// globally unique string
@@ -15,13 +15,13 @@ type Node = {
   nexts: any[],
   /// final node following this one (after all the nexts)
   next: null | any,
-}
+};
 
 /// # sequence_crdt_create_node(version, elems, [end_cap, sort_key])
 ///
 /// Creates a node for a `sequence_crdt` sequence CRDT with the given properties. The resulting node will look like this:
 ///
-/// var sequence_node = sequence_crdt_create_node('alice1', 'hello')
+/// let sequence_node = sequence_crdt_create_node('alice1', 'hello')
 /// ```
 const sequence_crdt_create_node = (version: Version, elems: string | any[], end_cap: any = undefined, sort_key: any = undefined): Node => ({
   version,
@@ -38,18 +38,18 @@ const sequence_crdt_create_node = (version: Version, elems: string | any[], end_
 /// Reconstructs an array of splice-information which can be passed to `sequence_crdt_add_version` in order to add `version` to another `sequence_crdt` instance – the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
 ///
 /// ``` js
-/// var root_node = sequence_crdt_create_node('alice1', 'hello')
+/// let root_node = sequence_crdt_create_node('alice1', 'hello')
 /// console.log(sequence_crdt_generate_braid(root_node, 'alice1', x => false)) // outputs [0, 0, "hello"]
 /// ```
-const sequence_crdt_generate_braid = (S: Node, version: Version, is_anc, read_array_elements=undefined) => {
+const sequence_crdt_generate_braid = (S: Node, version: Version, is_anc: (v: Version) => boolean, read_array_elements: (<T>(x: T, cb?: () => boolean) => T) | undefined = undefined) => {
   if (!read_array_elements) read_array_elements = (x) => x;
-  var splices = [];
+  let splices = [];
 
   function add_ins(offset, ins, sort_key, end_cap, is_row_header) {
     if (typeof ins !== "string")
       ins = ins.map((x) => read_array_elements(x, () => false));
     if (splices.length > 0) {
-      var prev = splices[splices.length - 1];
+      let prev = splices[splices.length - 1];
       if (
         prev[0] + prev[1] === offset &&
         !end_cap &&
@@ -65,7 +65,7 @@ const sequence_crdt_generate_braid = (S: Node, version: Version, is_anc, read_ar
 
   function add_del(offset, del, ins) {
     if (splices.length > 0) {
-      var prev = splices[splices.length - 1];
+      let prev = splices[splices.length - 1];
       if (prev[0] + prev[1] === offset && prev[4] !== "i") {
         prev[1] += del;
         return;
@@ -74,8 +74,8 @@ const sequence_crdt_generate_braid = (S: Node, version: Version, is_anc, read_ar
     splices.push([offset, del, ins, null, "d"]);
   }
 
-  var offset = 0;
-  function helper(node, _version, end_cap=undefined, is_row_header=undefined) {
+  let offset = 0;
+  function helper(node, _version, end_cap = undefined, is_row_header = undefined) {
     if (_version === version) {
       add_ins(
         offset,
@@ -134,7 +134,7 @@ const sequence_crdt_apply_bubbles = (S, to_bubble) => {
         node.version = to_bubble[node.version][0];
       }
 
-      for (var x of Object.keys(node.deleted_by)) {
+      for (let x of Object.keys(node.deleted_by)) {
         if (to_bubble[x]) {
           delete node.deleted_by[x];
           node.deleted_by[to_bubble[x][0]] = true;
@@ -151,7 +151,7 @@ const sequence_crdt_apply_bubbles = (S, to_bubble) => {
 
   do_line(S, S.version);
   function do_line(node, version) {
-    var prev = null;
+    let prev = null;
     while (node) {
       if (node.nexts[0] && node.nexts[0].version == version) {
         for (let i = 0; i < node.nexts.length; i++) {
@@ -175,7 +175,7 @@ const sequence_crdt_apply_bubbles = (S, to_bubble) => {
         }
       }
 
-      var next = node.next;
+      let next = node.next;
 
       if (
         !node.nexts.length &&
@@ -211,13 +211,13 @@ const sequence_crdt_apply_bubbles = (S, to_bubble) => {
 /// Returns the element at the `i`th position (0-based) in the `sequence_crdt` rooted at `root_node`, when only considering versions which result in `true` when passed to `is_anc`.
 /// 
 /// ``` js
-/// var x = sequence_crdt_get(root_node, 2, {
+/// let x = sequence_crdt_get(root_node, 2, {
 ///     alice1: true
 /// })
 /// ```
 const sequence_crdt_get = (S, i, is_anc) => {
-  var ret = null;
-  var offset = 0;
+  let ret = null;
+  let offset = 0;
   sequence_crdt_traverse(S, is_anc ? is_anc : () => true, (node) => {
     if (i - offset < node.elems.length) {
       ret = node.elems[i - offset];
@@ -238,7 +238,7 @@ const sequence_crdt_get = (S, i, is_anc) => {
 /// })
 /// ```
 const sequence_crdt_set = (S, i, v, is_anc) => {
-  var offset = 0;
+  let offset = 0;
   sequence_crdt_traverse(S, is_anc ? is_anc : () => true, (node) => {
     if (i - offset < node.elems.length) {
       if (typeof node.elems == "string")
@@ -263,7 +263,7 @@ const sequence_crdt_set = (S, i, v, is_anc) => {
 /// }))
 /// ```
 const sequence_crdt_length = (S, is_anc) => {
-  var count = 0;
+  let count = 0;
   sequence_crdt_traverse(S, is_anc ? is_anc : () => true, (node) => {
     count += node.elems.length;
   });
@@ -275,11 +275,11 @@ const sequence_crdt_length = (S, is_anc) => {
 /// This method breaks apart a `sequence_crdt` node into two nodes, each representing a subsequence of the sequence represented by the original node. The `node` parameter is modified into the first node, and the second node is returned. The first node represents the elements of the sequence before `break_position`, and the second node represents the rest of the elements. If `end_cap` is truthy, then the first node will have `end_cap` set – this is generally done if the elements in the second node are being replaced. This method will add `new_next` to the first node's `nexts` array.
 /// 
 /// ``` js
-/// var node = sequence_crdt_create_node('alice1', 'hello') // node.elems == 'hello'
-/// var second = sequence_crdt_break_node(node, 2) // now node.elems == 'he', and second.elems == 'llo'
+/// let node = sequence_crdt_create_node('alice1', 'hello') // node.elems == 'hello'
+/// let second = sequence_crdt_break_node(node, 2) // now node.elems == 'he', and second.elems == 'llo'
 /// ```
-const sequence_crdt_break_node = (node, x, end_cap=undefined, new_next=undefined) => {
-  var tail = sequence_crdt_create_node(
+const sequence_crdt_break_node = (node, x, end_cap = undefined, new_next = undefined) => {
+  let tail = sequence_crdt_create_node(
     null,
     node.elems.slice(x),
     node.end_cap
@@ -303,14 +303,14 @@ const sequence_crdt_break_node = (node, x, end_cap=undefined, new_next=undefined
 /// Note that all positions are relative to the original sequence, before any splices have been applied. Positions are counted by only considering nodes with versions which result in `true` when passed to `is_anc`. (and are not `deleted_by` any versions which return `true` when passed to `is_anc`).
 /// 
 /// ``` js
-/// var node = sequence_crdt_create_node('alice1', 'hello') 
+/// let node = sequence_crdt_create_node('alice1', 'hello') 
 /// sequence_crdt_add_version(node, 'alice2', [[5, 0, ' world']], null, v => v == 'alice1') 
 /// ```
 const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) => {
-  var rebased_splices = [];
+  let rebased_splices = [];
 
   function add_to_nexts(nexts: Node[], to: Node) {
-    var i = binarySearch(nexts, function (x: Node) {
+    let i = binarySearch(nexts, function (x: Node) {
       if ((to.sort_key || to.version) < (x.sort_key || x.version)) return -1;
       if ((to.sort_key || to.version) > (x.sort_key || x.version)) return 1;
       return 0;
@@ -318,18 +318,18 @@ const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) =
     nexts.splice(i, 0, to);
   }
 
-  var si = 0;
-  var delete_up_to = 0;
+  let si = 0;
+  let delete_up_to = 0;
 
-  var process_patch = (node, offset, has_nexts, prev, _version, deleted) => {
-    var s = splices[si];
+  let process_patch = (node, offset, has_nexts, prev, _version, deleted) => {
+    let s = splices[si];
     if (!s) return;
-    var sort_key = s[3];
+    let sort_key = s[3];
 
     if (deleted) {
       if (s[1] == 0 && s[0] == offset) {
         if (node.elems.length == 0 && !node.end_cap && has_nexts) return;
-        var new_node = sequence_crdt_create_node(
+        let new_node = sequence_crdt_create_node(
           version,
           s[2],
           null,
@@ -356,7 +356,7 @@ const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) =
       ) {
         delete_up_to = s[0] + s[1];
 
-        var new_node = sequence_crdt_create_node(
+        let new_node = sequence_crdt_create_node(
           version,
           s[2],
           null,
@@ -372,10 +372,10 @@ const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) =
     }
 
     if (s[1] == 0) {
-      var d = s[0] - (offset + node.elems.length);
+      let d = s[0] - (offset + node.elems.length);
       if (d > 0) return;
       if (d == 0 && !node.end_cap && has_nexts) return;
-      var new_node = sequence_crdt_create_node(version, s[2], null, sort_key);
+      let new_node = sequence_crdt_create_node(version, s[2], null, sort_key);
 
       fresh_nodes.add(new_node);
 
@@ -389,7 +389,7 @@ const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) =
     }
 
     if (delete_up_to <= offset) {
-      var d = s[0] - (offset + node.elems.length);
+      let d = s[0] - (offset + node.elems.length);
 
       let add_at_end =
         d == 0 &&
@@ -404,7 +404,7 @@ const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) =
       delete_up_to = s[0] + s[1];
 
       if (s[2]) {
-        var new_node = sequence_crdt_create_node(
+        let new_node = sequence_crdt_create_node(
           version,
           s[2],
           null,
@@ -440,14 +440,14 @@ const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) =
     }
   };
 
-  var f = is_anc || (() => true);
-  var offset = 0;
-  var rebase_offset = 0;
+  let f = is_anc || (() => true);
+  let offset = 0;
+  let rebase_offset = 0;
   let fresh_nodes = new Set();
   function traverse(node, prev, version) {
     if (!version || f(version)) {
-      var has_nexts = node.nexts.find((next) => f(next.version));
-      var deleted = Object.keys(node.deleted_by).some((version) =>
+      let has_nexts = node.nexts.find((next) => f(next.version));
+      let deleted = Object.keys(node.deleted_by).some((version) =>
         f(version)
       );
       let rebase_deleted = Object.keys(node.deleted_by).length;
@@ -462,7 +462,7 @@ const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) =
     if (!Object.keys(node.deleted_by).length)
       rebase_offset += node.elems.length;
 
-    for (var next of node.nexts) traverse(next, null, next.version);
+    for (let next of node.nexts) traverse(next, null, next.version);
     if (node.next) traverse(node.next, node, version);
   }
   traverse(S, null, S.version);
@@ -490,17 +490,17 @@ const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) =
 /// sequence_crdt_traverse(node, () => true, node =>
 ///   process.stdout.write(node.elems)) 
 /// ```
-const sequence_crdt_traverse = (S, f, cb, view_deleted=undefined, tail_cb=undefined) => {
-  var offset = 0;
+const sequence_crdt_traverse = (S, f, cb, view_deleted = undefined, tail_cb = undefined) => {
+  let offset = 0;
   function helper(node, prev, version) {
-    var has_nexts = node.nexts.find((next) => f(next.version));
-    var deleted = Object.keys(node.deleted_by).some((version) => f(version));
+    let has_nexts = node.nexts.find((next) => f(next.version));
+    let deleted = Object.keys(node.deleted_by).some((version) => f(version));
     if (view_deleted || !deleted) {
       if (cb(node, offset, has_nexts, prev, version, deleted) == false)
         return true;
       offset += node.elems.length;
     }
-    for (var next of node.nexts)
+    for (let next of node.nexts)
       if (f(next.version)) {
         if (helper(next, null, next.version)) return true;
       }
@@ -513,11 +513,11 @@ const sequence_crdt_traverse = (S, f, cb, view_deleted=undefined, tail_cb=undefi
 
 // modified from https://stackoverflow.com/questions/22697936/binary-search-in-javascript
 function binarySearch<T>(ar: T[], compare_fn: (x: T) => number): number {
-  var m = 0;
-  var n = ar.length - 1;
+  let m = 0;
+  let n = ar.length - 1;
   while (m <= n) {
-    var k = (n + m) >> 1;
-    var cmp = compare_fn(ar[k]);
+    let k = (n + m) >> 1;
+    let cmp = compare_fn(ar[k]);
     if (cmp > 0) {
       m = k + 1;
     } else if (cmp < 0) {

@@ -24,7 +24,7 @@ import {
 /// Create a new `json_crdt` object (or start with `init`, and add stuff to that). 
 ///
 /// ``` js
-/// var json_crdt = create_json_crdt()
+/// let json_crdt = create_json_crdt()
 /// ``` 
 export const create_json_crdt = (self) => {
     self = self || {};
@@ -58,15 +58,15 @@ export const create_json_crdt = (self) => {
         if (x.t == "val")
           return raw_read(sequence_crdt_get(x.S, 0, is_anc), is_anc);
         if (x.t == "obj") {
-          var o = {};
+          let o = {};
           Object.entries(x.S).forEach(([k, v]) => {
-            var x = raw_read(v, is_anc);
+            let x = raw_read(v, is_anc);
             if (x != null) o[k] = x;
           });
           return o;
         }
         if (x.t == "arr") {
-          var a = [];
+          let a = [];
           sequence_crdt_traverse(
             x.S,
             is_anc,
@@ -79,7 +79,7 @@ export const create_json_crdt = (self) => {
           return a;
         }
         if (x.t == "str") {
-          var s = [];
+          let s = [];
           sequence_crdt_traverse(
             x.S,
             is_anc,
@@ -106,11 +106,11 @@ export const create_json_crdt = (self) => {
     /// })
     /// ```
     self.generate_braid = (versions) => {
-      var anc =
+      let anc =
         versions && Object.keys(versions).length
           ? self.ancestors(versions, true)
           : {};
-      var is_anc = (x) => anc[x];
+      let is_anc = (x) => anc[x];
   
       if (Object.keys(self.T).length === 0) return [];
   
@@ -130,16 +130,16 @@ export const create_json_crdt = (self) => {
           };
         }
   
-        var is_lit = (x) => !x || typeof x !== "object" || x.t === "lit";
-        var get_lit = (x) =>
+        let is_lit = (x) => !x || typeof x !== "object" || x.t === "lit";
+        let get_lit = (x) =>
           x && typeof x === "object" && x.t === "lit" ? x.S : x;
   
-        var ancs = self.ancestors({ [version]: true });
+        let ancs = self.ancestors({ [version]: true });
         delete ancs[version];
-        var is_anc = (x) => ancs[x];
-        var path = [];
-        var patches = [];
-        var sort_keys = {};
+        let is_anc = (x) => ancs[x];
+        let path = [];
+        let patches = [];
+        let sort_keys = {};
         recurse(self.S);
         function recurse(x) {
           if (is_lit(x)) {
@@ -162,7 +162,7 @@ export const create_json_crdt = (self) => {
               });
               if (s[3]) sort_keys[patches.length - 1] = s[3];
             });
-            var i = 0;
+            let i = 0;
             sequence_crdt_traverse(x.S, is_anc, (node) => {
               node.elems.forEach((e) => {
                 path.push(`[${i++}]`);
@@ -249,11 +249,11 @@ export const create_json_crdt = (self) => {
         }
         if (x.t == "obj") {
           Object.entries(x.S).forEach((e) => {
-            var y = (x.S[e[0]] = recurse(e[1]));
+            let y = (x.S[e[0]] = recurse(e[1]));
             if (y == null) delete x.S[e[0]];
           });
           if (Object.values(x.S).every(is_lit)) {
-            var o = {};
+            let o = {};
             Object.entries(x.S).forEach((e) => (o[e[0]] = get_lit(e[1])));
             return { t: "lit", S: o };
           }
@@ -302,9 +302,9 @@ export const create_json_crdt = (self) => {
         } else self.version_cache[version] = null;
       });
   
-      var leaves = Object.keys(self.current_version);
-      var acked_boundary = Object.keys(self.acked_boundary);
-      var fiss = Object.keys(self.fissures);
+      let leaves = Object.keys(self.current_version);
+      let acked_boundary = Object.keys(self.acked_boundary);
+      let fiss = Object.keys(self.fissures);
       if (
         leaves.length == 1 &&
         acked_boundary.length == 1 &&
@@ -364,7 +364,7 @@ export const create_json_crdt = (self) => {
       if (!sort_keys) sort_keys = {};
   
       if (!Object.keys(parents).length) {
-        var parse = self.parse_patch(patches[0]);
+        let parse = self.parse_patch(patches[0]);
         self.S = make_lit(parse.value);
         return patches;
       }
@@ -377,14 +377,14 @@ export const create_json_crdt = (self) => {
         is_anc = (_version) => ancs[_version];
       }
   
-      var rebased_patches = [];
+      let rebased_patches = [];
       patches.forEach((patch, i) => {
-        var sort_key = sort_keys[i];
-        var parse = self.parse_patch(patch);
-        var cur = resolve_path(parse);
+        let sort_key = sort_keys[i];
+        let parse = self.parse_patch(patch);
+        let cur = resolve_path(parse);
         if (!parse.slice) {
           if (cur.t != "val") throw Error("bad");
-          var len = sequence_crdt_length(cur.S, is_anc);
+          let len = sequence_crdt_length(cur.S, is_anc);
           sequence_crdt_add_version(
             cur.S,
             version,
@@ -408,15 +408,15 @@ export const create_json_crdt = (self) => {
           if (parse.value instanceof Array)
             parse.value = parse.value.map((x) => make_lit(x));
   
-          var r0 = parse.slice[0];
-          var r1 = parse.slice[1];
+          let r0 = parse.slice[0];
+          let r1 = parse.slice[1];
           if (r0 < 0 || Object.is(r0, -0) || r1 < 0 || Object.is(r1, -0)) {
             let len = sequence_crdt_length(cur.S, is_anc);
             if (r0 < 0 || Object.is(r0, -0)) r0 = len + r0;
             if (r1 < 0 || Object.is(r1, -0)) r1 = len + r1;
           }
   
-          var rebased_splices = sequence_crdt_add_version(
+          let rebased_splices = sequence_crdt_add_version(
             cur.S,
             version,
             [[r0, r1 - r0, parse.value, sort_key]],
@@ -434,20 +434,20 @@ export const create_json_crdt = (self) => {
       });
   
       function resolve_path(parse) {
-        var cur = self.S;
+        let cur = self.S;
         if (!cur || typeof cur != "object" || cur.t == "lit")
           cur = self.S = {
             t: "val",
             S: sequence_crdt_create_node(self.root_version, [cur]),
           };
-        var prev_S = null;
-        var prev_i = 0;
-        for (var i = 0; i < parse.path.length; i++) {
-          var key = parse.path[i];
+        let prev_S = null;
+        let prev_i = 0;
+        for (let i = 0; i < parse.path.length; i++) {
+          let key = parse.path[i];
           if (cur.t == "val")
             cur = sequence_crdt_get((prev_S = cur.S), (prev_i = 0), is_anc);
           if (cur.t == "lit") {
-            var new_cur = {};
+            let new_cur = {};
             if (cur.S instanceof Array) {
               new_cur.t = "arr";
               new_cur.S = sequence_crdt_create_node(
@@ -538,7 +538,7 @@ export const create_json_crdt = (self) => {
     /// }) 
     /// ``` 
     self.ancestors = (versions, ignore_nonexistent) => {
-      var result = {};
+      let result = {};
       function recurse(version) {
         if (result[version]) return;
         if (!self.T[version]) {
@@ -564,7 +564,7 @@ export const create_json_crdt = (self) => {
     /// ``` 
     self.descendants = (versions, ignore_nonexistent) => {
       let children = self.get_child_map();
-      var result = {};
+      let result = {};
       function recurse(version) {
         if (result[version]) return;
         if (!self.T[version]) {
@@ -582,7 +582,7 @@ export const create_json_crdt = (self) => {
     ///
     /// Returns a set of versions from `versions` which don't also have a child in `versions`. `versions` is itself a set of versions, represented as an object with version keys and `true` values, and the return value is represented the same way.
     self.get_leaves = (versions) => {
-      var leaves = { ...versions };
+      let leaves = { ...versions };
       Object.keys(versions).forEach((v) => {
         Object.keys(self.T[v]).forEach((p) => delete leaves[p]);
       });
@@ -610,10 +610,10 @@ export const create_json_crdt = (self) => {
     /// console.log(json_crdt.parse_json_path('a.b.c'))
     /// ```
     self.parse_json_path = (json_path) => {
-      var ret = { path: [] };
-      var re =
+      let ret = { path: [] };
+      let re =
         /^(delete)\s+|\.?([^\.\[ =]+)|\[((\-?\d+)(:\-?\d+)?|"(\\"|[^"])*")\]/g;
-      var m;
+      let m;
       while ((m = re.exec(json_path))) {
         if (m[1]) ret.delete = true;
         else if (m[2]) ret.path.push(m[2]);
