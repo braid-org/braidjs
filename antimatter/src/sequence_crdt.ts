@@ -41,7 +41,7 @@ const sequence_crdt_create_node = (version: Version, elems: string | any[], end_
 /// var root_node = sequence_crdt_create_node('alice1', 'hello')
 /// console.log(sequence_crdt_generate_braid(root_node, 'alice1', x => false)) // outputs [0, 0, "hello"]
 /// ```
-const sequence_crdt_generate_braid = (S: Node, version: Version, is_anc, read_array_elements) => {
+const sequence_crdt_generate_braid = (S: Node, version: Version, is_anc, read_array_elements=undefined) => {
   if (!read_array_elements) read_array_elements = (x) => x;
   var splices = [];
 
@@ -75,7 +75,7 @@ const sequence_crdt_generate_braid = (S: Node, version: Version, is_anc, read_ar
   }
 
   var offset = 0;
-  function helper(node, _version, end_cap, is_row_header) {
+  function helper(node, _version, end_cap=undefined, is_row_header=undefined) {
     if (_version === version) {
       add_ins(
         offset,
@@ -278,7 +278,7 @@ const sequence_crdt_length = (S, is_anc) => {
 /// var node = sequence_crdt_create_node('alice1', 'hello') // node.elems == 'hello'
 /// var second = sequence_crdt_break_node(node, 2) // now node.elems == 'he', and second.elems == 'llo'
 /// ```
-const sequence_crdt_break_node = (node, x, end_cap, new_next) => {
+const sequence_crdt_break_node = (node, x, end_cap=undefined, new_next=undefined) => {
   var tail = sequence_crdt_create_node(
     null,
     node.elems.slice(x),
@@ -306,11 +306,11 @@ const sequence_crdt_break_node = (node, x, end_cap, new_next) => {
 /// var node = sequence_crdt_create_node('alice1', 'hello') 
 /// sequence_crdt_add_version(node, 'alice2', [[5, 0, ' world']], null, v => v == 'alice1') 
 /// ```
-const sequence_crdt_add_version = (S, version, splices, is_anc) => {
+const sequence_crdt_add_version = (S: Node, version: Version, splices, is_anc) => {
   var rebased_splices = [];
 
-  function add_to_nexts(nexts, to) {
-    var i = binarySearch(nexts, function (x) {
+  function add_to_nexts(nexts: Node[], to: Node) {
+    var i = binarySearch(nexts, function (x: Node) {
       if ((to.sort_key || to.version) < (x.sort_key || x.version)) return -1;
       if ((to.sort_key || to.version) > (x.sort_key || x.version)) return 1;
       return 0;
@@ -490,7 +490,7 @@ const sequence_crdt_add_version = (S, version, splices, is_anc) => {
 /// sequence_crdt_traverse(node, () => true, node =>
 ///   process.stdout.write(node.elems)) 
 /// ```
-const sequence_crdt_traverse = (S, f, cb, view_deleted, tail_cb) => {
+const sequence_crdt_traverse = (S, f, cb, view_deleted=undefined, tail_cb=undefined) => {
   var offset = 0;
   function helper(node, prev, version) {
     var has_nexts = node.nexts.find((next) => f(next.version));

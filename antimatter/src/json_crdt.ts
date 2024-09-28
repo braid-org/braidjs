@@ -6,6 +6,18 @@
 ///   structure for each value, where the first element in the sequence is the
 ///   value).
 
+import {
+  create_node as sequence_crdt_create_node,
+  generate_braid as sequence_crdt_generate_braid,
+  apply_bubbles as sequence_crdt_apply_bubbles,
+  get as sequence_crdt_get,
+  set as sequence_crdt_set,
+  length as sequence_crdt_length,
+  break_node as sequence_crdt_break_node,
+  add_version as sequence_crdt_add_version,
+  traverse as sequence_crdt_traverse,
+} from "./sequence_crdt.ts";
+
 
 /// ## create_json_crdt([init])
 ///
@@ -132,8 +144,7 @@ export const create_json_crdt = (self) => {
         function recurse(x) {
           if (is_lit(x)) {
           } else if (x.t === "val") {
-            sequence_crdt
-              .generate_braid(x.S, version, is_anc, raw_read)
+            sequence_crdt_generate_braid(x.S, version, is_anc, raw_read)
               .forEach((s) => {
                 if (s[2].length) {
                   patches.push({ range: path.join(""), content: s[2][0] });
