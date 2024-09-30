@@ -1653,7 +1653,7 @@ var sequence_crdt = {};
   ///
   /// ``` js
   /// var root_node = sequence_crdt.create_node('alice1', 'hello')
-  /// console.log(sequence_crdt.generate_braid(root_node, 'alice1', x => false)) // outputs [0, 0, "hello"]
+  /// console.log(sequence_crdt.generate_braid(root_node, 'alice1', x => false)) // outputs [[0, 0, "hello"]]
   /// ```
   sequence_crdt.generate_braid = (S, version, is_anc, read_array_elements) => {
     if (!read_array_elements) read_array_elements = (x) => x;
