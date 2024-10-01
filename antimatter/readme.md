@@ -15,4 +15,4 @@ var {create_antimatter_crdt, create_json_crdt, sequence_crdt} = require('@braidj
 The Antimatter Algorithm was invented by Michael Toomim and Greg Little in the
 [Braid Project](https://braid.org) of [Invisible College](https://invisible.college/).
 
-[Click here to see more details, and the API side-by-side with the source code.]([Antimatter](https://braid.org/antimatter)
+[Click here to see more details, and the API side-by-side with the source code.](https://braid.org/antimatter)
