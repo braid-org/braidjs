@@ -1088,7 +1088,7 @@ var sequence_crdt = {};
 
     /// # json_crdt.generate_braid(versions)
     ///
-    /// Returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to `antimatter_crdt.receive()`, we'll reconstruct the data in this `json_crdt` data-structure, assuming the recipient already has the given `versions` (each version is represented as an object with a version, and each value is `true`).
+    /// Returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to `antimatter_crdt.receive()`, we'll reconstruct the data in this `json_crdt` data-structure, assuming the recipient already has the given `versions` (each version is represented as a key in an object, and each value is `true`).
     ///
     /// ``` js
     /// json_crdt.generate_braid({
@@ -1649,11 +1649,12 @@ var sequence_crdt = {};
 
   /// # sequence_crdt.generate_braid(root_node, version, is_anc)
   ///  
-  /// Reconstructs an array of splice-information which can be passed to `sequence_crdt.add_version` in order to add `version` to another `sequence_crdt` instance – the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
+  /// Reconstructs an array of splice-information which can be passed to `sequence_crdt.add_version` in order to add `version` to another `sequence_crdt` instance – the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key, ...], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
   ///
   /// ``` js
-  /// var root_node = sequence_crdt.create_node('alice1', 'hello')
-  /// console.log(sequence_crdt.generate_braid(root_node, 'alice1', x => false)) // outputs [[0, 0, "hello"]]
+  /// var root_node = sequence_crdt.create_node('root', '')
+  /// sequence_crdt.add_version(root_node, 'alice1', [[0, 0, 'hello']])
+  /// console.log(sequence_crdt.generate_braid(root_node, 'alice1', x => false)) // outputs [[0, 0, "hello", ...]]
   /// ```
   sequence_crdt.generate_braid = (S, version, is_anc, read_array_elements) => {
     if (!read_array_elements) read_array_elements = (x) => x;
