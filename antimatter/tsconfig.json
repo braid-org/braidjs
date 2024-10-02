@@ -1,5 +1,0 @@
-{
-    "compilerOptions": {
-        "lib": ["ES2017"],
-    }
-}
