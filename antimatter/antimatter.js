@@ -1919,7 +1919,7 @@ var sequence_crdt = {};
   /// 
   /// ``` js
   /// var node = sequence_crdt.create_node('alice1', 'hello') 
-  /// sequence_crdt.add_version(node, 'alice2', [[5, 0, ' world']], null, v => v == 'alice1') 
+  /// sequence_crdt.add_version(node, 'alice2', [[5, 0, ' world']], v => v == 'alice1') 
   /// ```
   sequence_crdt.add_version = (S, version, splices, is_anc) => {
     var rebased_splices = [];
