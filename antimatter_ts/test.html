@@ -1,0 +1,291 @@
+<body></body>
+<script>
+
+let real_random = Math.random
+
+function print(...args) {
+    let d = document.createElement('div')
+    let angle = real_random() * 360
+    d.style.background = `hsl(${angle},100%,${args[0]?.startsWith?.('i = ') ? 85 : 95}%)`
+    d.style.border = `3px solid hsl(${angle},100%,85%)`
+    d.style.display = 'grid'
+    d.style['grid-template-columns'] = '1fr '.repeat(args.length)
+    for (let a of args) {
+        if (typeof a == 'string') {
+            let dd = document.createElement('div')
+            dd.textContent = a
+            d.append(dd)
+        } else {
+            let dd = document.createElement('pre')
+            dd.style.fontSize = '50%'
+            dd.textContent = JSON.stringify(a, null, '    ')
+            d.append(dd)
+        }
+    }
+    document.body.append(d)
+}
+
+console.log = print
+
+</script>
+<script src="antimatter.js"></script>
+<script src="random002.js"></script>
+
+<script>
+
+;(async () => {
+
+    let best_seed = null
+    let best_n = Infinity
+    let last_n
+
+    for (let i = 0; i < 100; i++) {
+        let seed = 'BASE_' + i
+        let r = run_test(seed, false)
+        if (!r) {
+            console.log(`seed "${seed}" FAILED after ${last_n} steps`)
+            if (last_n < best_n) {
+                best_n = last_n
+                best_seed = seed
+            }
+        } else {
+            console.log(`seed "${seed}" passed after ${last_n} steps!`)
+        }
+
+        if (best_seed != null) {
+            console.log(`    (smallest failed seed: "${best_seed}", after ${best_n} steps)`)
+        }
+
+        await new Promise(done => setTimeout(done, 10))
+        document.body.scrollTop = document.body.scrollHeight
+    }
+    if (best_seed == null) console.log(`ALL PASSED!`)
+    document.body.scrollTop = document.body.scrollHeight
+
+    function run_test(seed, verbose) {
+        try {
+        Math.randomSeed(seed)
+
+        let num_peers = Math.floor(Math.random() * 5) + 1
+        let steps = Math.floor(Math.random() * 200)
+
+        last_n = 0
+
+        let peers = []
+        let conns = {}
+        let next_conn_id = 0
+
+        for (let i = 0; i < num_peers; i++) {
+            peers.push(antimatter.create(msg => {
+                let c = conns[msg.conn]
+
+                if (c?.[i]?.other == null) {
+                    debugger
+                }
+
+                if (verbose) console.log(`    send p${i}->p${c?.[i]?.other}(conn:${msg.conn}) msg:${msg.cmd}`)
+
+                c?.[c?.[i]?.other]?.q.push(msg)
+            }, {id: i}))
+        }
+
+        peers[0].set({range: '', content: ''})
+
+        for (let i = 0; i < steps; i++) {
+            if (verbose) console.log(`i = ${i}`)
+
+            last_n++
+
+            if (Math.random() < 1/3) {
+                // edit
+
+                let can_do = peers.filter(p => p.read() != null || p.id == 0)
+                let p = can_do[Math.floor(Math.random() * can_do.length)]
+                let text = p.read()
+
+                let start = Math.round(Math.random() * text.length)
+                let end = start + Math.round(Math.random() * (text.length - start))
+                let content = String.fromCharCode('a'.charCodeAt(0) + Math.floor(Math.random() * 26)).repeat(Math.floor(Math.random() * 4))
+
+                if (verbose) console.log(`edit p${p.id} [${start}:${end}]=${content}`)
+
+                let v = p.set({range: `[${start}:${end}]`, content})
+            } else if (Math.random() < 0.5) {
+                if (Math.random() < 0.5) {
+                    // connect
+
+                    if (peers.length > 1) {
+                        let p1 = peers[Math.floor(Math.random() * peers.length)]
+                        let p2 = p1
+                        while (p2 == p1) p2 = peers[Math.floor(Math.random() * peers.length)]
+
+                        let conn = next_conn_id++
+                        conns[conn] = {
+                            [p1.id]: {other: p2.id, q: []},
+                            [p2.id]: {other: p1.id, q: []}
+                        }
+
+                        if (verbose) console.log(`conn p${p1.id} -> p${p2.id} (conn:${conn})`)
+
+                        p1.get(conn)
+                    }
+                } else {
+                    // disconnect
+
+                    let conn_keys = Object.keys(conns)
+                    if (conn_keys.length) {
+                        let conn = conn_keys[Math.floor(Math.random() * conn_keys.length)]
+                        let c = conns[conn]
+                        let peer_keys = Object.keys(c)
+                        let p = peers[peer_keys[Math.floor(Math.random() * peer_keys.length)]]
+                        let other = c[p.id].other
+
+                        if (peer_keys.length == 1) delete conns[conn]
+                        else delete c[p.id]
+
+                        if (verbose) console.log(`diss p${p.id} (conn:${conn}, ${other})`)
+
+                        if (p.conns[conn] != null || p.proto_conns[conn]) p.disconnect(conn)
+                    }
+                }
+            } else {
+                // message pump
+
+                let conn_keys = Object.keys(conns)
+                if (conn_keys.length) {
+                    let conn = conn_keys[Math.floor(Math.random() * conn_keys.length)]
+                    let c = conns[conn]
+                    let peer_keys = Object.keys(c)
+                    let p = peers[peer_keys[Math.floor(Math.random() * peer_keys.length)]]
+
+                    let msg = c[p.id].q.shift()
+
+                    if (msg) {
+                        if (verbose) console.log(`recv p${p.id} (conn:${conn}) msg:${msg.cmd} :: ${JSON.stringify(msg)}`)
+
+                        p.receive(msg)
+                    }
+                }            
+            }
+
+            if (verbose) console.log(...peers.map(p => ({T: p.T, f: p.fissures})))
+        }
+
+        if (verbose) console.log(`----clean conns----`)
+        for (let [conn, c] of Object.entries(conns)) {
+            let peer_keys = Object.keys(c)
+            if (peer_keys.length < 2) {
+                let p = peers[peer_keys[0]]
+                let other = c[p.id].other
+
+                delete conns[conn]
+
+                if (verbose) console.log(`diss p${p.id} (conn:${conn})`)
+
+                if (p.conns[conn] != null || p.proto_conns[conn]) p.disconnect(conn)
+            }
+        }
+
+        if (verbose) console.log(`----conn all----`)
+        for (let i = 1; i < peers.length; i++) {
+            let p1 = peers[i]
+            let p2 = peers[Math.floor(Math.random() * i)]
+
+            let conn = next_conn_id++
+            conns[conn] = {
+                [p1.id]: {other: p2.id, q: []},
+                [p2.id]: {other: p1.id, q: []}
+            }
+
+            if (verbose) console.log(`conn p${p1.id} -> p${p2.id} (conn:${conn})`)
+
+            p1.get(conn)
+        }
+
+        function pump_all() {
+            if (verbose) console.log(`----pump all----`)
+            for (let i = 1000; i >= 0; i--) {
+                if (i == 0) {
+                    console.log(`safety limit exceeded!`)
+                    throw 'bad'
+                }
+                if (verbose) console.log(`i = ${i}`)
+
+                last_n++
+
+                let options = []
+
+                for (let [conn, c] of Object.entries(conns)) {
+                    for (let [pk, pp] of Object.entries(c)) {
+                        if (pp.q.length) {
+                            options.push(() => {
+                                let p = peers[pk]
+                                let msg = pp.q.shift()
+
+                                if (verbose) {
+                                    console.log(`recv p${p.id} (conn:${conn}, ${conns[conn][p.id].other}) msg:${msg.cmd}, ${JSON.stringify(msg)}`)
+                                }
+
+                                p.receive(msg)
+
+                                if (verbose) {
+                                    console.log(...peers.map(p => ({T: p.T, f: p.fissures})))
+                                }
+                            })
+                        }
+                    }
+                }
+
+                if (options.length) {
+                    options[Math.floor(Math.random() * options.length)]()
+                } else break
+            }
+        }
+
+        pump_all()
+
+        if (verbose) console.log(`----resend fissures----`)
+        for (let p of peers) {
+            if (verbose) console.log(`p${p.id} sending fissures`)
+
+            for (let c of Object.keys(p.conns)) p.send({cmd: 'welcome', versions: [], fissures: Object.values(p.fissures), conn: c})
+        }
+
+        pump_all()
+
+        if (verbose) console.log(`----joiner----`)
+
+        peers[0].set({range: '[0:0]', content: '_'})
+
+        pump_all()
+
+        let final_text = peers[0].S
+        if (typeof final_text != 'string') {
+            console.log('final not a string: ', final_text)
+            return false
+        }
+        for (let p of peers) {
+            if (p.S != final_text) {
+                console.log(`peer not in line (we want ${final_text}): `, p)
+                return false
+            }
+            if (Object.keys(p.T).length != 1) {
+                console.log('peer has big T: ', p)
+                return false
+            }
+            if (Object.keys(p.fissures).length != 0) {
+                console.log('peer has fissures: ', p)
+                return false
+            }
+        }
+
+        return true
+        } catch (e) {
+            console.log(`E: ${e}`, e.stack)
+            return false
+        }
+    }
+
+})()
+
+</script>
