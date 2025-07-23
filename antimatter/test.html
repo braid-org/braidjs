@@ -83,7 +83,7 @@ console.log = print
                     debugger
                 }
 
-                if (verbose) console.log(`    send p${i}->p${c?.[i]?.other}(conn:${msg.conn}) msg:${msg.cmd}`)
+                if (verbose) console.log(`    send p${i}->p${c?.[i]?.other}(conn:${msg.conn}) msg:${msg.type}`)
 
                 c?.[c?.[i]?.other]?.q.push(msg)
             }, {id: i}))
@@ -161,7 +161,7 @@ console.log = print
                     let msg = c[p.id].q.shift()
 
                     if (msg) {
-                        if (verbose) console.log(`recv p${p.id} (conn:${conn}) msg:${msg.cmd} :: ${JSON.stringify(msg)}`)
+                        if (verbose) console.log(`recv p${p.id} (conn:${conn}) msg:${msg.type} :: ${JSON.stringify(msg)}`)
 
                         p.receive(msg)
                     }
@@ -223,7 +223,7 @@ console.log = print
                                 let msg = pp.q.shift()
 
                                 if (verbose) {
-                                    console.log(`recv p${p.id} (conn:${conn}, ${conns[conn][p.id].other}) msg:${msg.cmd}, ${JSON.stringify(msg)}`)
+                                    console.log(`recv p${p.id} (conn:${conn}, ${conns[conn][p.id].other}) msg:${msg.type}, ${JSON.stringify(msg)}`)
                                 }
 
                                 p.receive(msg)
@@ -248,7 +248,7 @@ console.log = print
         for (let p of peers) {
             if (verbose) console.log(`p${p.id} sending fissures`)
 
-            for (let c of Object.keys(p.conns)) p.send({cmd: 'welcome', versions: [], fissures: Object.values(p.fissures), conn: c})
+            for (let c of Object.keys(p.conns)) p.send({type: 'welcome', versions: [], fissures: Object.values(p.fissures), conn: c})
         }
 
         pump_all()
