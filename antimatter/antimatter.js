@@ -69,17 +69,17 @@ var sequence_crdt = {};
 
     self.fissures = self.fissures || {};
     self.acked_boundary = self.acked_boundary || {};
-    self.marcos = self.marcos || {};
+    self.ackmes = self.ackmes || {};
     self.forget_cbs = self.forget_cbs || {};
 
     self.version_groups = self.version_groups || {};
 
-    self.marco_map = self.marco_map || {};
-    self.marco_time_est_1 = self.marco_time_est_1 || 1000;
-    self.marco_time_est_2 = self.marco_time_est_2 || 1000;
-    self.marco_current_wait_time = self.marco_current_wait_time || 1000;
-    self.marco_increases_allowed = 1;
-    self.marco_timeout = self.marco_timeout || null;
+    self.ackme_map = self.ackme_map || {};
+    self.ackme_time_est_1 = self.ackme_time_est_1 || 1000;
+    self.ackme_time_est_2 = self.ackme_time_est_2 || 1000;
+    self.ackme_current_wait_time = self.ackme_current_wait_time || 1000;
+    self.ackme_increases_allowed = 1;
+    self.ackme_timeout = self.ackme_timeout || null;
 
     function raw_add_version_group(version_array) {
       let version_map = {};
@@ -268,7 +268,7 @@ var sequence_crdt = {};
         fissures,
         seen,
         forget,
-        marco,
+        ackme,
         peer,
         conn,
       } = x;
@@ -297,14 +297,14 @@ var sequence_crdt = {};
         });
       });
 
-      let marco_versions_array = version
+      let ackme_versions_array = version
         ? [version]
         : versions && !Array.isArray(versions)
         ? Object.keys(versions).sort()
         : null;
-      let marco_versions =
-        marco_versions_array &&
-        Object.fromEntries(marco_versions_array.map((v) => [v, true]));
+      let ackme_versions =
+        ackme_versions_array &&
+        Object.fromEntries(ackme_versions_array.map((v) => [v, true]));
 
       if (versions && !Array.isArray(versions)) {
         versions = { ...versions };
@@ -558,73 +558,73 @@ var sequence_crdt = {};
 
           for (let c of Object.keys(self.conns))
             if (c != conn)
-              send({ type: "set", version, parents, patches, marco, conn: c });
+              send({ type: "set", version, parents, patches, ackme, conn: c });
         }
       }
 
-      /// ## message `marco`
-      /// Sent for pruning purposes, to try and establish whether everyone has seen the most recent versions. Note that a `set` message is treated as a `marco` message for the version being set.
+      /// ## message `ackme`
+      /// Sent for pruning purposes, to try and establish whether everyone has seen the most recent versions. Note that a `set` message is treated as a `ackme` message for the version being set.
       /// ``` js
-      /// { type: 'marco',
-      ///   version: 'MARCO_ID',
+      /// { type: 'ackme',
+      ///   version: 'ACKME_ID',
       ///   versions: {'VERSION_ID_A': true, ...},
       ///   conn: 'CONN_ID' }
       /// ```
-      if (type == "marco" || type == "set") {
+      if (type == "ackme" || type == "set") {
         if (!Object.keys(versions).every((v) => self.T[v])) return;
 
         if (
-          self.marco_timeout &&
-          marco_versions_array.length ==
+          self.ackme_timeout &&
+          ackme_versions_array.length ==
             Object.keys(self.current_version).length &&
-          marco_versions_array.every((x) => self.current_version[x])
+          ackme_versions_array.every((x) => self.current_version[x])
         ) {
-          clear_timeout(self.marco_timeout);
-          self.marco_timeout = null;
+          clear_timeout(self.ackme_timeout);
+          self.ackme_timeout = null;
         }
 
-        let m = self.marcos[marco];
+        let m = self.ackmes[ackme];
         if (!m) {
-          m = self.marcos[marco] = {
-            id: marco,
+          m = self.ackmes[ackme] = {
+            id: ackme,
             origin: conn,
             count: Object.keys(self.conns).length - (conn != null ? 1 : 0),
-            versions: marco_versions,
+            versions: ackme_versions,
             seq: self.conn_count,
             time: get_time(),
           };
           m.orig_count = m.count;
-          m.real_marco = type == "marco";
+          m.real_ackme = type == "ackme";
           m.key = JSON.stringify(Object.keys(m.versions).sort());
-          self.marco_map[m.key] = self.marco_map[m.key] || {};
-          let before = Object.keys(self.marco_map[m.key]).length;
-          self.marco_map[m.key][m.id] = true;
-          let after = Object.keys(self.marco_map[m.key]).length;
-          if (before == 1 && after == 2 && self.marco_increases_allowed > 0) {
-            self.marco_current_wait_time *= 2;
-            self.marco_increases_allowed--;
+          self.ackme_map[m.key] = self.ackme_map[m.key] || {};
+          let before = Object.keys(self.ackme_map[m.key]).length;
+          self.ackme_map[m.key][m.id] = true;
+          let after = Object.keys(self.ackme_map[m.key]).length;
+          if (before == 1 && after == 2 && self.ackme_increases_allowed > 0) {
+            self.ackme_current_wait_time *= 2;
+            self.ackme_increases_allowed--;
           }
 
-          if (type == "marco")
+          if (type == "ackme")
             for (let c of Object.keys(self.conns))
               if (c != conn)
                 send({
-                  type: "marco",
-                  marco,
-                  versions: marco_versions,
+                  type: "ackme",
+                  ackme,
+                  versions: ackme_versions,
                   conn: c,
                 });
         } else if (m.seq < self.conns[conn].seq) {
           send({
             type: "ack",
             seen: "local",
-            marco,
-            versions: marco_versions,
+            ackme,
+            versions: ackme_versions,
             conn,
           });
           return;
         } else m.count--;
-        check_marco_count(marco);
+        check_ackme_count(ackme);
       }
 
       /// ## message local `ack`
@@ -633,31 +633,31 @@ var sequence_crdt = {};
       /// {type: 'ack', seen: 'local', version: 'VERSION_ID', conn: 'CONN_ID'}
       /// ```
       if (type == "ack" && seen == "local") {
-        let m = self.marcos[marco];
+        let m = self.ackmes[ackme];
         if (!m || m.cancelled) return;
         m.count--;
-        check_marco_count(marco);
+        check_ackme_count(ackme);
       }
-      function check_marco_count(marco) {
-        let m = self.marcos[marco];
+      function check_ackme_count(ackme) {
+        let m = self.ackmes[ackme];
         if (m && m.count === 0 && !m.cancelled) {
           m.time2 = get_time();
           if (m.orig_count > 0) {
             let t = m.time2 - m.time;
             let weight = 0.1;
-            self.marco_time_est_1 =
-              weight * t + (1 - weight) * self.marco_time_est_1;
+            self.ackme_time_est_1 =
+              weight * t + (1 - weight) * self.ackme_time_est_1;
           }
           if (m.origin != null) {
             if (self.conns[m.origin])
               send({
                 type: "ack",
                 seen: "local",
-                marco,
-                versions: marco_versions,
+                ackme,
+                versions: ackme_versions,
                 conn: m.origin,
               });
-          } else add_full_ack_leaves(marco);
+          } else add_full_ack_leaves(ackme);
         }
       }
 
@@ -667,23 +667,23 @@ var sequence_crdt = {};
       /// {type: 'ack', seen: 'global', version: 'VERSION_ID', conn: 'CONN_ID'}
       /// ```
       if (type == "ack" && seen == "global") {
-        let m = self.marcos[marco];
+        let m = self.ackmes[ackme];
 
         if (!m || m.cancelled) return;
 
         let t = get_time() - m.time2;
         let weight = 0.1;
-        self.marco_time_est_2 =
-          weight * t + (1 - weight) * self.marco_time_est_2;
+        self.ackme_time_est_2 =
+          weight * t + (1 - weight) * self.ackme_time_est_2;
 
-        if (m.real_marco && Object.keys(self.marco_map[m.key]).length == 1) {
-          self.marco_current_wait_time *= 0.8;
+        if (m.real_ackme && Object.keys(self.ackme_map[m.key]).length == 1) {
+          self.ackme_current_wait_time *= 0.8;
         }
 
-        add_full_ack_leaves(marco, conn);
+        add_full_ack_leaves(ackme, conn);
       }
-      function add_full_ack_leaves(marco, conn) {
-        let m = self.marcos[marco];
+      function add_full_ack_leaves(ackme, conn) {
+        let m = self.ackmes[ackme];
         if (!m || m.cancelled) return;
         m.cancelled = true;
 
@@ -692,8 +692,8 @@ var sequence_crdt = {};
             send({
               type: "ack",
               seen: "global",
-              marco,
-              versions: marco_versions,
+              ackme,
+              versions: ackme_versions,
               conn: c,
             });
 
@@ -727,27 +727,27 @@ var sequence_crdt = {};
       if (fissures_forward.length) resolve_fissures();
 
       if (
-        !self.marco_timeout &&
+        !self.ackme_timeout &&
         type != "set" &&
-        type != "marco" &&
+        type != "ackme" &&
         prune(true)
       ) {
-        if (!self.marco_current_wait_time) {
-          self.marco_current_wait_time =
-            4 * (self.marco_time_est_1 + self.marco_time_est_2);
+        if (!self.ackme_current_wait_time) {
+          self.ackme_current_wait_time =
+            4 * (self.ackme_time_est_1 + self.ackme_time_est_2);
         }
 
-        let t = Math.random() * self.marco_current_wait_time;
+        let t = Math.random() * self.ackme_current_wait_time;
 
-        self.marco_timeout = set_timeout(() => {
-          self.marco_increases_allowed = 1;
-          self.marco_timeout = null;
-          if (prune(true)) self.marco();
+        self.ackme_timeout = set_timeout(() => {
+          self.ackme_increases_allowed = 1;
+          self.ackme_timeout = null;
+          if (prune(true)) self.ackme();
         }, t);
       }
 
       if (type == "welcome" && peer == null && prune(true, null, true))
-        self.marco();
+        self.ackme();
 
       return rebased_patches;
     };
@@ -821,31 +821,31 @@ var sequence_crdt = {};
         version,
         parents: { ...self.current_version },
         patches,
-        marco: Math.random().toString(36).slice(2),
+        ackme: Math.random().toString(36).slice(2),
       });
       return version;
     };
 
-    /// # antimatter_crdt.marco()
+    /// # antimatter_crdt.ackme()
     ///
-    /// Initiate sending a `marco` message to try and establish whether certain versions can be pruned. 
+    /// Initiate sending a `ackme` message to try and establish whether certain versions can be pruned. 
     ///
     /// ``` js
-    /// antimatter_crdt.marco()
+    /// antimatter_crdt.ackme()
     /// ```
-    self.marco = () => {
+    self.ackme = () => {
       let versions = { ...self.current_version };
       Object.keys(versions).forEach((v) =>
         self.version_groups[v] && self.version_groups[v].forEach((v) => (versions[v] = true))
       );
 
-      let marco = Math.random().toString(36).slice(2);
-      self.receive({ type: "marco", marco, versions });
-      return marco;
+      let ackme = Math.random().toString(36).slice(2);
+      self.receive({ type: "ackme", ackme, versions });
+      return ackme;
     };
 
-    function cancel_marcos() {
-      for (let m of Object.values(self.marcos)) m.cancelled = true;
+    function cancel_ackmes() {
+      for (let m of Object.values(self.ackmes)) m.cancelled = true;
     }
 
     function create_fissure(peer, conn) {
@@ -878,7 +878,7 @@ var sequence_crdt = {};
       });
 
       if (Object.keys(unfissured).length) {
-        cancel_marcos();
+        cancel_ackmes();
 
         let ack_versions = self.ancestors(self.acked_boundary);
         let unfissured_descendants = self.descendants(unfissured, true);
@@ -989,16 +989,16 @@ var sequence_crdt = {};
 
       self.apply_bubbles(to_bubble);
 
-      for (let [k, m] of Object.entries(self.marcos)) {
+      for (let [k, m] of Object.entries(self.ackmes)) {
         let vs = Object.keys(m.versions);
         if (
           !vs.length ||
           !vs.every((v) => self.T[v] || self.version_groups[v])
         ) {
-          delete self.marcos[k];
-          delete self.marco_map[m.key][m.id];
-          if (!Object.keys(self.marco_map[m.key]).length)
-            delete self.marco_map[m.key];
+          delete self.ackmes[k];
+          delete self.ackme_map[m.key][m.id];
+          if (!Object.keys(self.ackme_map[m.key]).length)
+            delete self.ackme_map[m.key];
         }
       }
 
