@@ -348,7 +348,7 @@ var sequence_crdt = {};
 
       if (fissures) fissures.forEach((f) => (f.t = self.conn_count));
 
-      if (versions && (type == "set" || type == "welcome"))
+      if (versions && (type == "update" || type == "welcome"))
         versions = Object.fromEntries(versions.map((v) => [v.version, v]));
       if (version) versions = { [version]: true };
 
@@ -412,7 +412,7 @@ var sequence_crdt = {};
       /// {
       ///   type: 'welcome',
       ///   versions: [
-      ///     //each version looks like a set message...
+      ///     //each version looks like an update message...
       ///   ],
       ///   fissures: [
       ///     //each fissure looks as it would in a fissure message...
@@ -538,16 +538,16 @@ var sequence_crdt = {};
         self.forget_cbs[conn]();
       }
 
-      /// ## message `set`
+      /// ## message `update`
       /// Sent to alert peers about a change in the document. The change is represented as a version, with a unique id, a set of parent versions (the most recent versions known before adding this version), and an array of patches, where the offsets in the patches do not take into account the application of other patches in the same array.
       /// ``` js
-      /// { type: 'set',
+      /// { type: 'update',
       ///   version: 'VERSION_ID',
       ///   parents: {'PARENT_VERSION_ID': true, ...},
       ///   patches: [ {range: '.json.path.a.b', content: 42}, ... ],
       ///   conn: 'CONN_ID' }
       /// ```
-      if (type == "set") {
+      if (type == "update") {
         if (conn == null || !self.T[version]) {
           let ps = Object.keys(parents);
 
@@ -558,19 +558,19 @@ var sequence_crdt = {};
 
           for (let c of Object.keys(self.conns))
             if (c != conn)
-              send({ type: "set", version, parents, patches, ackme, conn: c });
+              send({ type: "update", version, parents, patches, ackme, conn: c });
         }
       }
 
       /// ## message `ackme`
-      /// Sent for pruning purposes, to try and establish whether everyone has seen the most recent versions. Note that a `set` message is treated as a `ackme` message for the version being set.
+      /// Sent for pruning purposes, to try and establish whether everyone has seen the most recent versions. Note that an `update` message is treated as a `ackme` message for the version in the update.
       /// ``` js
       /// { type: 'ackme',
       ///   version: 'ACKME_ID',
       ///   versions: {'VERSION_ID_A': true, ...},
       ///   conn: 'CONN_ID' }
       /// ```
-      if (type == "ackme" || type == "set") {
+      if (type == "ackme" || type == "update") {
         if (!Object.keys(versions).every((v) => self.T[v])) return;
 
         if (
@@ -628,7 +628,7 @@ var sequence_crdt = {};
       }
 
       /// ## message local `ack`
-      /// Sent in response to `set`, but not right away; a peer will first send the `set` over all its other connections, and only after they have all responded with a local `ack` – and we didn't see a `fissure` message while waiting – will the peer send a local `ack` over the originating connection.
+      /// Sent in response to `update`, but not right away; a peer will first send the `update` over all its other connections, and only after they have all responded with a local `ack` – and we didn't see a `fissure` message while waiting – will the peer send a local `ack` over the originating connection.
       /// ``` js
       /// {type: 'ack', seen: 'local', version: 'VERSION_ID', conn: 'CONN_ID'}
       /// ```
@@ -728,7 +728,7 @@ var sequence_crdt = {};
 
       if (
         !self.ackme_timeout &&
-        type != "set" &&
+        type != "update" &&
         type != "ackme" &&
         prune(true)
       ) {
@@ -804,20 +804,20 @@ var sequence_crdt = {};
       }
     };
 
-    /// # antimatter_crdt.set(...patches)
+    /// # antimatter_crdt.update(...patches)
     ///
     /// Modify this antimatter_crdt object by applying the given patches. Each patch looks like `{range: '.life.meaning', content: 42}`. Calling this method will trigger calling the `send` callback to let our peers know about this change. 
     ///
     /// ``` js
-    /// antimatter_crdt.set({
+    /// antimatter_crdt.update({
     ///   range: '.life.meaning',
     ///   content: 42
     /// })
     /// ```
-    self.set = (...patches) => {
+    self.update = (...patches) => {
       var version = `${self.next_seq++}@${self.id}`;
       self.receive({
-        type: "set",
+        type: "update",
         version,
         parents: { ...self.current_version },
         patches,
@@ -1088,7 +1088,7 @@ var sequence_crdt = {};
 
     /// # json_crdt.generate_braid(versions)
     ///
-    /// Returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to `antimatter_crdt.receive()`, we'll reconstruct the data in this `json_crdt` data-structure, assuming the recipient already has the given `versions` (each version is represented as a key in an object, and each value is `true`).
+    /// Returns an array of `update` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to `antimatter_crdt.receive()`, we'll reconstruct the data in this `json_crdt` data-structure, assuming the recipient already has the given `versions` (each version is represented as a key in an object, and each value is `true`).
     ///
     /// ``` js
     /// json_crdt.generate_braid({
@@ -1107,12 +1107,12 @@ var sequence_crdt = {};
 
       return Object.entries(self.version_cache)
         .filter((x) => !is_anc(x[0]))
-        .map(([version, set_message]) => {
+        .map(([version, update_message]) => {
           return (self.version_cache[version] =
-            set_message || generate_set_message(version));
+            update_message || generate_update_message(version));
         });
 
-      function generate_set_message(version) {
+      function generate_update_message(version) {
         if (!Object.keys(self.T[version]).length) {
           return {
             version,
@@ -1456,7 +1456,7 @@ var sequence_crdt = {};
               );
             }
             cur = new_cur;
-            sequence_crdt.set(prev_S, prev_i, cur, is_anc);
+            sequence_crdt.update(prev_S, prev_i, cur, is_anc);
           }
           if (cur.t == "obj") {
             let x = cur.S[key];
@@ -1483,7 +1483,7 @@ var sequence_crdt = {};
               t: "str",
               S: sequence_crdt.create_node(self.root_version, cur),
             };
-            sequence_crdt.set(prev_S, prev_i, cur, is_anc);
+            sequence_crdt.update(prev_S, prev_i, cur, is_anc);
           } else if (cur.t == "lit") {
             if (!(cur.S instanceof Array)) throw Error("bad");
             cur = {
@@ -1493,7 +1493,7 @@ var sequence_crdt = {};
                 cur.S.map((x) => make_lit(x))
               ),
             };
-            sequence_crdt.set(prev_S, prev_i, cur, is_anc);
+            sequence_crdt.update(prev_S, prev_i, cur, is_anc);
           }
         }
         return cur;
@@ -1843,16 +1843,16 @@ var sequence_crdt = {};
     return ret;
   };
 
-  /// # sequence_crdt.set(root_node, i, v, is_anc)
+  /// # sequence_crdt.update(root_node, i, v, is_anc)
   /// 
   /// Sets the element at the `i`th position (0-based) in the `sequence_crdt` rooted at `root_node` to the value `v`, when only considering versions which result in `true` when passed to `is_anc`.
   /// 
   /// ``` js
-  /// sequence_crdt.set(root_node, 2, 'x', {
+  /// sequence_crdt.update(root_node, 2, 'x', {
   ///   alice1: true
   /// })
   /// ```
-  sequence_crdt.set = (S, i, v, is_anc) => {
+  sequence_crdt.update = (S, i, v, is_anc) => {
     var offset = 0;
     sequence_crdt.traverse(S, is_anc ? is_anc : () => true, (node) => {
       if (i - offset < node.elems.length) {
