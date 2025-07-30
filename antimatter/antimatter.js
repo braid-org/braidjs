@@ -32,7 +32,7 @@ var sequence_crdt = {};
   /// Creates and returns a new antimatter_crdt object (or adds antimatter_crdt methods and properties to `init`).
   ///
   /// * `send`: A callback function to be called whenever this antimatter_crdt wants to send a
-  ///   message over a connection registered with `get` or `connect`. The sole
+  ///   message over a connection registered with `subscribe`. The sole
   ///   parameter to this function is a JSONafiable object that hopes to be passed to
   ///   the `receive` method on the antimatter_crdt object at the other end of the
   ///   connection specified in the `conn` key.
@@ -315,16 +315,16 @@ var sequence_crdt = {};
         if (!Object.keys(versions).length) return;
       }
 
-      /// ## message `get`
-      /// `get` is the first message sent over a connection, and the peer at the other end will respond with `welcome`.
+      /// ## message `subscribe`
+      /// `subscribe` is the first message sent over a connection, and the peer at the other end will respond with `welcome`.
       /// ``` js
-      /// { type: 'get',
+      /// { type: 'subscribe',
       ///   peer: 'SENDER_ID',
       ///   conn: 'CONN_ID',
       ///   parents: {'PARENT_VERSION_ID': true, ...} }
       /// ```
       /// The `parents` are optional, and describes which versions this peer already has. The other end will respond with versions since that set of parents.
-      if (type == "get" || (type == "welcome" && peer != null)) {
+      if (type == "subscribe" || (type == "welcome" && peer != null)) {
         if (self.conns[conn] != null) throw Error("bad");
         self.conns[conn] = { peer, seq: ++self.conn_count };
       }
@@ -406,7 +406,7 @@ var sequence_crdt = {};
       }
 
       /// ## message `welcome`
-      /// Sent in response to a `get`, basically contains the initial state of the document; incoming `welcome` messages are also propagated over all our other connections but only with information that was new to us, so the propagation will eventually stop. When sent in response to a `get` (rather than being propagated), we include a `peer` entry with the id of the sending peer, so they know who we are, and to trigger them to send us their own  `welcome` message.
+      /// Sent in response to a `subscribe`, basically contains the initial state of the document; incoming `welcome` messages are also propagated over all our other connections but only with information that was new to us, so the propagation will eventually stop. When sent in response to a `subscribe` (rather than being propagated), we include a `peer` entry with the id of the sending peer, so they know who we are, and to trigger them to send us their own  `welcome` message.
       ///
       /// ``` js
       /// {
@@ -423,7 +423,7 @@ var sequence_crdt = {};
       ///       'PARENT_VERSION_ID': true,
       ///       ...
       ///     },
-      ///   [peer: 'SENDER_ID'], // if responding to a get
+      ///   [peer: 'SENDER_ID'], // if responding to a subscribe
       ///   conn: 'CONN_ID'
       /// } 
       /// ```
@@ -468,7 +468,7 @@ var sequence_crdt = {};
         }
       }
 
-      if (type == "get" || (type == "welcome" && peer != null)) {
+      if (type == "subscribe" || (type == "welcome" && peer != null)) {
         let fissures_back = Object.values(self.fissures);
 
         if (type == "welcome") {
@@ -505,7 +505,7 @@ var sequence_crdt = {};
             parents &&
             Object.keys(parents).length &&
             self.get_leaves(self.ancestors(parents, true)),
-          ...(type == "get" ? { peer: self.id } : {}),
+          ...(type == "subscribe" ? { peer: self.id } : {}),
           conn,
         });
       } else if (fissures_back.length) {
@@ -752,18 +752,17 @@ var sequence_crdt = {};
       return rebased_patches;
     };
 
-    /// # antimatter_crdt.get(conn) or connect(conn)
+    /// # antimatter_crdt.subscribe(conn)
     ///
-    /// Register a new connection with id `conn` – triggers this antimatter_crdt object to send a `get` message over the given connection. 
+    /// Register a new connection with id `conn` – triggers this antimatter_crdt object to send a `subscribe` message over the given connection. 
     ///
     /// ``` js
-    /// alice_antimatter_crdt.get('connection_to_bob')
+    /// alice_antimatter_crdt.subscribe('connection_to_bob')
     /// ```
-    self.get = (conn) => {
+    self.subscribe = (conn) => {
       self.proto_conns[conn] = true;
-      send({ type: "get", peer: self.id, conn });
+      send({ type: "subscribe", peer: self.id, conn });
     };
-    self.connect = self.get;
 
     /// # antimatter_crdt.forget(conn)
     ///
