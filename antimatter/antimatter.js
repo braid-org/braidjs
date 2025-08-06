@@ -1266,7 +1266,8 @@ var sequence_crdt = {};
       Object.entries(to_bubble).forEach(([version, bubble]) => {
         if (!self.T[version]) return;
 
-        self.my_where_are_they_now[version] = bubble[0];
+        if (self.my_where_are_they_now)
+          self.my_where_are_they_now[version] = bubble[0];
 
         if (version === bubble[1]) self.T[bubble[0]] = self.T[bubble[1]];
 
