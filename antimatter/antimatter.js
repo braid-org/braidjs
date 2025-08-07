@@ -1018,11 +1018,11 @@ var sequence_crdt = {};
   /// ``` 
   create_json_crdt = (self) => {
     self = self || {};
-    self.S = self.S || null;
-    self.T = self.T || {};
+    if (self.S === undefined) self.S = null;
+    self.T ||= {};
     self.root_version = null;
-    self.current_version = self.current_version || {};
-    self.version_cache = self.version_cache || {};
+    self.current_version ||= {};
+    self.version_cache ||= {};
 
     let is_lit = (x) => !x || typeof x != "object" || x.t == "lit";
     let get_lit = (x) => (x && typeof x == "object" && x.t == "lit" ? x.S : x);
