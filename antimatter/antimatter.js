@@ -59,8 +59,10 @@ var sequence_crdt = {};
   ) => {
     self = create_json_crdt(self);
     self.send = send;
-
-    self.id = self.id || Math.random().toString(36).slice(2);
+    // purposely not:
+    // self.id = self.id || Math.random().toString(36).slice(2);
+    // to accomodate an id of numeric 0
+    if (self.id === undefined) self.id = Math.random().toString(36).slice(2);
     self.next_seq = self.next_seq || 0;
 
     self.conns = self.conns || {};
@@ -346,7 +348,11 @@ var sequence_crdt = {};
       /// Note that `time` isn't used for anything critical, as it's just wallclock time.
       if (fissure) fissures = [fissure];
 
-      if (fissures) fissures.forEach((f) => (f.t = self.conn_count));
+      if (fissures) fissures = fissures.map((f) => {
+        f = JSON.parse(JSON.stringify(f));
+        f.t = self.conn_count;
+        return f;
+      });
 
       if (versions && (type == "update" || type == "welcome"))
         versions = Object.fromEntries(versions.map((v) => [v.version, v]));
@@ -382,8 +388,7 @@ var sequence_crdt = {};
           if (!our_f) self.fissures[key] = f;
           if (their_other && !our_other) self.fissures[other_key] = their_other;
 
-          if (!their_other && !our_other && f.b == self.id) {
-            if (self.conns[f.conn]) delete self.conns[f.conn];
+          if (!their_other && !our_other && f.b == self.id && !self.conns[f.conn]) {
             our_other = self.fissures[other_key] = {
               ...f,
               a: f.b,

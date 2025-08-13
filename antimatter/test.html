@@ -28,7 +28,7 @@ function print(...args) {
 console.log = print
 
 </script>
-<script src="https://braid-org.github.io/braidjs/antimatter/antimatter.js"></script>
+<script src="antimatter.js"></script>
 <script src="https://dglittle.github.io/cdn/random002.js"></script>
 
 <script>
@@ -49,7 +49,7 @@ console.log = print
                 best_seed = seed
             }
         } else {
-            console.log(`seed "${seed}" passed after ${last_n} steps!`)
+            console.log(`seed "${seed}" ${r === true ? 'passed' : 'cancelled'} after ${last_n} steps!`)
         }
 
         if (best_seed != null) {
@@ -76,7 +76,7 @@ console.log = print
         let next_conn_id = 0
 
         for (let i = 0; i < num_peers; i++) {
-            peers.push(antimatter.create(msg => {
+            peers.push(create_antimatter_crdt(msg => {
                 let c = conns[msg.conn]
 
                 if (c?.[i]?.other == null) {
@@ -86,15 +86,16 @@ console.log = print
                 if (verbose) console.log(`    send p${i}->p${c?.[i]?.other}(conn:${msg.conn}) msg:${msg.type}`)
 
                 c?.[c?.[i]?.other]?.q.push(msg)
-            }, {id: i}))
+            }, () => 123, () => 1, () => {}, {id: i}))
         }
 
-        peers[0].set({range: '', content: ''})
+        peers[0].update({range: '', content: ''})
 
         for (let i = 0; i < steps; i++) {
             if (verbose) console.log(`i = ${i}`)
 
             last_n++
+            if (last_n > best_n) return "we've seen better"
 
             if (Math.random() < 1/3) {
                 // edit
@@ -109,7 +110,7 @@ console.log = print
 
                 if (verbose) console.log(`edit p${p.id} [${start}:${end}]=${content}`)
 
-                let v = p.set({range: `[${start}:${end}]`, content})
+                let v = p.update({range: `[${start}:${end}]`, content})
             } else if (Math.random() < 0.5) {
                 if (Math.random() < 0.5) {
                     // connect
@@ -127,7 +128,7 @@ console.log = print
 
                         if (verbose) console.log(`conn p${p1.id} -> p${p2.id} (conn:${conn})`)
 
-                        p1.get(conn)
+                        p1.subscribe(conn)
                     }
                 } else {
                     // disconnect
@@ -199,12 +200,12 @@ console.log = print
 
             if (verbose) console.log(`conn p${p1.id} -> p${p2.id} (conn:${conn})`)
 
-            p1.get(conn)
+            p1.subscribe(conn)
         }
 
         function pump_all() {
             if (verbose) console.log(`----pump all----`)
-            for (let i = 1000; i >= 0; i--) {
+            for (let i = 20000; i >= 0; i--) {
                 if (i == 0) {
                     console.log(`safety limit exceeded!`)
                     throw 'bad'
@@ -255,7 +256,7 @@ console.log = print
 
         if (verbose) console.log(`----joiner----`)
 
-        peers[0].set({range: '[0:0]', content: '_'})
+        peers[0].update({range: '[0:0]', content: '_'})
 
         pump_all()
 
