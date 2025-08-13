@@ -139,3 +139,6 @@ antimatter_wiki_db/
 antimatter_wiki_db.*
 antimatter_wiki.*
 april-db-backup
+jan-db-backup-2025
+db
+server.sh

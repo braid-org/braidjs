@@ -11,7 +11,7 @@
 
 <script>
 
-console.log('0.0.24')
+console.log('0.1.3')
 
 var wiki_host = "__WIKI_HOST__"
 
@@ -70,7 +70,8 @@ differ.innerText = 'show diffs'
 
 let a
 var timer
-var render_delay = 30
+var is_safari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+var render_delay = is_safari ? 600 : 30    // Safari markdown parsing is slow
 function update_markdown_later() {
     if (timer) clearTimeout(timer)
     timer = setTimeout(update_markdown, render_delay)
@@ -110,7 +111,7 @@ async function create_antimatter_client(url, cb, on_receive) {
         if (ws?.readyState == WebSocket.OPEN && ws.my_id == x.conn) ws.send(JSON.stringify(x))
     }
 
-    let a = antimatter.create(send, {fissure_lifetime: 1000 * 60 * 60 * 24 * 14})
+    let a = antimatter.create(send, {fissure_lifetime: 1000 * 60 * 60})
 
     let done
     let p = new Promise(d => done = d)
@@ -138,7 +139,7 @@ async function create_antimatter_client(url, cb, on_receive) {
             check_ping()
             function check_ping() {
                 if (ws.readyState > 1) return
-                if (Date.now() - last_ping > 1000 * 12) {
+                if (Date.now() - last_ping > 1000 * 30) {
                     console.log('WS - NO PING, CLOSING!')
                     return ws.close()
                 }
