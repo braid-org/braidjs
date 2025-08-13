@@ -1,3 +1,5 @@
+# NOTE: This project has moved to [braid-http](https://github.com/braid-org/braid-http)
+
 # Braid-HTTP
 
 This polyfill library implements the [Braid-HTTP v04 protocol](https://github.com/braid-org/braid-spec/blob/master/draft-toomim-httpbis-braid-http-04.txt) in Javascript.  It gives browsers a `braid_fetch()` drop-in replacement for the `fetch()` API, and gives nodejs an `http` plugin, allowing them to speak Braid in a simple way.
@@ -103,15 +105,15 @@ async function connect () {
 async function connect () {
     try {
         var subscription_iterator = fetch('/chat', {subscribe: true}).subscription
-        for await (var v of subscription_iterator) {
+        for await (var update of subscription_iterator) {
             // Updates might come in the form of patches:
-            if (v.patches)
-                chat = apply_patches(v.patches, chat)
+            if (update.patches)
+                chat = apply_patches(update.patches, chat)
 
             // Or complete snapshots:
             else
                 // Beware the server doesn't send these yet.
-                chat = JSON.parse(v.body)
+                chat = JSON.parse(update.body)
 
             render_stuff()
         }
@@ -129,7 +131,7 @@ async function connect () {
 Braidify adds these fields and methods to requests and responses:
 - `req.subscribe`
 - `req.startSubscription({onClose: cb})`
-- `await req.patches()`
+- `await req.parseUpdate()`
 - `res.sendUpdate()`
 
 Use it like this:

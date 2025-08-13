@@ -1,4 +1,4 @@
-<script src="braidify-client.js"></script>
+<script src="braid-http-client.js"></script>
 <script type="module">
   // Imports
   import { h, Component, render } from 'https://unpkg.com/preact?module'
@@ -32,8 +32,6 @@
       }
   }
 
-  var path = '/chat'
-
   // State
   var chat = []
   var curr_version = {}
@@ -43,76 +41,81 @@
   render_root()
 
   var send_message = async () => {
+      // Update the text input
       var input = document.getElementById('new_stuff'),
           post = {text: input.value}
       input.value = ''
 
+      // Update local state
+      chat.push(post)
+      curr_version['/chat'] = [(parseInt(curr_version['/chat'][0]) + 1) + '']
+
+      // Re-render UI
+      render_root()
+
+      // Send patch over the network
       var patches = [{unit: 'json', range: '[-0:-0]', content: JSON.stringify(post)}]
-      var url = new URL(path, window.location.href)
-      var res = await fetch(url, {method: 'put', patches})
+      var res = await braid_fetch(url, {method: 'put', patches, peer})
       if (res.status === 200)
           console.debug('put complete')
       else
           console.debug('put failed with', res.status)
-
-      chat.push(post)
-      curr_version['/chat']++
-      render_root()
   }
 
-  // Updates
+  // Networking
+  var path = '/chat',
+      url = new URL(path, window.location.href),
+      peer = Math.random().toString(36).substr(2)
+
   function connect () {
-      fetch(
-          new URL(path, window.location.href),
-          {subscribe: true},
-      ).andThen(response => {
-          console.log('Connected!', response)
+      braid_fetch(url, {subscribe: true, peer}).then(
+        response => response.subscribe(
+          update => {
+              console.log('Got update!', update)
 
-          curr_version[path] = response.version
-
-          // When we receive updates, they might come in the form of patches:
-          if (response.patches)
-              chat = apply_patches(response.patches, chat)
-
-          // Or a complete version:
-          else
-              // Beware the server doesn't send these yet.
-              chat = JSON.parse(response.body)
-
-          render_root()
-      }).catch(e => {
-          console.log('Reconnecting...')
-          setTimeout(connect, 4000)
-      })
-  }
-  connect2()
-
-
-  async function connect2 () {
-      try {
-          for await (var response of fetch(new URL(path, window.location.href),
-                                           {subscribe: true})) {
-
-              console.log('Connected!', response)
-
-              curr_version[path] = response.version
+              curr_version[path] = update.version
 
               // When we receive updates, they might come in the form of patches:
-              if (response.patches)
-                  chat = apply_patches(response.patches, chat)
+              if (update.patches)
+                  chat = apply_patches(update.patches, chat)
 
               // Or a complete version:
               else
                   // Beware the server doesn't send these yet.
-                  chat = JSON.parse(response.body)
+                  chat = JSON.parse(update.body)
 
               render_root()
-          }
-      } catch (e) {
-          console.log('Reconnecting...')
-          setTimeout(connect2, 4000)
-      }
+          },
+          e => setTimeout(connect, 2000)
+        )
+      ).catch(e => setTimeout(connect, 2000))
   }
+
+  connect()
+
+  // // The for await version is not currently used
+  // async function connect2 () {
+  //     try {
+  //         for await (var update of
+  //                    braid_fetch(url, {subscribe: true}, peer).subscription) {
+  //             curr_version[path] = update.version
+
+  //             // When we receive updates, they might come in the form of patches:
+  //             if (update.patches)
+  //                 chat = apply_patches(update.patches, chat)
+
+  //             // Or a complete version:
+  //             else
+  //                 // Beware the server doesn't send these yet.
+  //                 chat = JSON.parse(update.body)
+
+  //             render_root()
+  //         }
+  //     } catch (e) {
+  //         console.log('Reconnecting...')
+  //         setTimeout(connect2, 2000)
+  //     }
+  // }
 
   function apply_patches (patches, object) {
       for (var patch of patches)

@@ -73,7 +73,7 @@ function braidify_http (http) {
 
                     // That will run each time we get new data
                     res.orig_on('data', (chunk) => {
-                        parser.read(chunk.toString())
+                        parser.read(chunk)
                     })
                 }
 
@@ -131,7 +131,7 @@ if (is_nodejs) {
     normal_fetch = require('node-fetch')
     AbortController = require('abort-controller')
     Headers = normal_fetch.Headers
-    var to_whatwg_stream = require('node-web-streams').toWebReadableStream
+    var to_whatwg_stream = require('web-streams-node').toWebReadableStream
 } else {
     // Web Browser
     normal_fetch = window.fetch
@@ -186,7 +186,7 @@ async function braid_fetch (url, params = {}) {
         if (params.patches.length === 1) {
             let patch = params.patches[0]
             params.headers.set('Content-Range', `${patch.unit} ${patch.range}`)
-            params.headers.set('Content-Length', `${patch.content.length}`)
+            params.headers.set('Content-Length', `${(new TextEncoder().encode(patch.content)).length}`)
             params.body = patch.content
         }
 
@@ -194,7 +194,7 @@ async function braid_fetch (url, params = {}) {
         else {
             params.headers.set('Patches', params.patches.length)
             params.body = (params.patches).map(patch => {
-                var length = `content-length: ${patch.content.length}`
+                var length = `content-length: ${(new TextEncoder().encode(patch.content)).length}`
                 var range = `content-range: ${patch.unit} ${patch.range}`
                 return `${length}\r\n${range}\r\n\r\n${patch.content}\r\n`
             }).join('\r\n')
@@ -230,7 +230,7 @@ async function braid_fetch (url, params = {}) {
     // Now we define the subscription function we just used:
     function start_subscription (cb, error) {
         if (!res.ok)
-            throw new Error('Request returned not ok', res)
+            throw new Error('Request returned not ok status:', res.status)
 
         if (res.bodyUsed)
             // TODO: check if this needs a return
@@ -318,7 +318,6 @@ async function handle_fetch_stream (stream, cb) {
 
     // Set up a reader
     var reader = stream.getReader(),
-        decoder = new TextDecoder('utf-8'),
         parser = subscription_parser(cb)
     
     while (true) {
@@ -341,7 +340,7 @@ async function handle_fetch_stream (stream, cb) {
         }
 
         // Tell the parser to process some more stream
-        parser.read(decoder.decode(value))
+        parser.read(value)
     }
 }
 
@@ -353,7 +352,7 @@ async function handle_fetch_stream (stream, cb) {
 
 var subscription_parser = (cb) => ({
     // A parser keeps some parse state
-    state: {input: ''},
+    state: {input: []},
 
     // And reports back new versions as soon as they are ready
     cb: cb,
@@ -363,10 +362,10 @@ var subscription_parser = (cb) => ({
     read (input) {
 
         // Store the new input!
-        this.state.input += input
+        for (let x of input) this.state.input.push(x)
 
         // Now loop through the input and parse until we hit a dead end
-        while (this.state.input.trim() !== '') {
+        while (this.state.input.length) {
 
             // Try to parse an update
             try {
@@ -378,7 +377,7 @@ var subscription_parser = (cb) => ({
 
             // Maybe we parsed an update!  That's cool!
             if (this.state.result === 'success') {
-                this.cb({
+                var update = {
                     version: this.state.version,
                     parents: this.state.parents,
                     body:    this.state.body,
@@ -386,7 +385,10 @@ var subscription_parser = (cb) => ({
 
                     // Output extra_headers if there are some
                     extra_headers: extra_headers(this.state.headers)
-                })
+                }
+                for (var k in update)
+                    if (update[k] === undefined) delete update[k]
+                this.cb(update)
 
                 // Reset the parser for the next version!
                 this.state = {input: this.state.input}
@@ -445,33 +447,18 @@ function parse_update (state) {
     return parse_body(state)
 }
 
-function swallow_blank_lines (input) {
-    var blank_lines = /(\r\n|\n)*/.exec(input)[0]
-    return input.substr(blank_lines.length)
-}
-
 // Parsing helpers
 function parse_headers (input) {
-    input = swallow_blank_lines(input)
 
-    // First, find the start & end block of the headers.  The headers start
-    // when there are no longer newlines, and end at the first double-newline.
+    var h = extractHeader(input)
+    if (!h) return {result: 'waiting'}
 
-    // Look for the double-newline at the end of the headers
-    var headers_end = input.match(/(\r?\n)\r?\n/)
-
-    // ...if we found none, then we need to wait for more input to complete
-    // the headers..
-    if (!headers_end)
-        return {result: 'waiting'}
-
-    // We now know where the headers are to parse!
-    var headers_length = headers_end.index + headers_end[1].length,
-        headers_source = input.substring(0, headers_length)
+    var headers_source = h.header_string
+    var headers_length = headers_source.length
     
     // Let's parse them!  First define some variables:
     var headers = {},
-        header_regex = /([\w-_]+):\s?(.*)\r?\n/gy,  // Parses one line a time
+        header_regex = /(:?[\w-_]+):\s?(.*)\r?\n?/gy,  // Parses one line a time
         match,
         found_last_match = false
 
@@ -504,15 +491,7 @@ function parse_headers (input) {
         headers.patches = JSON.parse(headers.patches)
 
     // Update the input
-    input = input.substring(headers_length)
-
-    // Swallow the final blank line ending the headers
-    if (input.substr(0, 2) === '\r\n')
-        // Swallow \r\n
-        input = input.substr(2)
-    else
-        // Swallow \n
-        input = input.substr(1)
+    input = h.remaining_bytes
 
     // And return the parsed result
     return { result: 'success', headers, input }
@@ -538,7 +517,6 @@ function parse_body (state) {
         }
 
         // We have the whole block!
-        var consumed_length = content_length + 2
         state.result = 'success'
 
         // If we have a content-range, then this is a patch
@@ -553,7 +531,7 @@ function parse_body (state) {
             state.patches = [{
                 unit: match.unit,
                 range: match.range,
-                content: state.input.substring(0, content_length),
+                content: (new TextDecoder('utf-8')).decode(new Uint8Array(state.input.slice(0, content_length))),
 
                 // Question: Perhaps we should include headers here, like we do for
                 // the Patches: N headers below?
@@ -564,9 +542,9 @@ function parse_body (state) {
 
         // Otherwise, this is a snapshot body
         else
-            state.body = state.input.substring(0, content_length)
+            state.body = (new TextDecoder('utf-8')).decode(new Uint8Array(state.input.slice(0, content_length)))
 
-        state.input = state.input.substring(consumed_length)
+        state.input = state.input.slice(content_length)
         return state
     }
 
@@ -580,8 +558,6 @@ function parse_body (state) {
         // Parse patches until the final patch has its content filled
         while (!(state.patches.length === state.headers.patches
                  && (state.patches.length === 0 || 'content' in last_patch))) {
-
-            state.input = state.input.trimStart()
 
             // Are we starting a new patch?
             if (!last_patch || 'content' in last_patch) {
@@ -614,14 +590,14 @@ function parse_body (state) {
                     return {
                         result: 'error',
                         message: 'no content-length in patch',
-                        patch: last_patch, input: state.input
+                        patch: last_patch, input: (new TextDecoder('utf-8')).decode(new Uint8Array(state.input))
                     }
 
                 if (!('content-range' in last_patch.headers))
                     return {
                         result: 'error',
                         message: 'no content-range in patch',
-                        patch: last_patch, input: state.input
+                        patch: last_patch, input: (new TextDecoder('utf-8')).decode(new Uint8Array(state.input))
                     }
 
                 var content_length = parseInt(last_patch.headers['content-length'])
@@ -637,17 +613,17 @@ function parse_body (state) {
                     return {
                         result: 'error',
                         message: 'cannot parse content-range in patch',
-                        patch: last_patch, input: state.input
+                        patch: last_patch, input: (new TextDecoder('utf-8')).decode(new Uint8Array(state.input))
                     }
 
                 last_patch.unit = match.unit
                 last_patch.range = match.range
-                last_patch.content = state.input.substr(0, content_length)
+                last_patch.content = (new TextDecoder('utf-8')).decode(new Uint8Array(state.input.slice(0, content_length)))
                 last_patch.extra_headers = extra_headers(last_patch.headers)
                 delete last_patch.headers  // We only keep the extra headers ^^
 
                 // Consume the parsed input
-                state.input = state.input.substring(content_length)
+                state.input = state.input.slice(content_length)
             }
         }
 
@@ -682,6 +658,60 @@ function extra_headers (headers) {
         return undefined
 
     return result
+}
+
+// a parsing utility function that will inspect a byte array of incoming data
+// to see if there is header information at the beginning,
+// namely some non-newline characters followed by two newlines
+function extractHeader(input) {
+    // Find the start of the headers
+    let begin_headers_i = 0;
+    while (input[begin_headers_i] === 13 || input[begin_headers_i] === 10) {
+        begin_headers_i++;
+    }
+    if (begin_headers_i === input.length) {
+        return null; // Incomplete headers
+    }
+
+    // Look for the double-newline at the end of the headers
+    let end_headers_i = begin_headers_i;
+    let size_of_tail = 0;
+    while (end_headers_i < input.length) {
+        if (input[end_headers_i] === 10 && input[end_headers_i + 1] === 10) {
+            size_of_tail = 2;
+            break;
+        }
+        if (input[end_headers_i] === 10 && input[end_headers_i + 1] === 13 && input[end_headers_i + 2] === 10) {
+            size_of_tail = 3;
+            break;
+        }
+        if (input[end_headers_i] === 13 && input[end_headers_i + 1] === 10 && input[end_headers_i + 2] === 10) {
+            size_of_tail = 3;
+            break;
+        }
+        if (input[end_headers_i] === 13 && input[end_headers_i + 1] === 10 && input[end_headers_i + 2] === 13 && input[end_headers_i + 3] === 10) {
+            size_of_tail = 4;
+            break;
+        }
+
+        end_headers_i++;
+    }
+
+    // If no double-newline is found, wait for more input
+    if (end_headers_i === input.length) {
+        return null; // Incomplete headers
+    }
+
+    // Extract the header string
+    const headerBytes = input.slice(begin_headers_i, end_headers_i);
+    const headerString = new TextDecoder('utf-8').decode(new Uint8Array(headerBytes));
+
+    // Return the remaining bytes and the header string
+    const remainingBytes = input.slice(end_headers_i + size_of_tail);
+    return {
+        remaining_bytes: remainingBytes,
+        header_string: headerString
+    };
 }
 
 // ****************************

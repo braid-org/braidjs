@@ -1,6 +1,6 @@
 {
   "name": "@braidjs/antimatter",
-  "version": "0.0.34",
+  "version": "0.0.23",
   "description": "antimatter: a pruning algorithm for CRDTs and other mergeables",
   "main": "antimatter.js",
   "scripts": {
@@ -8,5 +8,9 @@
   },
   "author": "Braid Working Group",
   "repository": "braid-org/braidjs",
-  "homepage": "https://braid.org/antimatter"
+  "homepage": "https://braid.org/antimatter",
+  "packageManager": "pnpm@9.0.4+sha256.caa915eaae9d9aefccf50ee8aeda25a2f8684d8f9d5c6e367eaf176d97c1f89e",
+  "dependencies": {
+    "typescript": "^5.6.2"
+  }
 }

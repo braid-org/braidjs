@@ -32,11 +32,11 @@ You should see this:
 < content-type: application/json
 < subscribe: true
 < cache-control: no-cache, no-transform
-< transfer-encoding: 
 < X-Accel-Buffering: no
-< Date: Wed, 14 Feb 2024 03:13:12 GMT
+< Date: Wed, 29 May 2024 13:05:38 GMT
 < Connection: keep-alive
 < Keep-Alive: timeout=5
+< Transfer-Encoding: chunked
 < 
 Version: "test"
 Parents: "oldie"
@@ -46,6 +46,8 @@ Content-Length: 16
 
 Version: "test1"
 Parents: "oldie", "goodie"
+hash: 42
+:status: 115
 Content-Length: 1
 Content-Range: json [1]
 
@@ -62,6 +64,7 @@ Patches: 2
 
 Content-Length: 1
 Content-Range: json [3]
+hash: 43
 
 3
 

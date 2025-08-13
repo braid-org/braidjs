@@ -32,7 +32,7 @@ var sequence_crdt = {};
   /// Creates and returns a new antimatter_crdt object (or adds antimatter_crdt methods and properties to `init`).
   ///
   /// * `send`: A callback function to be called whenever this antimatter_crdt wants to send a
-  ///   message over a connection registered with `subscribe`. The sole
+  ///   message over a connection registered with `get` or `connect`. The sole
   ///   parameter to this function is a JSONafiable object that hopes to be passed to
   ///   the `receive` method on the antimatter_crdt object at the other end of the
   ///   connection specified in the `conn` key.
@@ -59,10 +59,8 @@ var sequence_crdt = {};
   ) => {
     self = create_json_crdt(self);
     self.send = send;
-    // purposely not:
-    // self.id = self.id || Math.random().toString(36).slice(2);
-    // to accomodate an id of numeric 0
-    if (self.id === undefined) self.id = Math.random().toString(36).slice(2);
+
+    self.id = self.id || Math.random().toString(36).slice(2);
     self.next_seq = self.next_seq || 0;
 
     self.conns = self.conns || {};
@@ -71,17 +69,17 @@ var sequence_crdt = {};
 
     self.fissures = self.fissures || {};
     self.acked_boundary = self.acked_boundary || {};
-    self.ackmes = self.ackmes || {};
+    self.marcos = self.marcos || {};
     self.forget_cbs = self.forget_cbs || {};
 
     self.version_groups = self.version_groups || {};
 
-    self.ackme_map = self.ackme_map || {};
-    self.ackme_time_est_1 = self.ackme_time_est_1 || 1000;
-    self.ackme_time_est_2 = self.ackme_time_est_2 || 1000;
-    self.ackme_current_wait_time = self.ackme_current_wait_time || 1000;
-    self.ackme_increases_allowed = 1;
-    self.ackme_timeout = self.ackme_timeout || null;
+    self.marco_map = self.marco_map || {};
+    self.marco_time_est_1 = self.marco_time_est_1 || 1000;
+    self.marco_time_est_2 = self.marco_time_est_2 || 1000;
+    self.marco_current_wait_time = self.marco_current_wait_time || 1000;
+    self.marco_increases_allowed = 1;
+    self.marco_timeout = self.marco_timeout || null;
 
     function raw_add_version_group(version_array) {
       let version_map = {};
@@ -256,12 +254,12 @@ var sequence_crdt = {};
     /// websocket.on('message', data => {
     ///     antimatter_crdt.receive(JSON.parse(data)) });
     /// ```
-    /// You generally do not need to mess with a message object directly, but below are the various message objects you might see, categorized by their `type` entry. Note that each object also
+    /// You generally do not need to mess with a message object directly, but below are the various message objects you might see, categorized by their `cmd` entry. Note that each object also
     ///   contains a `conn` entry with the id of the connection the message is sent
     ///   over.
     self.receive = (x) => {
       let {
-        type,
+        cmd,
         version,
         parents,
         patches,
@@ -270,7 +268,7 @@ var sequence_crdt = {};
         fissures,
         seen,
         forget,
-        ackme,
+        marco,
         peer,
         conn,
       } = x;
@@ -299,14 +297,14 @@ var sequence_crdt = {};
         });
       });
 
-      let ackme_versions_array = version
+      let marco_versions_array = version
         ? [version]
         : versions && !Array.isArray(versions)
         ? Object.keys(versions).sort()
         : null;
-      let ackme_versions =
-        ackme_versions_array &&
-        Object.fromEntries(ackme_versions_array.map((v) => [v, true]));
+      let marco_versions =
+        marco_versions_array &&
+        Object.fromEntries(marco_versions_array.map((v) => [v, true]));
 
       if (versions && !Array.isArray(versions)) {
         versions = { ...versions };
@@ -317,16 +315,16 @@ var sequence_crdt = {};
         if (!Object.keys(versions).length) return;
       }
 
-      /// ## message `subscribe`
-      /// `subscribe` is the first message sent over a connection, and the peer at the other end will respond with `welcome`.
+      /// ## message `get`
+      /// `get` is the first message sent over a connection, and the peer at the other end will respond with `welcome`.
       /// ``` js
-      /// { type: 'subscribe',
+      /// { cmd: 'get',
       ///   peer: 'SENDER_ID',
       ///   conn: 'CONN_ID',
       ///   parents: {'PARENT_VERSION_ID': true, ...} }
       /// ```
       /// The `parents` are optional, and describes which versions this peer already has. The other end will respond with versions since that set of parents.
-      if (type == "subscribe" || (type == "welcome" && peer != null)) {
+      if (cmd == "get" || (cmd == "welcome" && peer != null)) {
         if (self.conns[conn] != null) throw Error("bad");
         self.conns[conn] = { peer, seq: ++self.conn_count };
       }
@@ -335,7 +333,7 @@ var sequence_crdt = {};
       ///
       /// Sent to alert peers about a fissure. The `fissure` entry contains information about the two peers involved in the fissure, the specific connection id that broke, the `versions` that need to be protected, and the `time` of the fissure (in case we want to ignore it after some time). It is also possible to send multiple `fissures` in an array.
       /// ``` js
-      /// { type: 'fissure',
+      /// { cmd: 'fissure',
       ///   fissure: { // or fissures: [{...}, {...}, ...],
       ///     a: 'PEER_A_ID',
       ///     b:  'PEER_B_ID',
@@ -348,13 +346,9 @@ var sequence_crdt = {};
       /// Note that `time` isn't used for anything critical, as it's just wallclock time.
       if (fissure) fissures = [fissure];
 
-      if (fissures) fissures = fissures.map((f) => {
-        f = JSON.parse(JSON.stringify(f));
-        f.t = self.conn_count;
-        return f;
-      });
+      if (fissures) fissures.forEach((f) => (f.t = self.conn_count));
 
-      if (versions && (type == "update" || type == "welcome"))
+      if (versions && (cmd == "set" || cmd == "welcome"))
         versions = Object.fromEntries(versions.map((v) => [v.version, v]));
       if (version) versions = { [version]: true };
 
@@ -388,7 +382,8 @@ var sequence_crdt = {};
           if (!our_f) self.fissures[key] = f;
           if (their_other && !our_other) self.fissures[other_key] = their_other;
 
-          if (!their_other && !our_other && f.b == self.id && !self.conns[f.conn]) {
+          if (!their_other && !our_other && f.b == self.id) {
+            if (self.conns[f.conn]) delete self.conns[f.conn];
             our_other = self.fissures[other_key] = {
               ...f,
               a: f.b,
@@ -411,13 +406,13 @@ var sequence_crdt = {};
       }
 
       /// ## message `welcome`
-      /// Sent in response to a `subscribe`, basically contains the initial state of the document; incoming `welcome` messages are also propagated over all our other connections but only with information that was new to us, so the propagation will eventually stop. When sent in response to a `subscribe` (rather than being propagated), we include a `peer` entry with the id of the sending peer, so they know who we are, and to trigger them to send us their own  `welcome` message.
+      /// Sent in response to a `get`, basically contains the initial state of the document; incoming `welcome` messages are also propagated over all our other connections but only with information that was new to us, so the propagation will eventually stop. When sent in response to a `get` (rather than being propagated), we include a `peer` entry with the id of the sending peer, so they know who we are, and to trigger them to send us their own  `welcome` message.
       ///
       /// ``` js
       /// {
-      ///   type: 'welcome',
+      ///   cmd: 'welcome',
       ///   versions: [
-      ///     //each version looks like an update message...
+      ///     //each version looks like a set message...
       ///   ],
       ///   fissures: [
       ///     //each fissure looks as it would in a fissure message...
@@ -428,13 +423,13 @@ var sequence_crdt = {};
       ///       'PARENT_VERSION_ID': true,
       ///       ...
       ///     },
-      ///   [peer: 'SENDER_ID'], // if responding to a subscribe
+      ///   [peer: 'SENDER_ID'], // if responding to a get
       ///   conn: 'CONN_ID'
       /// } 
       /// ```
       let _T = {};
       let added_versions = [];
-      if (type == "welcome") {
+      if (cmd == "welcome") {
         var versions_to_add = {};
         let vs = Object.values(versions);
         vs.forEach((v) => (versions_to_add[v.version] = v.parents));
@@ -473,10 +468,10 @@ var sequence_crdt = {};
         }
       }
 
-      if (type == "subscribe" || (type == "welcome" && peer != null)) {
+      if (cmd == "get" || (cmd == "welcome" && peer != null)) {
         let fissures_back = Object.values(self.fissures);
 
-        if (type == "welcome") {
+        if (cmd == "welcome") {
           var leaves = { ..._T };
           Object.keys(_T).forEach((v) => {
             Object.keys(_T[v]).forEach((p) => delete leaves[p]);
@@ -503,19 +498,19 @@ var sequence_crdt = {};
         }
 
         send({
-          type: "welcome",
+          cmd: "welcome",
           versions: self.generate_braid(parents || versions),
           fissures: copy_fissures(fissures_back),
           parents:
             parents &&
             Object.keys(parents).length &&
             self.get_leaves(self.ancestors(parents, true)),
-          ...(type == "subscribe" ? { peer: self.id } : {}),
+          ...(cmd == "get" ? { peer: self.id } : {}),
           conn,
         });
       } else if (fissures_back.length) {
         send({
-          type: "fissure",
+          cmd: "fissure",
           fissures: copy_fissures(fissures_back),
           conn,
         });
@@ -524,11 +519,11 @@ var sequence_crdt = {};
       /// ## message `forget`
       /// Used to disconnect without creating a fissure, presumably meaning the sending peer doesn't plan to make any edits while they're disconnected.
       /// ``` js
-      /// {type: 'forget', conn: 'CONN_ID'}
+      /// {cmd: 'forget', conn: 'CONN_ID'}
       /// ```
-      if (type == "forget") {
+      if (cmd == "forget") {
         if (self.conns[conn] == null) throw Error("bad");
-        send({ type: "ack", forget: true, conn });
+        send({ cmd: "ack", forget: true, conn });
 
         delete self.conns[conn];
         delete self.proto_conns[conn];
@@ -537,22 +532,22 @@ var sequence_crdt = {};
       /// ## message forget `ack` 
       /// Sent in response to `forget`.. so they know we forgot them.
       /// ``` js
-      /// {type: 'ack', forget: true, conn: 'CONN_ID'}
+      /// {cmd: 'ack', forget: true, conn: 'CONN_ID'}
       /// ```
-      if (type == "ack" && forget) {
+      if (cmd == "ack" && forget) {
         self.forget_cbs[conn]();
       }
 
-      /// ## message `update`
+      /// ## message `set`
       /// Sent to alert peers about a change in the document. The change is represented as a version, with a unique id, a set of parent versions (the most recent versions known before adding this version), and an array of patches, where the offsets in the patches do not take into account the application of other patches in the same array.
       /// ``` js
-      /// { type: 'update',
+      /// { cmd: 'set',
       ///   version: 'VERSION_ID',
       ///   parents: {'PARENT_VERSION_ID': true, ...},
       ///   patches: [ {range: '.json.path.a.b', content: 42}, ... ],
       ///   conn: 'CONN_ID' }
       /// ```
-      if (type == "update") {
+      if (cmd == "set") {
         if (conn == null || !self.T[version]) {
           let ps = Object.keys(parents);
 
@@ -563,142 +558,142 @@ var sequence_crdt = {};
 
           for (let c of Object.keys(self.conns))
             if (c != conn)
-              send({ type: "update", version, parents, patches, ackme, conn: c });
+              send({ cmd: "set", version, parents, patches, marco, conn: c });
         }
       }
 
-      /// ## message `ackme`
-      /// Sent for pruning purposes, to try and establish whether everyone has seen the most recent versions. Note that an `update` message is treated as a `ackme` message for the version in the update.
+      /// ## message `marco`
+      /// Sent for pruning purposes, to try and establish whether everyone has seen the most recent versions. Note that a `set` message is treated as a `marco` message for the version being set.
       /// ``` js
-      /// { type: 'ackme',
-      ///   version: 'ACKME_ID',
+      /// { cmd: 'marco',
+      ///   version: 'MARCO_ID',
       ///   versions: {'VERSION_ID_A': true, ...},
       ///   conn: 'CONN_ID' }
       /// ```
-      if (type == "ackme" || type == "update") {
+      if (cmd == "marco" || cmd == "set") {
         if (!Object.keys(versions).every((v) => self.T[v])) return;
 
         if (
-          self.ackme_timeout &&
-          ackme_versions_array.length ==
+          self.marco_timeout &&
+          marco_versions_array.length ==
             Object.keys(self.current_version).length &&
-          ackme_versions_array.every((x) => self.current_version[x])
+          marco_versions_array.every((x) => self.current_version[x])
         ) {
-          clear_timeout(self.ackme_timeout);
-          self.ackme_timeout = null;
+          clear_timeout(self.marco_timeout);
+          self.marco_timeout = null;
         }
 
-        let m = self.ackmes[ackme];
+        let m = self.marcos[marco];
         if (!m) {
-          m = self.ackmes[ackme] = {
-            id: ackme,
+          m = self.marcos[marco] = {
+            id: marco,
             origin: conn,
             count: Object.keys(self.conns).length - (conn != null ? 1 : 0),
-            versions: ackme_versions,
+            versions: marco_versions,
             seq: self.conn_count,
             time: get_time(),
           };
           m.orig_count = m.count;
-          m.real_ackme = type == "ackme";
+          m.real_marco = cmd == "marco";
           m.key = JSON.stringify(Object.keys(m.versions).sort());
-          self.ackme_map[m.key] = self.ackme_map[m.key] || {};
-          let before = Object.keys(self.ackme_map[m.key]).length;
-          self.ackme_map[m.key][m.id] = true;
-          let after = Object.keys(self.ackme_map[m.key]).length;
-          if (before == 1 && after == 2 && self.ackme_increases_allowed > 0) {
-            self.ackme_current_wait_time *= 2;
-            self.ackme_increases_allowed--;
+          self.marco_map[m.key] = self.marco_map[m.key] || {};
+          let before = Object.keys(self.marco_map[m.key]).length;
+          self.marco_map[m.key][m.id] = true;
+          let after = Object.keys(self.marco_map[m.key]).length;
+          if (before == 1 && after == 2 && self.marco_increases_allowed > 0) {
+            self.marco_current_wait_time *= 2;
+            self.marco_increases_allowed--;
           }
 
-          if (type == "ackme")
+          if (cmd == "marco")
             for (let c of Object.keys(self.conns))
               if (c != conn)
                 send({
-                  type: "ackme",
-                  ackme,
-                  versions: ackme_versions,
+                  cmd: "marco",
+                  marco,
+                  versions: marco_versions,
                   conn: c,
                 });
         } else if (m.seq < self.conns[conn].seq) {
           send({
-            type: "ack",
+            cmd: "ack",
             seen: "local",
-            ackme,
-            versions: ackme_versions,
+            marco,
+            versions: marco_versions,
             conn,
           });
           return;
         } else m.count--;
-        check_ackme_count(ackme);
+        check_marco_count(marco);
       }
 
       /// ## message local `ack`
-      /// Sent in response to `update`, but not right away; a peer will first send the `update` over all its other connections, and only after they have all responded with a local `ack` – and we didn't see a `fissure` message while waiting – will the peer send a local `ack` over the originating connection.
+      /// Sent in response to `set`, but not right away; a peer will first send the `set` over all its other connections, and only after they have all responded with a local `ack` – and we didn't see a `fissure` message while waiting – will the peer send a local `ack` over the originating connection.
       /// ``` js
-      /// {type: 'ack', seen: 'local', version: 'VERSION_ID', conn: 'CONN_ID'}
+      /// {cmd: 'ack', seen: 'local', version: 'VERSION_ID', conn: 'CONN_ID'}
       /// ```
-      if (type == "ack" && seen == "local") {
-        let m = self.ackmes[ackme];
+      if (cmd == "ack" && seen == "local") {
+        let m = self.marcos[marco];
         if (!m || m.cancelled) return;
         m.count--;
-        check_ackme_count(ackme);
+        check_marco_count(marco);
       }
-      function check_ackme_count(ackme) {
-        let m = self.ackmes[ackme];
+      function check_marco_count(marco) {
+        let m = self.marcos[marco];
         if (m && m.count === 0 && !m.cancelled) {
           m.time2 = get_time();
           if (m.orig_count > 0) {
             let t = m.time2 - m.time;
             let weight = 0.1;
-            self.ackme_time_est_1 =
-              weight * t + (1 - weight) * self.ackme_time_est_1;
+            self.marco_time_est_1 =
+              weight * t + (1 - weight) * self.marco_time_est_1;
           }
           if (m.origin != null) {
             if (self.conns[m.origin])
               send({
-                type: "ack",
+                cmd: "ack",
                 seen: "local",
-                ackme,
-                versions: ackme_versions,
+                marco,
+                versions: marco_versions,
                 conn: m.origin,
               });
-          } else add_full_ack_leaves(ackme);
+          } else add_full_ack_leaves(marco);
         }
       }
 
       /// ## message global `ack`
       /// Sent after an originating peer has received a local `ack` over all its connections, or after any peer receives a global `ack`, so that everyone may come to know that this version has been seen by everyone in this peer group.
       /// ``` js
-      /// {type: 'ack', seen: 'global', version: 'VERSION_ID', conn: 'CONN_ID'}
+      /// {cmd: 'ack', seen: 'global', version: 'VERSION_ID', conn: 'CONN_ID'}
       /// ```
-      if (type == "ack" && seen == "global") {
-        let m = self.ackmes[ackme];
+      if (cmd == "ack" && seen == "global") {
+        let m = self.marcos[marco];
 
         if (!m || m.cancelled) return;
 
         let t = get_time() - m.time2;
         let weight = 0.1;
-        self.ackme_time_est_2 =
-          weight * t + (1 - weight) * self.ackme_time_est_2;
+        self.marco_time_est_2 =
+          weight * t + (1 - weight) * self.marco_time_est_2;
 
-        if (m.real_ackme && Object.keys(self.ackme_map[m.key]).length == 1) {
-          self.ackme_current_wait_time *= 0.8;
+        if (m.real_marco && Object.keys(self.marco_map[m.key]).length == 1) {
+          self.marco_current_wait_time *= 0.8;
         }
 
-        add_full_ack_leaves(ackme, conn);
+        add_full_ack_leaves(marco, conn);
       }
-      function add_full_ack_leaves(ackme, conn) {
-        let m = self.ackmes[ackme];
+      function add_full_ack_leaves(marco, conn) {
+        let m = self.marcos[marco];
         if (!m || m.cancelled) return;
         m.cancelled = true;
 
         for (let [c, cc] of Object.entries(self.conns))
           if (c != conn && cc.seq <= m.seq)
             send({
-              type: "ack",
+              cmd: "ack",
               seen: "global",
-              ackme,
-              versions: ackme_versions,
+              marco,
+              versions: marco_versions,
               conn: c,
             });
 
@@ -722,7 +717,7 @@ var sequence_crdt = {};
         for (let c of Object.keys(self.conns))
           if (c != conn)
             send({
-              type: added_versions.length ? "welcome" : "fissure",
+              cmd: added_versions.length ? "welcome" : "fissure",
               ...(added_versions.length ? { versions: added_versions } : {}),
               fissures: copy_fissures(fissures_forward),
               conn: c,
@@ -732,42 +727,43 @@ var sequence_crdt = {};
       if (fissures_forward.length) resolve_fissures();
 
       if (
-        !self.ackme_timeout &&
-        type != "update" &&
-        type != "ackme" &&
+        !self.marco_timeout &&
+        cmd != "set" &&
+        cmd != "marco" &&
         prune(true)
       ) {
-        if (!self.ackme_current_wait_time) {
-          self.ackme_current_wait_time =
-            4 * (self.ackme_time_est_1 + self.ackme_time_est_2);
+        if (!self.marco_current_wait_time) {
+          self.marco_current_wait_time =
+            4 * (self.marco_time_est_1 + self.marco_time_est_2);
         }
 
-        let t = Math.random() * self.ackme_current_wait_time;
+        let t = Math.random() * self.marco_current_wait_time;
 
-        self.ackme_timeout = set_timeout(() => {
-          self.ackme_increases_allowed = 1;
-          self.ackme_timeout = null;
-          if (prune(true)) self.ackme();
+        self.marco_timeout = set_timeout(() => {
+          self.marco_increases_allowed = 1;
+          self.marco_timeout = null;
+          if (prune(true)) self.marco();
         }, t);
       }
 
-      if (type == "welcome" && peer == null && prune(true, null, true))
-        self.ackme();
+      if (cmd == "welcome" && peer == null && prune(true, null, true))
+        self.marco();
 
       return rebased_patches;
     };
 
-    /// # antimatter_crdt.subscribe(conn)
+    /// # antimatter_crdt.get(conn) or connect(conn)
     ///
-    /// Register a new connection with id `conn` – triggers this antimatter_crdt object to send a `subscribe` message over the given connection. 
+    /// Register a new connection with id `conn` – triggers this antimatter_crdt object to send a `get` message over the given connection. 
     ///
     /// ``` js
-    /// alice_antimatter_crdt.subscribe('connection_to_bob')
+    /// alice_antimatter_crdt.get('connection_to_bob')
     /// ```
-    self.subscribe = (conn) => {
+    self.get = (conn) => {
       self.proto_conns[conn] = true;
-      send({ type: "subscribe", peer: self.id, conn });
+      send({ cmd: "get", peer: self.id, conn });
     };
+    self.connect = self.get;
 
     /// # antimatter_crdt.forget(conn)
     ///
@@ -780,7 +776,7 @@ var sequence_crdt = {};
       await new Promise((done) => {
         if (self.conns[conn] != null) {
           self.forget_cbs[conn] = done;
-          send({ type: "forget", conn });
+          send({ cmd: "forget", conn });
         }
         self.disconnect(conn, false);
       });
@@ -803,53 +799,53 @@ var sequence_crdt = {};
 
         if (fissure) {
           fissure = create_fissure(peer, conn);
-          if (fissure) self.receive({ type: "fissure", fissure });
+          if (fissure) self.receive({ cmd: "fissure", fissure });
         }
       }
     };
 
-    /// # antimatter_crdt.update(...patches)
+    /// # antimatter_crdt.set(...patches)
     ///
     /// Modify this antimatter_crdt object by applying the given patches. Each patch looks like `{range: '.life.meaning', content: 42}`. Calling this method will trigger calling the `send` callback to let our peers know about this change. 
     ///
     /// ``` js
-    /// antimatter_crdt.update({
+    /// antimatter_crdt.set({
     ///   range: '.life.meaning',
     ///   content: 42
     /// })
     /// ```
-    self.update = (...patches) => {
+    self.set = (...patches) => {
       var version = `${self.next_seq++}@${self.id}`;
       self.receive({
-        type: "update",
+        cmd: "set",
         version,
         parents: { ...self.current_version },
         patches,
-        ackme: Math.random().toString(36).slice(2),
+        marco: Math.random().toString(36).slice(2),
       });
       return version;
     };
 
-    /// # antimatter_crdt.ackme()
+    /// # antimatter_crdt.marco()
     ///
-    /// Initiate sending a `ackme` message to try and establish whether certain versions can be pruned. 
+    /// Initiate sending a `marco` message to try and establish whether certain versions can be pruned. 
     ///
     /// ``` js
-    /// antimatter_crdt.ackme()
+    /// antimatter_crdt.marco()
     /// ```
-    self.ackme = () => {
+    self.marco = () => {
       let versions = { ...self.current_version };
       Object.keys(versions).forEach((v) =>
         self.version_groups[v] && self.version_groups[v].forEach((v) => (versions[v] = true))
       );
 
-      let ackme = Math.random().toString(36).slice(2);
-      self.receive({ type: "ackme", ackme, versions });
-      return ackme;
+      let marco = Math.random().toString(36).slice(2);
+      self.receive({ cmd: "marco", marco, versions });
+      return marco;
     };
 
-    function cancel_ackmes() {
-      for (let m of Object.values(self.ackmes)) m.cancelled = true;
+    function cancel_marcos() {
+      for (let m of Object.values(self.marcos)) m.cancelled = true;
     }
 
     function create_fissure(peer, conn) {
@@ -882,7 +878,7 @@ var sequence_crdt = {};
       });
 
       if (Object.keys(unfissured).length) {
-        cancel_ackmes();
+        cancel_marcos();
 
         let ack_versions = self.ancestors(self.acked_boundary);
         let unfissured_descendants = self.descendants(unfissured, true);
@@ -993,16 +989,16 @@ var sequence_crdt = {};
 
       self.apply_bubbles(to_bubble);
 
-      for (let [k, m] of Object.entries(self.ackmes)) {
+      for (let [k, m] of Object.entries(self.marcos)) {
         let vs = Object.keys(m.versions);
         if (
           !vs.length ||
           !vs.every((v) => self.T[v] || self.version_groups[v])
         ) {
-          delete self.ackmes[k];
-          delete self.ackme_map[m.key][m.id];
-          if (!Object.keys(self.ackme_map[m.key]).length)
-            delete self.ackme_map[m.key];
+          delete self.marcos[k];
+          delete self.marco_map[m.key][m.id];
+          if (!Object.keys(self.marco_map[m.key]).length)
+            delete self.marco_map[m.key];
         }
       }
 
@@ -1023,15 +1019,16 @@ var sequence_crdt = {};
   /// ``` 
   create_json_crdt = (self) => {
     self = self || {};
-    if (self.S === undefined) self.S = null;
+    self.S = self.S || null;
     self.T = self.T || {};
-    if (self.root_version === undefined) self.root_version = null;
+    self.root_version = null;
     self.current_version = self.current_version || {};
     self.version_cache = self.version_cache || {};
 
     let is_lit = (x) => !x || typeof x != "object" || x.t == "lit";
     let get_lit = (x) => (x && typeof x == "object" && x.t == "lit" ? x.S : x);
     let make_lit = (x) => (x && typeof x == "object" ? { t: "lit", S: x } : x);
+    self = self || {};
 
     /// # json_crdt.read()
     ///
@@ -1091,7 +1088,7 @@ var sequence_crdt = {};
 
     /// # json_crdt.generate_braid(versions)
     ///
-    /// Returns an array of `update` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to `antimatter_crdt.receive()`, we'll reconstruct the data in this `json_crdt` data-structure, assuming the recipient already has the given `versions` (each version is represented as a key in an object, and each value is `true`).
+    /// Returns an array of `set` messages that each look like this: `{version, parents, patches, sort_keys}`, such that if we pass all these messages to `antimatter_crdt.receive()`, we'll reconstruct the data in this `json_crdt` data-structure, assuming the recipient already has the given `versions` (each version is represented as an object with a version, and each value is `true`).
     ///
     /// ``` js
     /// json_crdt.generate_braid({
@@ -1110,12 +1107,12 @@ var sequence_crdt = {};
 
       return Object.entries(self.version_cache)
         .filter((x) => !is_anc(x[0]))
-        .map(([version, update_message]) => {
+        .map(([version, set_message]) => {
           return (self.version_cache[version] =
-            update_message || generate_update_message(version));
+            set_message || generate_set_message(version));
         });
 
-      function generate_update_message(version) {
+      function generate_set_message(version) {
         if (!Object.keys(self.T[version]).length) {
           return {
             version,
@@ -1270,8 +1267,7 @@ var sequence_crdt = {};
       Object.entries(to_bubble).forEach(([version, bubble]) => {
         if (!self.T[version]) return;
 
-        if (self.my_where_are_they_now)
-          self.my_where_are_they_now[version] = bubble[0];
+        self.my_where_are_they_now[version] = bubble[0];
 
         if (version === bubble[1]) self.T[bubble[0]] = self.T[bubble[1]];
 
@@ -1460,7 +1456,7 @@ var sequence_crdt = {};
               );
             }
             cur = new_cur;
-            sequence_crdt.update(prev_S, prev_i, cur, is_anc);
+            sequence_crdt.set(prev_S, prev_i, cur, is_anc);
           }
           if (cur.t == "obj") {
             let x = cur.S[key];
@@ -1487,7 +1483,7 @@ var sequence_crdt = {};
               t: "str",
               S: sequence_crdt.create_node(self.root_version, cur),
             };
-            sequence_crdt.update(prev_S, prev_i, cur, is_anc);
+            sequence_crdt.set(prev_S, prev_i, cur, is_anc);
           } else if (cur.t == "lit") {
             if (!(cur.S instanceof Array)) throw Error("bad");
             cur = {
@@ -1497,7 +1493,7 @@ var sequence_crdt = {};
                 cur.S.map((x) => make_lit(x))
               ),
             };
-            sequence_crdt.update(prev_S, prev_i, cur, is_anc);
+            sequence_crdt.set(prev_S, prev_i, cur, is_anc);
           }
         }
         return cur;
@@ -1653,12 +1649,11 @@ var sequence_crdt = {};
 
   /// # sequence_crdt.generate_braid(root_node, version, is_anc)
   ///  
-  /// Reconstructs an array of splice-information which can be passed to `sequence_crdt.add_version` in order to add `version` to another `sequence_crdt` instance – the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key, ...], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
+  /// Reconstructs an array of splice-information which can be passed to `sequence_crdt.add_version` in order to add `version` to another `sequence_crdt` instance – the returned array looks like: `[[insert_pos, delete_count, insert_elems, sort_key], ...]`. `is_anc` is a function which accepts a version string and returns `true` if and only if the given version is an ancestor of `version` (i.e. a version which the author of `version` knew about when they created that version).
   ///
   /// ``` js
-  /// var root_node = sequence_crdt.create_node('root', '')
-  /// sequence_crdt.add_version(root_node, 'alice1', [[0, 0, 'hello']])
-  /// console.log(sequence_crdt.generate_braid(root_node, 'alice1', x => false)) // outputs [[0, 0, "hello", ...]]
+  /// var root_node = sequence_crdt.create_node('alice1', 'hello')
+  /// console.log(sequence_crdt.generate_braid(root_node, 'alice1', x => false)) // outputs [0, 0, "hello"]
   /// ```
   sequence_crdt.generate_braid = (S, version, is_anc, read_array_elements) => {
     if (!read_array_elements) read_array_elements = (x) => x;
@@ -1847,16 +1842,16 @@ var sequence_crdt = {};
     return ret;
   };
 
-  /// # sequence_crdt.update(root_node, i, v, is_anc)
+  /// # sequence_crdt.set(root_node, i, v, is_anc)
   /// 
   /// Sets the element at the `i`th position (0-based) in the `sequence_crdt` rooted at `root_node` to the value `v`, when only considering versions which result in `true` when passed to `is_anc`.
   /// 
   /// ``` js
-  /// sequence_crdt.update(root_node, 2, 'x', {
+  /// sequence_crdt.set(root_node, 2, 'x', {
   ///   alice1: true
   /// })
   /// ```
-  sequence_crdt.update = (S, i, v, is_anc) => {
+  sequence_crdt.set = (S, i, v, is_anc) => {
     var offset = 0;
     sequence_crdt.traverse(S, is_anc ? is_anc : () => true, (node) => {
       if (i - offset < node.elems.length) {
@@ -1923,7 +1918,7 @@ var sequence_crdt = {};
   /// 
   /// ``` js
   /// var node = sequence_crdt.create_node('alice1', 'hello') 
-  /// sequence_crdt.add_version(node, 'alice2', [[5, 0, ' world']], v => v == 'alice1') 
+  /// sequence_crdt.add_version(node, 'alice2', [[5, 0, ' world']], null, v => v == 'alice1') 
   /// ```
   sequence_crdt.add_version = (S, version, splices, is_anc) => {
     var rebased_splices = [];

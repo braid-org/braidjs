@@ -21,7 +21,7 @@ async function simple_d_ton(req, res, options = {}) {
     let peer = req.headers["peer"]
     res.my_peer = peer
 
-    let desired_type = req.headers.accept?.split(',')[0]
+    let desired_type = options.type ?? req.headers.accept?.split(',')[0]
 
     res.setHeader("Access-Control-Allow-Origin", "*")
     res.setHeader("Access-Control-Allow-Methods", "*")
@@ -41,7 +41,7 @@ async function simple_d_ton(req, res, options = {}) {
     }
 
     if ((req.method == "GET" || req.method == "HEAD") && (desired_type != "text/html") && req.subscribe) {
-        res.setHeader("Content-Type", desired_type)
+        res.setHeader("Content-Type", desired_type + '; charset=utf-8')
         res.setHeader("Editable", "true")
         if (req.headers["merge-type"] != "dt") {
             res.setHeader("Merge-Type", "simpleton")
@@ -134,7 +134,7 @@ async function simple_d_ton(req, res, options = {}) {
     }
 
     if (req.method == "GET" || req.method == "HEAD") {
-        res.setHeader("Content-Type", desired_type)
+        res.setHeader("Content-Type", desired_type + '; charset=utf-8')
         res.setHeader("Accept-Subscribe", "true")
 
         let doc = null
@@ -239,23 +239,32 @@ async function simple_d_ton(req, res, options = {}) {
         let patches = await req.patches()
         await my_prev_put_p
 
+        if (patches[0]?.unit === 'everything') {
+            patches[0].unit = 'text'
+            patches[0].range = `[0:${count_code_points(resource.doc.get())}]`
+        }
+
         let og_patches = patches
         patches = patches.map((p) => ({
             ...p,
             range: p.range.match(/\d+/g).map((x) => parseInt(x)),
+            ...(p.content ? {content: [...p.content]} : {}),
         }))
 
-        let og_v = req.version[0] || `${Math.random().toString(36).slice(2, 7)}-0`
+        let change_count = patches.reduce((a, b) => a + b.content.length + (b.range[1] - b.range[0]), 0)
+
+        let og_v = req.version[0] || `${Math.random().toString(36).slice(2, 7)}-${change_count - 1}`
 
         // reduce the version sequence by the number of char-edits
         let v = decode_version(og_v)
-        v = encode_version(v[0], v[1] + 1 - patches.reduce((a, b) => a + b.content.length + (b.range[1] - b.range[0]), 0))
+        v = encode_version(v[0], v[1] + 1 - change_count)
 
-        let ps = req.parents
-        if (!ps?.length) ps = ["root"]
+        let parents = resource.doc.getRemoteVersion().map((x) => encode_version(...x))
+        let og_parents = req.parents || parents
+        let ps = og_parents
+        if (!ps.length) ps = ["root"]
 
         let v_before = resource.doc.getLocalVersion()
-        let parents = resource.doc.getRemoteVersion().map((x) => encode_version(...x))
 
         let bytes = []
 
@@ -351,7 +360,7 @@ async function simple_d_ton(req, res, options = {}) {
 
                 if (client.my_timeout) {
                     if (client.my_peer == peer) {
-                        if (!v_eq(client.my_last_sent_version, req.parents)) {
+                        if (!v_eq(client.my_last_sent_version, og_parents)) {
                             // note: we don't add to client.my_unused_version_count,
                             // because we're already in a timeout;
                             // we'll just extend it here..
@@ -367,7 +376,7 @@ async function simple_d_ton(req, res, options = {}) {
 
                 let x = { version }
                 if (client.my_peer == peer) {
-                    if (!v_eq(client.my_last_sent_version, req.parents)) {
+                    if (!v_eq(client.my_last_sent_version, og_parents)) {
                         client.my_unused_version_count = (client.my_unused_version_count ?? 0) + 1
                         set_timeout()
                         continue
@@ -409,7 +418,7 @@ async function simple_d_ton(req, res, options = {}) {
 
         let x = {
             version: [og_v],
-            parents: req.parents,
+            parents: og_parents,
             patches: og_patches,
         }
         for (let client of resource.clients) {
@@ -417,6 +426,8 @@ async function simple_d_ton(req, res, options = {}) {
         }
 
         await resource.db_delta(resource.doc.getPatchSince(v_before))
+
+        options.put_cb?.(options.key, resource.doc.get())
 
         return done_my_turn(200)
     }
@@ -603,6 +614,7 @@ function OpLog_get_patches(bytes, op_runs) {
         let parents = parentss[i].map((x) => x.join("-"))
         let start = op_run.start
         let end = start + 1
+        if (op_run.content) op_run.content = [...op_run.content]
         let content = op_run.content?.[0]
         let len = op_run.end - op_run.start
         for (let j = 1; j <= len; j++) {
@@ -977,11 +989,11 @@ function relative_to_absolute_patches(patches) {
                 }
                 let x = { size: 0, left_size: 0, content: p.content, del }
                 avl.add(node, "left", x)
-                resize(x, x.content.length)
+                resize(x, count_code_points(x.content))
                 resize(node, node.size - (start + del))
             } else {
-                node.content = node.content.slice(0, start) + p.content + node.content.slice(start + del)
-                resize(node, node.content.length)
+                node.content = node.content.slice(0, codePoints_to_index(node.content, start)) + p.content + node.content.slice(codePoints_to_index(node.content, start + del))
+                resize(node, count_code_points(node.content))
             }
         } else {
             let next
@@ -998,7 +1010,7 @@ function relative_to_absolute_patches(patches) {
                     if (start == 0) {
                         node.content = p.content
                         node.del = node.size + middle_del + remaining
-                        resize(node, node.content.length)
+                        resize(node, count_code_points(node.content))
                     } else {
                         let x = {
                             size: 0,
@@ -1008,26 +1020,26 @@ function relative_to_absolute_patches(patches) {
                         }
                         resize(node, start)
                         avl.add(node, "right", x)
-                        resize(x, x.content.length)
+                        resize(x, count_code_points(x.content))
                     }
                     resize(next, next.size - remaining)
                 } else {
                     next.del += node.size - start + middle_del
-                    next.content = p.content + next.content.slice(remaining)
+                    next.content = p.content + next.content.slice(codePoints_to_index(next.content, remaining))
                     resize(node, start)
                     if (node.size == 0) avl.del(node)
-                    resize(next, next.content.length)
+                    resize(next, count_code_points(next.content))
                 }
             } else {
                 if (next.content == null) {
                     node.del += middle_del + remaining
-                    node.content = node.content.slice(0, start) + p.content
-                    resize(node, node.content.length)
+                    node.content = node.content.slice(0, codePoints_to_index(node.content, start)) + p.content
+                    resize(node, count_code_points(node.content))
                     resize(next, next.size - remaining)
                 } else {
                     node.del += middle_del + next.del
-                    node.content = node.content.slice(0, start) + p.content + next.content.slice(remaining)
-                    resize(node, node.content.length)
+                    node.content = node.content.slice(0, codePoints_to_index(node.content, start)) + p.content + next.content.slice(codePoints_to_index(next.content, remaining))
+                    resize(node, count_code_points(node.content))
                     resize(next, 0)
                     avl.del(next)
                 }
@@ -1167,6 +1179,37 @@ function create_avl_tree(on_rotate) {
     }
 
     return self
+}
+
+function count_code_points(str) {
+  let code_points = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str.charCodeAt(i) >= 0xD800 && str.charCodeAt(i) <= 0xDBFF) i++;
+    code_points++;
+  }
+  return code_points;
+}
+
+function index_to_codePoints(str, index) {
+  let i = 0
+  let c = 0
+  while (i < index && i < str.length) {
+    const charCode = str.charCodeAt(i)
+    i += (charCode >= 0xd800 && charCode <= 0xdbff) ? 2 : 1
+    c++
+  }
+  return c
+}
+
+function codePoints_to_index(str, codePoints) {
+  let i = 0
+  let c = 0
+  while (c < codePoints && i < str.length) {
+    const charCode = str.charCodeAt(i)
+    i += (charCode >= 0xd800 && charCode <= 0xdbff) ? 2 : 1
+    c++
+  }
+  return i
 }
 
 module.exports = { simple_d_ton }

@@ -1,0 +1,11 @@
+This is a demo blog / chat.
+
+To run the demo:
+
+    git clone https://github.com/braid-work/braidjs.git
+    cd braidjs/demos/blog
+    npm install express http2-express-bridge
+    node server.js
+
+Then open https://localhost:3009/ in your browser, and then click through the
+self-signed certificate warnings to "proceed anyway".
