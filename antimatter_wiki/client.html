@@ -159,13 +159,14 @@ async function create_antimatter_client(url, cb, on_receive) {
             let r
             try {
                 if (!done) on_receive?.(m)
+                if (m.type === 'error') throw new Error(m.message)
                 r = a.receive(m)
             } catch (e) {
                 a.disconnect(ws.my_id)
                 ws.onclose = () => {}
                 ws.close()
                 alert('copy your work, and reload -- lost sync with server')
-                return
+                throw e
             }
 
             if (m.cmd == 'welcome') resolve_old_fissures()

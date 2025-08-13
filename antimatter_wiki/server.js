@@ -167,7 +167,11 @@ wss.on('connection', (ws, req) => {
 
         var a = await a_p
         a.write_to_log({receive: x})
-        a.receive(x)
+        try {
+            a.receive(x)
+        } catch (e) {
+            ws.send(JSON.stringify({type: 'error', message: e.message}))
+        }
     })
     ws.on('close', async () => {
         if (!conn) return

@@ -142,3 +142,6 @@ april-db-backup
 jan-db-backup-2025
 db
 server.sh
+
+# apple
+.DS_Store
