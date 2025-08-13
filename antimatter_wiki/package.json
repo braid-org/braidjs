@@ -1,6 +1,6 @@
 {
   "name": "@braidjs/antimatter_wiki",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "collaborative wiki using antimatter sync algorithm",
   "main": "server.js",
   "author": "Braid Working Group",

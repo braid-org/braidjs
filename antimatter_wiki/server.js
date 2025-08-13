@@ -1,5 +1,5 @@
 
-console.log('0.1.4')
+console.log(require('./package.json').version)
 
 var fs = require('fs')
 var fs_p = require('fs/promises')
@@ -107,6 +107,7 @@ async function ensure_antimatter(key) {
 function respond_with_client (req, res) {
     var client_html = fs.readFileSync('./client.html')
     client_html = '' + client_html
+    client_html = client_html.replace(/__VERSION__/, `${require('./package.json').version}`)
     client_html = client_html.replace(/__WIKI_HOST__/, `${ws_url}`)
     var etag = require('crypto').createHash('md5').update(client_html).digest('hex')
     if (req.headers['if-none-match'] === etag) {
