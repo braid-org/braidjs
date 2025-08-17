@@ -1,3 +1,5 @@
+# MOVED TO https://github.com/braid-org/antimatter_wiki
+
 # Antimatter Wiki
 
 A collaborative wiki based on the [Antimatter Algorithm](https://braid.org/antimatter).
